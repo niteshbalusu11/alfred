@@ -47,6 +47,7 @@ export DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/alfred
 export DATA_ENCRYPTION_KEY=dev-only-change-me
 export CLERK_ISSUER=https://your-tenant.clerk.accounts.dev
 export CLERK_AUDIENCE=alfred-api
+export CLERK_SECRET_KEY=sk_test_replace_me
 export GOOGLE_OAUTH_CLIENT_ID=dev-client-id
 export GOOGLE_OAUTH_CLIENT_SECRET=dev-client-secret
 export GOOGLE_OAUTH_REDIRECT_URI=http://localhost/oauth/callback
@@ -65,6 +66,7 @@ export DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/alfred
 export DATA_ENCRYPTION_KEY=dev-only-change-me
 export CLERK_ISSUER=https://your-tenant.clerk.accounts.dev
 export CLERK_AUDIENCE=alfred-api
+export CLERK_SECRET_KEY=sk_test_replace_me
 export GOOGLE_OAUTH_CLIENT_ID=dev-client-id
 export GOOGLE_OAUTH_CLIENT_SECRET=dev-client-secret
 export TEE_ATTESTATION_REQUIRED=false
@@ -200,12 +202,16 @@ There is currently no committed Dockerfile/Terraform/Kubernetes manifest in this
 Shared:
 1. `DATABASE_URL`
 2. `DATA_ENCRYPTION_KEY`
-3. `GOOGLE_OAUTH_CLIENT_ID`
-4. `GOOGLE_OAUTH_CLIENT_SECRET`
-5. `GOOGLE_OAUTH_REDIRECT_URI`
-6. `GOOGLE_OAUTH_AUTH_URL` (optional default exists)
-7. `GOOGLE_OAUTH_TOKEN_URL` (optional default exists)
-8. `GOOGLE_OAUTH_REVOKE_URL` (optional default exists)
+3. `CLERK_ISSUER`
+4. `CLERK_AUDIENCE`
+5. `CLERK_SECRET_KEY`
+6. `CLERK_BACKEND_API_URL` (optional default is `https://api.clerk.com/v1`)
+7. `GOOGLE_OAUTH_CLIENT_ID`
+8. `GOOGLE_OAUTH_CLIENT_SECRET`
+9. `GOOGLE_OAUTH_REDIRECT_URI`
+10. `GOOGLE_OAUTH_AUTH_URL` (optional default exists)
+11. `GOOGLE_OAUTH_TOKEN_URL` (optional default exists)
+12. `GOOGLE_OAUTH_REVOKE_URL` (optional default exists)
 
 API:
 1. `API_BIND_ADDR` (for cloud: usually `0.0.0.0:8080`)

@@ -15,6 +15,7 @@ pub struct ApiConfig {
     pub oauth_state_ttl_seconds: u64,
     pub clerk_issuer: String,
     pub clerk_audience: String,
+    pub clerk_secret_key: String,
     pub clerk_jwks_url: String,
     pub google_client_id: String,
     pub google_client_secret: String,
@@ -133,12 +134,20 @@ impl ApiConfig {
                 "CLERK_AUDIENCE must not be empty".to_string(),
             ));
         }
-        let clerk_jwks_url = optional_trimmed_env("CLERK_JWKS_URL").unwrap_or_else(|| {
-            format!(
-                "{}/.well-known/jwks.json",
-                clerk_issuer.trim_end_matches('/')
-            )
-        });
+        let clerk_secret_key = require_env("CLERK_SECRET_KEY")?;
+        if clerk_secret_key.trim().is_empty() {
+            return Err(ConfigError::InvalidConfiguration(
+                "CLERK_SECRET_KEY must not be empty".to_string(),
+            ));
+        }
+        let clerk_backend_api_url = optional_trimmed_env("CLERK_BACKEND_API_URL")
+            .unwrap_or_else(|| "https://api.clerk.com/v1".to_string());
+        if clerk_backend_api_url.trim().is_empty() {
+            return Err(ConfigError::InvalidConfiguration(
+                "CLERK_BACKEND_API_URL must not be empty".to_string(),
+            ));
+        }
+        let clerk_jwks_url = format!("{}/jwks", clerk_backend_api_url.trim_end_matches('/'));
 
         Ok(Self {
             bind_addr: env::var("API_BIND_ADDR").unwrap_or_else(|_| "127.0.0.1:8080".to_string()),
@@ -153,6 +162,7 @@ impl ApiConfig {
             oauth_state_ttl_seconds: parse_u64_env("OAUTH_STATE_TTL_SECONDS", 600)?,
             clerk_issuer,
             clerk_audience,
+            clerk_secret_key,
             clerk_jwks_url,
             google_client_id: require_env("GOOGLE_OAUTH_CLIENT_ID")?,
             google_client_secret: require_env("GOOGLE_OAUTH_CLIENT_SECRET")?,

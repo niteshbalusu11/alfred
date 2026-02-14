@@ -41,6 +41,7 @@ pub struct AppState {
     pub oauth_state_ttl_seconds: u64,
     pub clerk_issuer: String,
     pub clerk_audience: String,
+    pub clerk_secret_key: String,
     pub clerk_jwks_url: String,
     pub http_client: reqwest::Client,
 }

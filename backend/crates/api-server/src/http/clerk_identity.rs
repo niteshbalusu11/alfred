@@ -46,6 +46,7 @@ struct ClerkJwk {
 pub(super) async fn verify_identity_token(
     http_client: &reqwest::Client,
     jwks_url: &str,
+    clerk_secret_key: &str,
     expected_issuer: &str,
     expected_audience: &str,
     identity_token: &str,
@@ -78,6 +79,7 @@ pub(super) async fn verify_identity_token(
 
     let jwks: ClerkJwks = http_client
         .get(jwks_url)
+        .bearer_auth(clerk_secret_key)
         .send()
         .await
         .map_err(|_| ClerkIdentityError::UpstreamUnavailable {

@@ -96,6 +96,7 @@ async fn main() {
         oauth_state_ttl_seconds: config.oauth_state_ttl_seconds,
         clerk_issuer: config.clerk_issuer,
         clerk_audience: config.clerk_audience,
+        clerk_secret_key: config.clerk_secret_key,
         clerk_jwks_url: config.clerk_jwks_url,
         http_client: reqwest::Client::new(),
     });
