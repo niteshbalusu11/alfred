@@ -13,6 +13,7 @@ const DEFAULT_MEETING_REMINDER_MINUTES: i32 = 15;
 const DEFAULT_MORNING_BRIEF_LOCAL_TIME: &str = "08:00";
 const DEFAULT_QUIET_HOURS_START: &str = "22:00";
 const DEFAULT_QUIET_HOURS_END: &str = "07:00";
+pub const LEGACY_CONNECTOR_TOKEN_KEY_ID: &str = "__legacy__";
 
 #[derive(Debug, Clone)]
 pub enum AuditResult {
@@ -63,9 +64,10 @@ pub struct Store {
 }
 
 #[derive(Debug, Clone)]
-pub struct ConnectorSecret {
+pub struct ConnectorKeyMetadata {
     pub provider: String,
-    pub refresh_token: String,
+    pub token_key_id: String,
+    pub token_version: i32,
 }
 
 impl Store {
@@ -239,16 +241,35 @@ impl Store {
         user_id: Uuid,
         refresh_token: &str,
         scopes: &[String],
+        token_key_id: &str,
+        token_version: i32,
     ) -> Result<Uuid, StoreError> {
         self.ensure_user(user_id).await?;
 
         let connector_id: Uuid = sqlx::query_scalar(
-            "INSERT INTO connectors (user_id, provider, scopes, refresh_token_ciphertext, status)
-             VALUES ($1, 'google', $2, pgp_sym_encrypt($3, $4), 'ACTIVE')
+            "INSERT INTO connectors (
+                user_id,
+                provider,
+                scopes,
+                refresh_token_ciphertext,
+                token_key_id,
+                token_version,
+                token_rotated_at,
+                status
+             )
+             VALUES ($1, 'google', $2, pgp_sym_encrypt($3, $6), $4, $5, NOW(), 'ACTIVE')
              ON CONFLICT (user_id, provider)
              DO UPDATE SET
                scopes = EXCLUDED.scopes,
-               refresh_token_ciphertext = pgp_sym_encrypt($3, $4),
+               refresh_token_ciphertext = pgp_sym_encrypt($3, $6),
+               token_key_id = EXCLUDED.token_key_id,
+               token_version = EXCLUDED.token_version,
+               token_rotated_at = CASE
+                 WHEN connectors.token_key_id <> EXCLUDED.token_key_id
+                   OR connectors.token_version <> EXCLUDED.token_version
+                 THEN NOW()
+                 ELSE connectors.token_rotated_at
+               END,
                status = 'ACTIVE',
                revoked_at = NULL
              RETURNING id",
@@ -256,6 +277,8 @@ impl Store {
         .bind(user_id)
         .bind(scopes)
         .bind(refresh_token)
+        .bind(token_key_id)
+        .bind(token_version)
         .bind(&self.data_encryption_key)
         .fetch_one(&self.pool)
         .await?;
@@ -281,13 +304,13 @@ impl Store {
         Ok(result.rows_affected() > 0)
     }
 
-    pub async fn get_active_connector_secret(
+    pub async fn get_active_connector_key_metadata(
         &self,
         user_id: Uuid,
         connector_id: Uuid,
-    ) -> Result<Option<ConnectorSecret>, StoreError> {
+    ) -> Result<Option<ConnectorKeyMetadata>, StoreError> {
         let row = sqlx::query(
-            "SELECT provider, pgp_sym_decrypt(refresh_token_ciphertext, $3) AS refresh_token
+            "SELECT provider, token_key_id, token_version
              FROM connectors
              WHERE id = $1
                AND user_id = $2
@@ -295,19 +318,75 @@ impl Store {
         )
         .bind(connector_id)
         .bind(user_id)
-        .bind(&self.data_encryption_key)
         .fetch_optional(&self.pool)
         .await?;
 
         row.map(|row| {
             let provider: String = row.try_get("provider")?;
-            let refresh_token: String = row.try_get("refresh_token")?;
-            Ok(ConnectorSecret {
+            let token_key_id: String = row.try_get("token_key_id")?;
+            let token_version: i32 = row.try_get("token_version")?;
+            Ok(ConnectorKeyMetadata {
                 provider,
-                refresh_token,
+                token_key_id,
+                token_version,
             })
         })
         .transpose()
+    }
+
+    pub async fn decrypt_active_connector_refresh_token(
+        &self,
+        user_id: Uuid,
+        connector_id: Uuid,
+        token_key_id: &str,
+        token_version: i32,
+    ) -> Result<Option<String>, StoreError> {
+        let refresh_token = sqlx::query_scalar(
+            "SELECT pgp_sym_decrypt(refresh_token_ciphertext, $5) AS refresh_token
+             FROM connectors
+             WHERE id = $1
+               AND user_id = $2
+               AND status = 'ACTIVE'
+               AND token_key_id = $3
+               AND token_version = $4",
+        )
+        .bind(connector_id)
+        .bind(user_id)
+        .bind(token_key_id)
+        .bind(token_version)
+        .bind(&self.data_encryption_key)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(refresh_token)
+    }
+
+    pub async fn adopt_legacy_connector_token_key_id(
+        &self,
+        user_id: Uuid,
+        connector_id: Uuid,
+        token_key_id: &str,
+        token_version: i32,
+    ) -> Result<bool, StoreError> {
+        let result = sqlx::query(
+            "UPDATE connectors
+             SET token_key_id = $3,
+                 token_version = $4,
+                 token_rotated_at = NOW()
+             WHERE id = $1
+               AND user_id = $2
+               AND status = 'ACTIVE'
+               AND token_key_id = $5",
+        )
+        .bind(connector_id)
+        .bind(user_id)
+        .bind(token_key_id)
+        .bind(token_version)
+        .bind(LEGACY_CONNECTOR_TOKEN_KEY_ID)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(result.rows_affected() > 0)
     }
 
     pub async fn get_or_create_preferences(

@@ -18,6 +18,17 @@ pub struct ApiConfig {
     pub google_auth_url: String,
     pub google_token_url: String,
     pub google_revoke_url: String,
+    pub tee_attestation_required: bool,
+    pub tee_expected_runtime: String,
+    pub tee_allowed_measurements: Vec<String>,
+    pub tee_attestation_document: Option<String>,
+    pub tee_attestation_document_path: Option<PathBuf>,
+    pub tee_attestation_public_key: Option<String>,
+    pub tee_attestation_max_age_seconds: u64,
+    pub tee_allow_insecure_dev_attestation: bool,
+    pub kms_key_id: String,
+    pub kms_key_version: i32,
+    pub kms_allowed_measurements: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -34,10 +45,41 @@ pub enum ConfigError {
     MissingVar(String),
     #[error("invalid integer in env var {0}")]
     ParseInt(String),
+    #[error("invalid boolean in env var {0}")]
+    ParseBool(String),
+    #[error("invalid configuration: {0}")]
+    InvalidConfiguration(String),
 }
 
 impl ApiConfig {
     pub fn from_env() -> Result<Self, ConfigError> {
+        let tee_allowed_measurements =
+            parse_list_env("TEE_ALLOWED_MEASUREMENTS", &["dev-local-enclave"]);
+        let tee_attestation_required = parse_bool_env("TEE_ATTESTATION_REQUIRED", true)?;
+        let tee_allow_insecure_dev_attestation =
+            parse_bool_env("TEE_ALLOW_INSECURE_DEV_ATTESTATION", false)?;
+        let tee_attestation_document = env::var("TEE_ATTESTATION_DOCUMENT").ok();
+        let tee_attestation_document_path = env::var("TEE_ATTESTATION_DOCUMENT_PATH")
+            .ok()
+            .map(PathBuf::from);
+
+        if tee_attestation_required
+            && !tee_allow_insecure_dev_attestation
+            && tee_attestation_document_path.is_none()
+        {
+            return Err(ConfigError::InvalidConfiguration(
+                "TEE_ATTESTATION_DOCUMENT_PATH is required when secure attestation mode is enabled"
+                    .to_string(),
+            ));
+        }
+
+        if tee_attestation_document_path.is_none() && tee_attestation_document.is_none() {
+            return Err(ConfigError::InvalidConfiguration(
+                "either TEE_ATTESTATION_DOCUMENT_PATH or TEE_ATTESTATION_DOCUMENT must be set"
+                    .to_string(),
+            ));
+        }
+
         Ok(Self {
             bind_addr: env::var("API_BIND_ADDR").unwrap_or_else(|_| "127.0.0.1:8080".to_string()),
             database_url: require_env("DATABASE_URL")?,
@@ -59,6 +101,22 @@ impl ApiConfig {
                 .unwrap_or_else(|_| "https://oauth2.googleapis.com/token".to_string()),
             google_revoke_url: env::var("GOOGLE_OAUTH_REVOKE_URL")
                 .unwrap_or_else(|_| "https://oauth2.googleapis.com/revoke".to_string()),
+            tee_attestation_required,
+            tee_expected_runtime: env::var("TEE_EXPECTED_RUNTIME")
+                .unwrap_or_else(|_| "nitro".to_string()),
+            tee_allowed_measurements: tee_allowed_measurements.clone(),
+            tee_attestation_document,
+            tee_attestation_document_path,
+            tee_attestation_public_key: env::var("TEE_ATTESTATION_PUBLIC_KEY").ok(),
+            tee_attestation_max_age_seconds: parse_u64_env("TEE_ATTESTATION_MAX_AGE_SECONDS", 300)?,
+            tee_allow_insecure_dev_attestation,
+            kms_key_id: env::var("KMS_KEY_ID")
+                .unwrap_or_else(|_| "kms/local/alfred-refresh-token".to_string()),
+            kms_key_version: parse_i32_env("KMS_KEY_VERSION", 1)?,
+            kms_allowed_measurements: parse_list_env_with_fallback(
+                "KMS_ALLOWED_MEASUREMENTS",
+                &tee_allowed_measurements,
+            ),
         })
     }
 }
@@ -100,5 +158,57 @@ fn parse_u64_env(key: &str, default: u64) -> Result<u64, ConfigError> {
             .parse::<u64>()
             .map_err(|_| ConfigError::ParseInt(key.to_string())),
         Err(_) => Ok(default),
+    }
+}
+
+fn parse_i32_env(key: &str, default: i32) -> Result<i32, ConfigError> {
+    match env::var(key) {
+        Ok(raw) => raw
+            .parse::<i32>()
+            .map_err(|_| ConfigError::ParseInt(key.to_string())),
+        Err(_) => Ok(default),
+    }
+}
+
+fn parse_bool_env(key: &str, default: bool) -> Result<bool, ConfigError> {
+    match env::var(key) {
+        Ok(raw) => {
+            let normalized = raw.trim().to_ascii_lowercase();
+            match normalized.as_str() {
+                "true" | "1" | "yes" | "on" => Ok(true),
+                "false" | "0" | "no" | "off" => Ok(false),
+                _ => Err(ConfigError::ParseBool(key.to_string())),
+            }
+        }
+        Err(_) => Ok(default),
+    }
+}
+
+fn parse_list_env(key: &str, default: &[&str]) -> Vec<String> {
+    match env::var(key) {
+        Ok(raw) => parse_csv_list(raw),
+        Err(_) => default.iter().map(|item| (*item).to_string()).collect(),
+    }
+}
+
+fn parse_list_env_with_fallback(key: &str, fallback: &[String]) -> Vec<String> {
+    match env::var(key) {
+        Ok(raw) => parse_csv_list(raw),
+        Err(_) => fallback.to_vec(),
+    }
+}
+
+fn parse_csv_list(raw: String) -> Vec<String> {
+    let parsed = raw
+        .split(',')
+        .map(str::trim)
+        .filter(|item| !item.is_empty())
+        .map(ToString::to_string)
+        .collect::<Vec<_>>();
+
+    if parsed.is_empty() {
+        vec!["dev-local-enclave".to_string()]
+    } else {
+        parsed
     }
 }
