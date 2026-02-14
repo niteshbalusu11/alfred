@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+use std::time::Duration;
 
 use shared::config::ApiConfig;
 use shared::repos::Store;
@@ -51,6 +52,9 @@ async fn main() {
         std::process::exit(1);
     }
 
+    let rate_limiter = http::RateLimiter::default();
+    let _rate_limiter_pruner = rate_limiter.spawn_pruner(Duration::from_secs(60));
+
     let app = http::build_router(http::AppState {
         store,
         oauth: http::OAuthConfig {
@@ -82,7 +86,7 @@ async fn main() {
             config.tee_attestation_document,
             config.tee_attestation_document_path,
         ),
-        rate_limiter: http::RateLimiter::default(),
+        rate_limiter,
         session_ttl_seconds: config.session_ttl_seconds,
         oauth_state_ttl_seconds: config.oauth_state_ttl_seconds,
         http_client: reqwest::Client::new(),
@@ -101,5 +105,10 @@ async fn main() {
         "api server listening on {}",
         listener.local_addr().unwrap_or(addr)
     );
-    axum::serve(listener, app).await.expect("server should run");
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .expect("server should run");
 }

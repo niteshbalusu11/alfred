@@ -69,30 +69,41 @@ pub fn build_router(app_state: AppState) -> Router {
         )
         .route(
             "/v1/connectors/google/start",
-            post(connectors::start_google_connect),
+            post(connectors::start_google_connect).layer(middleware::from_fn_with_state(
+                protected_rate_limit_layer_state.clone(),
+                rate_limit::sensitive_rate_limit_middleware,
+            )),
         )
         .route(
             "/v1/connectors/google/callback",
-            post(connectors::complete_google_connect),
+            post(connectors::complete_google_connect).layer(middleware::from_fn_with_state(
+                protected_rate_limit_layer_state.clone(),
+                rate_limit::sensitive_rate_limit_middleware,
+            )),
         )
         .route(
             "/v1/connectors/{connector_id}",
-            delete(connectors::revoke_connector),
+            delete(connectors::revoke_connector).layer(middleware::from_fn_with_state(
+                protected_rate_limit_layer_state.clone(),
+                rate_limit::sensitive_rate_limit_middleware,
+            )),
         )
         .route(
             "/v1/preferences",
             get(preferences::get_preferences).put(preferences::update_preferences),
         )
         .route("/v1/audit-events", get(audit::list_audit_events))
-        .route("/v1/privacy/delete-all", post(privacy::delete_all))
+        .route(
+            "/v1/privacy/delete-all",
+            post(privacy::delete_all).layer(middleware::from_fn_with_state(
+                protected_rate_limit_layer_state,
+                rate_limit::sensitive_rate_limit_middleware,
+            )),
+        )
         .route(
             "/v1/privacy/delete-all/{request_id}",
             get(privacy::get_delete_all_status),
         )
-        .layer(middleware::from_fn_with_state(
-            protected_rate_limit_layer_state,
-            rate_limit::sensitive_rate_limit_middleware,
-        ))
         .layer(middleware::from_fn_with_state(
             auth_layer_state,
             authn::auth_middleware,
