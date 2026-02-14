@@ -1,4 +1,5 @@
 use std::env;
+use std::io::ErrorKind;
 use std::net::IpAddr;
 use std::path::PathBuf;
 
@@ -78,6 +79,16 @@ pub enum ConfigError {
     ParseBool(String),
     #[error("invalid configuration: {0}")]
     InvalidConfiguration(String),
+    #[error("failed to load .env: {0}")]
+    Dotenv(String),
+}
+
+pub fn load_dotenv() -> Result<(), ConfigError> {
+    match dotenvy::dotenv() {
+        Ok(_) => Ok(()),
+        Err(dotenvy::Error::Io(err)) if err.kind() == ErrorKind::NotFound => Ok(()),
+        Err(err) => Err(ConfigError::Dotenv(err.to_string())),
+    }
 }
 
 impl ApiConfig {

@@ -1,4 +1,4 @@
-use shared::config::WorkerConfig;
+use shared::config::{WorkerConfig, load_dotenv};
 use shared::repos::Store;
 use shared::security::{KmsDecryptPolicy, SecretRuntime, TeeAttestationPolicy};
 use tokio::signal;
@@ -23,6 +23,11 @@ pub(crate) use types::{FailureClass, JobExecutionError, WorkerTickMetrics};
 
 #[tokio::main]
 async fn main() {
+    if let Err(err) = load_dotenv() {
+        eprintln!("{err}");
+        std::process::exit(1);
+    }
+
     tracing_subscriber::fmt()
         .with_env_filter(std::env::var("RUST_LOG").unwrap_or_else(|_| "worker=debug".to_string()))
         .init();
