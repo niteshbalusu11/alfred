@@ -15,8 +15,7 @@ struct alfredApp: App {
     @StateObject private var model: AppModel
 
     init() {
-        let publishableKey = AppConfiguration.clerkPublishableKey
-        assert(!publishableKey.isEmpty, "CLERK_PUBLISHABLE_KEY is required to initialize Clerk.")
+        let publishableKey = AppConfiguration.requiredClerkPublishableKey
         let configuredClerk = Clerk.configure(publishableKey: publishableKey)
         self.clerk = configuredClerk
         _model = StateObject(wrappedValue: AppModel(clerk: configuredClerk))
