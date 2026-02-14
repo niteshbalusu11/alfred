@@ -152,6 +152,8 @@ backend-worker:
   cd {{backend_dir}} && \
     DATABASE_URL="${DATABASE_URL:-postgres://postgres:postgres@127.0.0.1:5432/alfred}" \
     DATA_ENCRYPTION_KEY="${DATA_ENCRYPTION_KEY:-dev-only-change-me}" \
+    GOOGLE_OAUTH_CLIENT_ID="${GOOGLE_OAUTH_CLIENT_ID:-dev-client-id}" \
+    GOOGLE_OAUTH_CLIENT_SECRET="${GOOGLE_OAUTH_CLIENT_SECRET:-dev-client-secret}" \
     cargo run -p worker
 
 # Run API and worker together in one terminal session.
@@ -167,6 +169,8 @@ dev:
     (cd {{backend_dir}} && \
       DATABASE_URL="${DATABASE_URL:-postgres://postgres:postgres@127.0.0.1:5432/alfred}" \
       DATA_ENCRYPTION_KEY="${DATA_ENCRYPTION_KEY:-dev-only-change-me}" \
+      GOOGLE_OAUTH_CLIENT_ID="${GOOGLE_OAUTH_CLIENT_ID:-dev-client-id}" \
+      GOOGLE_OAUTH_CLIENT_SECRET="${GOOGLE_OAUTH_CLIENT_SECRET:-dev-client-secret}" \
       cargo run -p worker) & \
     wait
 

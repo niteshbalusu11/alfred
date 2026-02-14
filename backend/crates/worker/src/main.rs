@@ -1,17 +1,16 @@
-use std::collections::HashMap;
-
-use chrono::{DateTime, Duration as ChronoDuration, NaiveTime, Utc};
+use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use reqwest::StatusCode;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use shared::config::WorkerConfig;
 use shared::models::ApnsEnvironment;
-use shared::repos::{AuditResult, ClaimedJob, DeviceRegistration, JobType, Store};
+use shared::repos::{ClaimedJob, DeviceRegistration, Store};
 use shared::security::{KmsDecryptPolicy, SecretRuntime, TeeAttestationPolicy};
 use tokio::signal;
 use tokio::time::{self, Duration};
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
+mod job_actions;
 mod privacy_delete;
 mod privacy_delete_revoke;
 
@@ -120,15 +119,12 @@ struct NotificationContent {
     body: String,
 }
 
-#[derive(Debug, Deserialize)]
-struct NotificationJobPayload {
-    notification: Option<NotificationPayloadBody>,
-}
-
-#[derive(Debug, Deserialize)]
-struct NotificationPayloadBody {
-    title: String,
-    body: String,
+struct JobRuntime<'a> {
+    store: &'a Store,
+    config: &'a WorkerConfig,
+    secret_runtime: &'a SecretRuntime,
+    oauth_client: &'a reqwest::Client,
+    push_sender: &'a PushSender,
 }
 
 #[derive(Debug, Serialize)]
@@ -218,7 +214,15 @@ async fn main() {
                     &oauth_client,
                     worker_id,
                 ).await;
-                process_due_jobs(&store, &config, &push_sender, worker_id).await;
+                process_due_jobs(
+                    &store,
+                    &config,
+                    &secret_runtime,
+                    &oauth_client,
+                    &push_sender,
+                    worker_id,
+                )
+                .await;
             }
         }
     }
@@ -299,17 +303,28 @@ impl PushSender {
 async fn process_due_jobs(
     store: &Store,
     config: &WorkerConfig,
+    secret_runtime: &SecretRuntime,
+    oauth_client: &reqwest::Client,
     push_sender: &PushSender,
     worker_id: Uuid,
 ) {
+    let runtime = JobRuntime {
+        store,
+        config,
+        secret_runtime,
+        oauth_client,
+        push_sender,
+    };
+
     let now = Utc::now();
-    let claimed_jobs = match store
+    let claimed_jobs = match runtime
+        .store
         .claim_due_jobs(
             now,
             worker_id,
-            i64::from(config.batch_size),
-            i64::try_from(config.lease_seconds).unwrap_or(i64::MAX),
-            i32::try_from(config.per_user_concurrency_limit).unwrap_or(i32::MAX),
+            i64::from(runtime.config.batch_size),
+            i64::try_from(runtime.config.lease_seconds).unwrap_or(i64::MAX),
+            i32::try_from(runtime.config.per_user_concurrency_limit).unwrap_or(i32::MAX),
         )
         .await
     {
@@ -327,10 +342,10 @@ async fn process_due_jobs(
 
     for job in claimed_jobs {
         metrics.record_lag(job.due_at, now);
-        process_claimed_job(store, config, push_sender, worker_id, job, &mut metrics).await;
+        process_claimed_job(&runtime, worker_id, job, &mut metrics).await;
     }
 
-    let due_count = store.count_due_jobs(Utc::now()).await.unwrap_or(-1);
+    let due_count = runtime.store.count_due_jobs(Utc::now()).await.unwrap_or(-1);
 
     info!(
         worker_id = %worker_id,
@@ -354,17 +369,15 @@ async fn process_due_jobs(
 }
 
 async fn process_claimed_job(
-    store: &Store,
-    config: &WorkerConfig,
-    push_sender: &PushSender,
+    runtime: &JobRuntime<'_>,
     worker_id: Uuid,
     job: ClaimedJob,
     metrics: &mut WorkerTickMetrics,
 ) {
     metrics.processed_jobs += 1;
 
-    match execute_job(store, push_sender, &job, metrics).await {
-        Ok(()) => match store.mark_job_done(job.id, worker_id).await {
+    match execute_job(runtime, &job, metrics).await {
+        Ok(()) => match runtime.store.mark_job_done(job.id, worker_id).await {
             Ok(true) => {
                 metrics.successful_jobs += 1;
             }
@@ -392,14 +405,15 @@ async fn process_claimed_job(
 
             if can_retry {
                 let delay_seconds = retry_delay_seconds(
-                    config.retry_base_delay_seconds,
-                    config.retry_max_delay_seconds,
+                    runtime.config.retry_base_delay_seconds,
+                    runtime.config.retry_max_delay_seconds,
                     next_attempt,
                 );
                 let next_due_at = Utc::now()
                     + ChronoDuration::seconds(i64::try_from(delay_seconds).unwrap_or(i64::MAX));
 
-                match store
+                match runtime
+                    .store
                     .schedule_job_retry(
                         job.id,
                         worker_id,
@@ -439,7 +453,8 @@ async fn process_claimed_job(
                     }
                 }
             } else {
-                match store
+                match runtime
+                    .store
                     .mark_job_failed(&job, worker_id, next_attempt, &err.code, &err.message)
                     .await
                 {
@@ -477,12 +492,12 @@ async fn process_claimed_job(
 }
 
 async fn execute_job(
-    store: &Store,
-    push_sender: &PushSender,
+    runtime: &JobRuntime<'_>,
     job: &ClaimedJob,
     metrics: &mut WorkerTickMetrics,
 ) -> Result<(), JobExecutionError> {
-    let has_action_lease = store
+    let has_action_lease = runtime
+        .store
         .record_outbound_action_idempotency(job.user_id, &job.idempotency_key, job.id)
         .await
         .map_err(|err| {
@@ -502,8 +517,19 @@ async fn execute_job(
         return Ok(());
     }
 
-    if let Err(err) = dispatch_job_action(store, push_sender, job, metrics).await {
-        if let Err(release_err) = store
+    if let Err(err) = job_actions::dispatch_job_action(
+        runtime.store,
+        runtime.config,
+        runtime.secret_runtime,
+        runtime.oauth_client,
+        runtime.push_sender,
+        job,
+        metrics,
+    )
+    .await
+    {
+        if let Err(release_err) = runtime
+            .store
             .release_outbound_action_idempotency(job.user_id, &job.idempotency_key, job.id)
             .await
         {
@@ -519,289 +545,11 @@ async fn execute_job(
     Ok(())
 }
 
-async fn dispatch_job_action(
-    store: &Store,
-    push_sender: &PushSender,
-    job: &ClaimedJob,
-    metrics: &mut WorkerTickMetrics,
-) -> Result<(), JobExecutionError> {
-    if let Some(simulated_failure) = parse_simulated_failure(job.payload_ciphertext.as_deref()) {
-        return Err(simulated_failure);
-    }
-
-    let content = resolve_notification_content(job);
-
-    let preferences = store
-        .get_or_create_preferences(job.user_id)
-        .await
-        .map_err(|err| {
-            JobExecutionError::transient(
-                "PREFERENCES_READ_FAILED",
-                format!("failed to read user preferences: {err}"),
-            )
-        })?;
-
-    if is_within_quiet_hours(
-        Utc::now().time(),
-        &preferences.quiet_hours_start,
-        &preferences.quiet_hours_end,
-    )
-    .map_err(|message| JobExecutionError::permanent("INVALID_QUIET_HOURS", message))?
-    {
-        metrics.push_quiet_hours_suppressed += 1;
-
-        let mut metadata = HashMap::new();
-        metadata.insert("job_id".to_string(), job.id.to_string());
-        metadata.insert("job_type".to_string(), job.job_type.as_str().to_string());
-        metadata.insert("reason".to_string(), "quiet_hours".to_string());
-        metadata.insert(
-            "quiet_hours_start".to_string(),
-            preferences.quiet_hours_start.clone(),
-        );
-        metadata.insert(
-            "quiet_hours_end".to_string(),
-            preferences.quiet_hours_end.clone(),
-        );
-
-        record_notification_audit(
-            store,
-            job.user_id,
-            "NOTIFICATION_SUPPRESSED",
-            AuditResult::Success,
-            metadata,
-        )
-        .await;
-
-        info!(
-            job_id = %job.id,
-            user_id = %job.user_id,
-            quiet_hours_start = %preferences.quiet_hours_start,
-            quiet_hours_end = %preferences.quiet_hours_end,
-            "notification suppressed by quiet hours"
-        );
-
-        return Ok(());
-    }
-
-    let devices = store
-        .list_registered_devices(job.user_id)
-        .await
-        .map_err(|err| {
-            JobExecutionError::transient(
-                "DEVICE_LOOKUP_FAILED",
-                format!("failed to fetch registered devices: {err}"),
-            )
-        })?;
-
-    if devices.is_empty() {
-        return Err(JobExecutionError::permanent(
-            "NO_REGISTERED_DEVICE",
-            "no APNs device registered for user",
-        ));
-    }
-
-    let mut delivered = 0_usize;
-    let mut first_transient_error: Option<JobExecutionError> = None;
-    let mut first_permanent_error: Option<JobExecutionError> = None;
-
-    for device in &devices {
-        metrics.push_attempts += 1;
-
-        match push_sender.send(device, &content).await {
-            Ok(()) => {
-                delivered += 1;
-                metrics.push_delivered += 1;
-
-                let mut metadata = HashMap::new();
-                metadata.insert("job_id".to_string(), job.id.to_string());
-                metadata.insert("job_type".to_string(), job.job_type.as_str().to_string());
-                metadata.insert("device_id".to_string(), device.device_id.clone());
-                metadata.insert(
-                    "environment".to_string(),
-                    apns_environment_label(&device.environment).to_string(),
-                );
-                metadata.insert("outcome".to_string(), "delivered".to_string());
-
-                record_notification_audit(
-                    store,
-                    job.user_id,
-                    "NOTIFICATION_DELIVERY_ATTEMPT",
-                    AuditResult::Success,
-                    metadata,
-                )
-                .await;
-            }
-            Err(err) => {
-                let (error_code, error_message, class) = match &err {
-                    PushSendError::Transient { code, message } => {
-                        metrics.push_transient_failures += 1;
-                        (code.clone(), message.clone(), FailureClass::Transient)
-                    }
-                    PushSendError::Permanent { code, message } => {
-                        metrics.push_permanent_failures += 1;
-                        (code.clone(), message.clone(), FailureClass::Permanent)
-                    }
-                };
-
-                let mut metadata = HashMap::new();
-                metadata.insert("job_id".to_string(), job.id.to_string());
-                metadata.insert("job_type".to_string(), job.job_type.as_str().to_string());
-                metadata.insert("device_id".to_string(), device.device_id.clone());
-                metadata.insert(
-                    "environment".to_string(),
-                    apns_environment_label(&device.environment).to_string(),
-                );
-                metadata.insert("outcome".to_string(), "failed".to_string());
-                metadata.insert("error_code".to_string(), error_code.clone());
-
-                record_notification_audit(
-                    store,
-                    job.user_id,
-                    "NOTIFICATION_DELIVERY_ATTEMPT",
-                    AuditResult::Failure,
-                    metadata,
-                )
-                .await;
-
-                match class {
-                    FailureClass::Transient if first_transient_error.is_none() => {
-                        first_transient_error = Some(err.to_job_error())
-                    }
-                    FailureClass::Permanent if first_permanent_error.is_none() => {
-                        first_permanent_error = Some(err.to_job_error())
-                    }
-                    _ => {}
-                }
-
-                warn!(
-                    job_id = %job.id,
-                    user_id = %job.user_id,
-                    device_id = %device.device_id,
-                    error_code = %error_code,
-                    error_message = %error_message,
-                    "push delivery attempt failed"
-                );
-            }
-        }
-    }
-
-    if delivered > 0 {
-        return Ok(());
-    }
-
-    if let Some(err) = first_transient_error {
-        return Err(err);
-    }
-
-    if let Some(err) = first_permanent_error {
-        return Err(err);
-    }
-
-    Err(JobExecutionError::permanent(
-        "PUSH_DELIVERY_FAILED",
-        "push delivery failed without a classified error",
-    ))
-}
-
-async fn record_notification_audit(
-    store: &Store,
-    user_id: Uuid,
-    event_type: &str,
-    result: AuditResult,
-    metadata: HashMap<String, String>,
-) {
-    if let Err(err) = store
-        .add_audit_event(user_id, event_type, None, result, &metadata)
-        .await
-    {
-        warn!(
-            user_id = %user_id,
-            event_type = %event_type,
-            "failed to persist notification audit event: {err}"
-        );
-    }
-}
-
-fn resolve_notification_content(job: &ClaimedJob) -> NotificationContent {
-    if let Some(payload) = parse_notification_payload(job.payload_ciphertext.as_deref()) {
-        let title = payload.title.trim();
-        let body = payload.body.trim();
-
-        if !title.is_empty() && !body.is_empty() {
-            return NotificationContent {
-                title: title.to_string(),
-                body: body.to_string(),
-            };
-        }
-    }
-
-    match job.job_type {
-        JobType::MeetingReminder => NotificationContent {
-            title: "Meeting reminder".to_string(),
-            body: "You have a meeting coming up soon.".to_string(),
-        },
-        JobType::MorningBrief => NotificationContent {
-            title: "Morning brief".to_string(),
-            body: "Your Alfred morning brief is ready.".to_string(),
-        },
-        JobType::UrgentEmailCheck => NotificationContent {
-            title: "Urgent email alert".to_string(),
-            body: "Alfred detected an urgent email that needs attention.".to_string(),
-        },
-    }
-}
-
-fn parse_notification_payload(payload: Option<&[u8]>) -> Option<NotificationPayloadBody> {
-    let payload = payload?;
-    let parsed: NotificationJobPayload = serde_json::from_slice(payload).ok()?;
-    parsed.notification
-}
-
-fn parse_simulated_failure(payload: Option<&[u8]>) -> Option<JobExecutionError> {
-    let payload = payload?;
-    let text = std::str::from_utf8(payload).ok()?;
-
-    let mut parts = text.splitn(4, ':');
-    if parts.next()? != "simulate-failure" {
-        return None;
-    }
-
-    let class = parts.next()?;
-    let code = parts.next()?.trim();
-    let message = parts.next()?.trim();
-
-    match class {
-        "transient" => Some(JobExecutionError::transient(code, message)),
-        "permanent" => Some(JobExecutionError::permanent(code, message)),
-        _ => None,
-    }
-}
-
 fn apns_environment_label(environment: &ApnsEnvironment) -> &'static str {
     match environment {
         ApnsEnvironment::Sandbox => "sandbox",
         ApnsEnvironment::Production => "production",
     }
-}
-
-fn is_within_quiet_hours(now: NaiveTime, start: &str, end: &str) -> Result<bool, String> {
-    let start = parse_hhmm(start)?;
-    let end = parse_hhmm(end)?;
-
-    if start == end {
-        return Ok(true);
-    }
-
-    if start < end {
-        Ok(now >= start && now < end)
-    } else {
-        Ok(now >= start || now < end)
-    }
-}
-
-fn parse_hhmm(value: &str) -> Result<NaiveTime, String> {
-    NaiveTime::parse_from_str(value, "%H:%M")
-        .map_err(|_| format!("time must be in HH:MM format: {value}"))
 }
 
 fn classify_http_failure(status: StatusCode) -> FailureClass {
@@ -825,10 +573,9 @@ fn retry_delay_seconds(base_seconds: u64, max_seconds: u64, attempt: i32) -> u64
 
 #[cfg(test)]
 mod tests {
-    use chrono::NaiveTime;
     use reqwest::StatusCode;
 
-    use super::{FailureClass, classify_http_failure, is_within_quiet_hours, retry_delay_seconds};
+    use super::{FailureClass, classify_http_failure, retry_delay_seconds};
 
     #[test]
     fn retry_backoff_is_exponential_and_capped() {
@@ -836,32 +583,6 @@ mod tests {
         assert_eq!(retry_delay_seconds(30, 900, 2), 60);
         assert_eq!(retry_delay_seconds(30, 900, 3), 120);
         assert_eq!(retry_delay_seconds(30, 900, 10), 900);
-    }
-
-    #[test]
-    fn quiet_hours_supports_wrapped_ranges() {
-        let before_midnight = NaiveTime::from_hms_opt(23, 15, 0).expect("valid time");
-        let after_midnight = NaiveTime::from_hms_opt(6, 45, 0).expect("valid time");
-        let outside = NaiveTime::from_hms_opt(14, 0, 0).expect("valid time");
-
-        assert!(is_within_quiet_hours(before_midnight, "22:00", "07:00").expect("valid range"));
-        assert!(is_within_quiet_hours(after_midnight, "22:00", "07:00").expect("valid range"));
-        assert!(!is_within_quiet_hours(outside, "22:00", "07:00").expect("valid range"));
-    }
-
-    #[test]
-    fn quiet_hours_supports_non_wrapped_ranges() {
-        let in_range = NaiveTime::from_hms_opt(13, 0, 0).expect("valid time");
-        let out_of_range = NaiveTime::from_hms_opt(17, 0, 0).expect("valid time");
-
-        assert!(is_within_quiet_hours(in_range, "12:00", "14:00").expect("valid range"));
-        assert!(!is_within_quiet_hours(out_of_range, "12:00", "14:00").expect("valid range"));
-    }
-
-    #[test]
-    fn quiet_hours_with_equal_bounds_suppresses_all_day() {
-        let now = NaiveTime::from_hms_opt(9, 30, 0).expect("valid time");
-        assert!(is_within_quiet_hours(now, "08:00", "08:00").expect("valid range"));
     }
 
     #[test]
