@@ -37,6 +37,13 @@ Ship a private beta where iOS users can:
 
 ---
 
+## Auth Direction Update (2026-02-14)
+
+1. Phase I auth direction is now Clerk-based (GitHub epic: `#52`).
+2. New auth work should target Clerk migration issues (`#53`, `#54`, `#56`).
+3. Breaking auth changes are acceptable at this phase to move faster.
+4. Custom `/v1/auth/ios/session*` implementation should be removed or hard-disabled after Clerk integration.
+
 ## 5) Execution Board
 
 ### A) Product and Scope Control
@@ -55,7 +62,7 @@ Ship a private beta where iOS users can:
 
 | ID | Pri | Task | Owner | ETA | Status | Depends On | Exit Criteria |
 |---|---|---|---|---|---|---|---|
-| BE-001 | P0 | Replace stub `/v1/auth/ios/session` with real auth flow | BE | 2026-02-24 | DONE | PROD-001 | Endpoint backed by real session issuance |
+| BE-001 | P0 | Migrate backend auth to Clerk JWT verification and identity mapping | BE | 2026-02-26 | TODO | PROD-001 | Protected endpoints authorize Clerk tokens and map Clerk subject to stable user identity |
 | BE-002 | P0 | Add health/readiness endpoints | BE | 2026-02-20 | TODO | - | `/healthz` and `/readyz` live |
 | BE-003 | P0 | Add structured logging with request_id | BE | 2026-02-21 | TODO | BE-002 | Request logs include trace fields |
 | BE-004 | P0 | Standardize API error envelope/codes | BE | 2026-02-22 | TODO | BE-001 | All endpoints use common error format |
@@ -68,6 +75,7 @@ Ship a private beta where iOS users can:
 | BE-011 | P1 | Add endpoint-level rate limiting | BE | 2026-03-14 | DONE | BE-004 | Rate-limits enforced |
 | BE-012 | P1 | OpenAPI drift check in CI | BE | 2026-03-14 | TODO | BE-004 | CI fails on contract drift |
 | BE-013 | P1 | Refactor oversized security-critical backend modules for maintainability | BE | 2026-03-16 | DONE | BE-006, WRK-007 | `worker/src/main.rs` and `http/connectors.rs` decomposed into focused modules with behavior parity |
+| BE-014 | P0 | Deprecate legacy custom auth endpoints and align contracts/docs to Clerk | BE | 2026-03-04 | TODO | BE-001, IOS-001 | Legacy `/v1/auth/ios/session*` endpoints removed or disabled-by-default and docs/contracts updated |
 
 ### C) Database and Migrations
 
@@ -131,8 +139,8 @@ Ship a private beta where iOS users can:
 
 | ID | Pri | Task | Owner | ETA | Status | Depends On | Exit Criteria |
 |---|---|---|---|---|---|---|---|
-| IOS-001 | P0 | Add app session manager with Keychain-backed token storage | IOS | 2026-02-27 | TODO | BE-001 | Session persists and refreshes |
-| IOS-002 | P0 | Build onboarding + sign-in flow | IOS | 2026-03-02 | TODO | IOS-001 | User reaches connected home screen |
+| IOS-001 | P0 | Integrate Clerk iOS auth and API token provider wiring | IOS | 2026-02-27 | TODO | BE-001 | App obtains Clerk token and authenticated API calls succeed |
+| IOS-002 | P0 | Build onboarding + sign-in flow using Clerk | IOS | 2026-03-02 | TODO | IOS-001 | User signs in with Clerk and reaches connected home screen |
 | IOS-003 | P0 | Build Google connect UI flow | IOS | 2026-03-06 | TODO | BE-005 | Google connect completes in app |
 | IOS-004 | P0 | Build preferences screen | IOS | 2026-03-08 | TODO | BE-008 | Preferences read/write works |
 | IOS-005 | P0 | Build activity log screen | IOS | 2026-03-12 | TODO | BE-009 | Audit entries visible in app |
@@ -190,7 +198,7 @@ Ship a private beta where iOS users can:
 
 1. `PROD-001`, `PROD-003`, `PROD-006`
 2. `DB-001`, `DB-002`, `DB-005`
-3. `BE-005`, `BE-006`, `BE-008`, `BE-010`
+3. `BE-001`, `BE-005`, `BE-006`, `BE-008`, `BE-010`, `BE-014`
 4. `SEC-001` through `SEC-007`, `SEC-010`, `SEC-012`
 5. `WRK-001`, `WRK-004`, `WRK-005`, `WRK-006`, `WRK-007`
 6. `APNS-001`, `APNS-002`, `APNS-004`

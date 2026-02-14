@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use shared::config::ApiConfig;
+use shared::config::{ApiConfig, load_dotenv};
 use shared::repos::Store;
 use shared::security::{KmsDecryptPolicy, SecretRuntime, TeeAttestationPolicy};
 use tracing::{error, info};
@@ -10,6 +10,11 @@ mod http;
 
 #[tokio::main]
 async fn main() {
+    if let Err(err) = load_dotenv() {
+        eprintln!("{err}");
+        std::process::exit(1);
+    }
+
     tracing_subscriber::fmt()
         .with_env_filter(
             std::env::var("RUST_LOG")

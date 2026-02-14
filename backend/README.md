@@ -17,24 +17,38 @@ just infra-up
 just backend-migrate
 ```
 
-Default local connection string:
+## Local Environment File (`.env`)
+
+From repository root, create local runtime config:
 
 ```bash
-export DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/alfred
+cp .env.example .env
 ```
+
+Security notes:
+
+1. `.env` is ignored by git and must never contain production secrets.
+2. `.env.example` contains only safe placeholders for local development.
+3. Explicit shell environment variables override `.env` values.
 
 ## Run Services
 
-From `backend`:
+From repository root:
 
 ```bash
-cargo run -p api-server
+just api
 ```
 
 In a second terminal:
 
 ```bash
-cargo run -p worker
+just worker
+```
+
+Optional combined startup:
+
+```bash
+just dev
 ```
 
 ## Notes

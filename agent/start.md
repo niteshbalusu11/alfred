@@ -58,6 +58,14 @@ The project intentionally avoids smart-home control in v1 to reduce reliability 
 4. Shared crate:
    1. Shared request/response models and basic runtime config.
 
+## Authentication Source Of Truth (2026-02-14)
+
+1. Phase I auth direction is Clerk-based (epic `#52`).
+2. Use Clerk token verification/mapping path for new auth work (`#53`).
+3. Use Clerk iOS integration for app sign-in/token plumbing (`#54`).
+4. Remove or hard-disable custom `/v1/auth/ios/session*` flow as part of Clerk completion (`#56`).
+5. Breaking auth changes are acceptable during this migration.
+
 ## GitHub Issue-Driven Execution
 
 Primary execution queue is GitHub issues in:
@@ -184,11 +192,15 @@ Primary commands:
     1. Runs REST API server.
 23. `just backend-worker`
     1. Runs background worker.
-24. `just dev`
+24. `just api` (pending issue `#48`)
+    1. Planned alias for `just backend-api` once `.env` startup support lands.
+25. `just worker` (pending issue `#48`)
+    1. Planned alias for `just backend-worker` once `.env` startup support lands.
+26. `just dev`
     1. Runs API server + worker together.
-25. `just docs`
+27. `just docs`
     1. Prints key project documentation paths.
-26. `just sync-master`
+28. `just sync-master`
     1. Fetches remote, checks out `master`, and fast-forward pulls latest.
 
 ## Test and Quality Policy (Strict)

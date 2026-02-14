@@ -104,5 +104,6 @@ Use these docs as the source of truth:
 2. Contributor and agent workflow: [agent/start.md](agent/start.md)
 3. Security/scalability requirements: [docs/engineering-standards.md](docs/engineering-standards.md)
 4. API contract: [api/openapi.yaml](api/openapi.yaml)
+5. Cloud deploy + local manual testing guide: [docs/cloud-deployment-local-testing.md](docs/cloud-deployment-local-testing.md)
 
 Implementation work is issue-driven and prioritized by Phase I labels in GitHub (`phase-1`, then `P0` before `P1`).

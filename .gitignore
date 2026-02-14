@@ -11,3 +11,8 @@ target/
 # Xcode user-specific state
 *.xcuserstate
 xcuserdata/
+
+# Local environment files
+.env
+.env.*
+!.env.example

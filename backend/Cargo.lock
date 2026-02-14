@@ -1705,6 +1705,7 @@ version = "0.1.0"
 dependencies = [
  "base64",
  "chrono",
+ "dotenvy",
  "ed25519-dalek",
  "reqwest",
  "serde",

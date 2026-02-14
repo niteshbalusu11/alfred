@@ -69,7 +69,7 @@ They care most about:
 Core components:
 
 1. iOS app (`SwiftUI`) for onboarding, settings, and notifications.
-2. Rust API server (`axum`) for auth/connectors/preferences/privacy APIs.
+2. Rust API server (`axum`) for Clerk-authenticated connector/preferences/privacy APIs.
 3. Rust worker (`tokio`) for scheduled and proactive jobs.
 4. Encrypted Postgres for operational state.
 5. TEE-backed sensitive execution path for token/data decryption and provider fetches.
@@ -88,11 +88,12 @@ This is a hosted product, so privacy must be engineered into architecture, not a
 Required controls:
 
 1. Strict OAuth scope minimization.
-2. Encrypted secret/token storage.
-3. Sensitive decryption/processing in attested trusted environments.
-4. Redacted logs and auditability.
-5. User controls for revoke and delete-all.
-6. No silent broadening of data access.
+2. Managed identity provider controls for sign-in/session security (Clerk direction for Phase I migration).
+3. Encrypted secret/token storage.
+4. Sensitive decryption/processing in attested trusted environments.
+5. Redacted logs and auditability.
+6. User controls for revoke and delete-all.
+7. No silent broadening of data access.
 
 Operating rule:
 
