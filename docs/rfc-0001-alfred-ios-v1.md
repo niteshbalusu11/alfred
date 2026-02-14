@@ -290,7 +290,9 @@ user_id UUID NOT NULL,
 provider TEXT NOT NULL,
 scopes TEXT[] NOT NULL,
 refresh_token_ciphertext BYTEA NOT NULL,
+token_key_id TEXT NOT NULL,
 token_version INT NOT NULL DEFAULT 1,
+token_rotated_at TIMESTAMPTZ NOT NULL,
 status TEXT NOT NULL,
 created_at TIMESTAMPTZ NOT NULL,
 revoked_at TIMESTAMPTZ NULL
@@ -400,6 +402,20 @@ Mitigations:
 2. Strict RBAC + break-glass logging.
 3. Fetch windows/scopes minimized.
 4. Safe-action policy: external actions require user confirmation in v1.
+
+### 10.1 Trust Boundaries
+
+1. Boundary A: API host runtime is untrusted for connector-token plaintext.
+2. Boundary B: Attested enclave identity is trusted for decrypt operations only when measurement is allow-listed and attestation evidence is signed + fresh.
+3. Boundary C: KMS key policy binds decrypt capability to enclave measurement and key metadata (`token_key_id`, `token_version`).
+
+### 10.2 Decrypt Authorization Rules
+
+1. Connector decrypt is denied when attestation runtime does not match expected TEE runtime.
+2. Connector decrypt is denied when enclave measurement is not in allow-list.
+3. Connector decrypt is denied when attestation signature is invalid or attestation timestamp is outside allowed freshness window.
+4. Connector decrypt is denied when persisted connector key metadata does not match active KMS key policy.
+5. Connector decrypt is permitted only after all four checks pass.
 
 ## 11. Observability
 

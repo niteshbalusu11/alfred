@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 
 use shared::config::ApiConfig;
 use shared::repos::Store;
+use shared::security::{KmsDecryptPolicy, SecretRuntime, TeeAttestationPolicy};
 use tracing::{error, info};
 
 mod http;
@@ -64,6 +65,23 @@ async fn main() {
                 "https://www.googleapis.com/auth/calendar.readonly".to_string(),
             ],
         },
+        secret_runtime: SecretRuntime::new(
+            TeeAttestationPolicy {
+                required: config.tee_attestation_required,
+                expected_runtime: config.tee_expected_runtime,
+                allowed_measurements: config.tee_allowed_measurements,
+                attestation_public_key: config.tee_attestation_public_key,
+                max_attestation_age_seconds: config.tee_attestation_max_age_seconds,
+                allow_insecure_dev_attestation: config.tee_allow_insecure_dev_attestation,
+            },
+            KmsDecryptPolicy {
+                key_id: config.kms_key_id,
+                key_version: config.kms_key_version,
+                allowed_measurements: config.kms_allowed_measurements,
+            },
+            config.tee_attestation_document,
+            config.tee_attestation_document_path,
+        ),
         session_ttl_seconds: config.session_ttl_seconds,
         oauth_state_ttl_seconds: config.oauth_state_ttl_seconds,
         http_client: reqwest::Client::new(),

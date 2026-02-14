@@ -15,7 +15,8 @@ use shared::models::{
     ListAuditEventsResponse, OkResponse, Preferences, RegisterDeviceRequest,
     RevokeConnectorResponse, StartGoogleConnectRequest, StartGoogleConnectResponse,
 };
-use shared::repos::{AuditResult, JobType, Store, StoreError};
+use shared::repos::{AuditResult, JobType, LEGACY_CONNECTOR_TOKEN_KEY_ID, Store, StoreError};
+use shared::security::{ConnectorKeyMetadata, SecretRuntime, SecurityError};
 use tracing::{error, warn};
 use url::Url;
 use uuid::Uuid;
@@ -35,6 +36,7 @@ pub struct OAuthConfig {
 pub struct AppState {
     pub store: Store,
     pub oauth: OAuthConfig,
+    pub secret_runtime: SecretRuntime,
     pub session_ttl_seconds: u64,
     pub oauth_state_ttl_seconds: u64,
     pub http_client: reqwest::Client,
@@ -360,7 +362,13 @@ async fn complete_google_connect(
 
     let connector_id = match state
         .store
-        .upsert_google_connector(user.user_id, &refresh_token, &granted_scopes)
+        .upsert_google_connector(
+            user.user_id,
+            &refresh_token,
+            &granted_scopes,
+            state.secret_runtime.kms_key_id(),
+            state.secret_runtime.kms_key_version(),
+        )
         .await
     {
         Ok(connector_id) => connector_id,
@@ -422,12 +430,12 @@ async fn revoke_connector(
         }
     };
 
-    let connector_secret = match state
+    let mut connector_metadata = match state
         .store
-        .get_active_connector_secret(user.user_id, connector_id)
+        .get_active_connector_key_metadata(user.user_id, connector_id)
         .await
     {
-        Ok(Some(connector_secret)) => connector_secret,
+        Ok(Some(connector_metadata)) => connector_metadata,
         Ok(None) => {
             return (
                 StatusCode::NOT_FOUND,
@@ -443,19 +451,76 @@ async fn revoke_connector(
         Err(err) => return store_error_response(err),
     };
 
-    if connector_secret.provider != "google" {
+    if connector_metadata.provider != "google" {
         return bad_request_response(
             "unsupported_provider",
             "Connector provider is not supported",
         );
     }
 
-    if let Err(response) = revoke_google_token(
-        &state.http_client,
-        &state.oauth,
-        &connector_secret.refresh_token,
-    )
-    .await
+    if connector_metadata.token_key_id == LEGACY_CONNECTOR_TOKEN_KEY_ID {
+        if let Err(err) = state
+            .store
+            .adopt_legacy_connector_token_key_id(
+                user.user_id,
+                connector_id,
+                state.secret_runtime.kms_key_id(),
+                state.secret_runtime.kms_key_version(),
+            )
+            .await
+        {
+            return store_error_response(err);
+        }
+
+        connector_metadata = match state
+            .store
+            .get_active_connector_key_metadata(user.user_id, connector_id)
+            .await
+        {
+            Ok(Some(connector_metadata)) => connector_metadata,
+            Ok(None) => {
+                return bad_request_response(
+                    "connector_token_unavailable",
+                    "Connector token metadata changed; retry the request",
+                );
+            }
+            Err(err) => return store_error_response(err),
+        };
+    }
+
+    let attested_identity =
+        match state
+            .secret_runtime
+            .authorize_connector_decrypt(&ConnectorKeyMetadata {
+                key_id: connector_metadata.token_key_id.clone(),
+                key_version: connector_metadata.token_version,
+            }) {
+            Ok(attested_identity) => attested_identity,
+            Err(err) => return security_error_response(err),
+        };
+
+    let refresh_token = match state
+        .store
+        .decrypt_active_connector_refresh_token(
+            user.user_id,
+            connector_id,
+            &connector_metadata.token_key_id,
+            connector_metadata.token_version,
+        )
+        .await
+    {
+        Ok(Some(refresh_token)) => refresh_token,
+        Ok(None) => {
+            return bad_request_response(
+                "connector_token_unavailable",
+                "Connector token metadata changed; retry the request",
+            );
+        }
+        Err(err) => return store_error_response(err),
+    };
+
+    if let Err(response) =
+        revoke_google_token(&state.http_client, &state.oauth, &refresh_token).await
     {
         return response;
     }
@@ -468,6 +533,10 @@ async fn revoke_connector(
         Ok(true) => {
             let mut metadata = HashMap::new();
             metadata.insert("connector_id".to_string(), connector_id.to_string());
+            metadata.insert(
+                "attested_measurement".to_string(),
+                attested_identity.measurement,
+            );
 
             if let Err(err) = state
                 .store
@@ -803,6 +872,37 @@ fn unauthorized_response() -> Response {
         }),
     )
         .into_response()
+}
+
+fn security_error_response(err: SecurityError) -> Response {
+    match err {
+        SecurityError::InvalidAttestationDocument(_) => {
+            error!("security runtime misconfigured: {err}");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: ErrorBody {
+                        code: "security_runtime_error".to_string(),
+                        message: "Security runtime is misconfigured".to_string(),
+                    },
+                }),
+            )
+                .into_response()
+        }
+        other => {
+            warn!("decrypt denied by tee/kms policy: {other}");
+            (
+                StatusCode::FORBIDDEN,
+                Json(ErrorResponse {
+                    error: ErrorBody {
+                        code: "decrypt_not_authorized".to_string(),
+                        message: "Connector decrypt is denied by attestation policy".to_string(),
+                    },
+                }),
+            )
+                .into_response()
+        }
+    }
 }
 
 fn store_error_response(err: StoreError) -> Response {
