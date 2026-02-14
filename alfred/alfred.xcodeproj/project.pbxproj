@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		C3AABD012F40C03E00D8F6E7 /* AlfredAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = C3AABD002F40C03E00D8F6E7 /* AlfredAPIClient */; };
+		C3AABD2A2F4133F400D8F6E7 /* ClerkKit in Frameworks */ = {isa = PBXBuildFile; productRef = C3AABD292F4133F400D8F6E7 /* ClerkKit */; };
+		C3AABD2C2F4133F400D8F6E7 /* ClerkKitUI in Frameworks */ = {isa = PBXBuildFile; productRef = C3AABD2B2F4133F400D8F6E7 /* ClerkKitUI */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -57,6 +59,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				C3AABD012F40C03E00D8F6E7 /* AlfredAPIClient in Frameworks */,
+				C3AABD2A2F4133F400D8F6E7 /* ClerkKit in Frameworks */,
+				C3AABD2C2F4133F400D8F6E7 /* ClerkKitUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -118,6 +122,8 @@
 			name = alfred;
 			packageProductDependencies = (
 				C3AABD002F40C03E00D8F6E7 /* AlfredAPIClient */,
+				C3AABD292F4133F400D8F6E7 /* ClerkKit */,
+				C3AABD2B2F4133F400D8F6E7 /* ClerkKitUI */,
 			);
 			productName = alfred;
 			productReference = C3E6B8BE2F3FFFBC00C03FF0 /* alfred.app */;
@@ -203,6 +209,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				C3AABCFF2F40C03E00D8F6E7 /* XCLocalSwiftPackageReference "Packages/AlfredAPIClient" */,
+				C3AABD282F4133F400D8F6E7 /* XCRemoteSwiftPackageReference "clerk-ios" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = C3E6B8BF2F3FFFBC00C03FF0 /* Products */;
@@ -404,11 +411,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = alfred/alfred.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = GNQ3HY2357;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Info.Debug.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -436,6 +445,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = alfred/alfred.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = GNQ3HY2357;
@@ -595,10 +605,31 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		C3AABD282F4133F400D8F6E7 /* XCRemoteSwiftPackageReference "clerk-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/clerk/clerk-ios";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		C3AABD002F40C03E00D8F6E7 /* AlfredAPIClient */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = AlfredAPIClient;
+		};
+		C3AABD292F4133F400D8F6E7 /* ClerkKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C3AABD282F4133F400D8F6E7 /* XCRemoteSwiftPackageReference "clerk-ios" */;
+			productName = ClerkKit;
+		};
+		C3AABD2B2F4133F400D8F6E7 /* ClerkKitUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C3AABD282F4133F400D8F6E7 /* XCRemoteSwiftPackageReference "clerk-ios" */;
+			productName = ClerkKitUI;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

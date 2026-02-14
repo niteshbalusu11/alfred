@@ -1,7 +1,11 @@
+import ClerkKit
+import ClerkKitUI
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var model = AppModel()
+    @Environment(Clerk.self) private var clerk
+    @ObservedObject var model: AppModel
+    @State private var authIsPresented = false
 
     var body: some View {
         NavigationStack {
@@ -9,17 +13,18 @@ struct ContentView: View {
                 if model.isAuthenticated {
                     DashboardView(model: model)
                 } else {
-                    SignInView(model: model)
+                    signedOutView
                 }
             }
             .navigationTitle("Alfred")
             .toolbar {
-                if model.isAuthenticated {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("Sign Out") {
-                            Task {
-                                await model.signOut()
-                            }
+                ToolbarItem(placement: .topBarTrailing) {
+                    if clerk.user != nil {
+                        UserButton()
+                            .frame(width: 36, height: 36)
+                    } else {
+                        Button("Sign in") {
+                            authIsPresented = true
                         }
                     }
                 }
@@ -41,6 +46,28 @@ struct ContentView: View {
                 }
             }
         }
+        .sheet(isPresented: $authIsPresented) {
+            AuthView()
+        }
+    }
+
+    private var signedOutView: some View {
+        VStack(spacing: 16) {
+            Text("You are signed out")
+                .font(.headline)
+
+            Text(model.apiBaseURL.absoluteString)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+
+            Button("Sign in") {
+                authIsPresented = true
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .padding(.top, 40)
     }
 }
 
@@ -71,6 +98,16 @@ private struct ErrorBannerView: View {
     }
 }
 
-#Preview {
-    ContentView()
+#Preview("Signed Out") {
+    let clerk = Clerk.preview { preview in
+        preview.isSignedIn = false
+    }
+    ContentView(model: AppModel(clerk: clerk))
+        .environment(clerk)
+}
+
+#Preview("Signed In") {
+    let clerk = Clerk.preview()
+    ContentView(model: AppModel(clerk: clerk))
+        .environment(clerk)
 }

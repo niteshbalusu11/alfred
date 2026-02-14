@@ -1,0 +1,33 @@
+{
+  "originHash" : "f41260907d08251d51ba0452fc81cc15b46072e2ba60f8d572adb554347757bf",
+  "pins" : [
+    {
+      "identity" : "clerk-ios",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/clerk/clerk-ios",
+      "state" : {
+        "revision" : "e48685b5d739f8cf3db5a93176bc79a4bef587c3",
+        "version" : "1.0.0"
+      }
+    },
+    {
+      "identity" : "nuke",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/kean/Nuke.git",
+      "state" : {
+        "revision" : "0ead44350d2737db384908569c012fe67c421e4d",
+        "version" : "12.8.0"
+      }
+    },
+    {
+      "identity" : "phonenumberkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/marmelroy/PhoneNumberKit",
+      "state" : {
+        "revision" : "7b0a5e858b328736d9b7e175b1620f452af6b699",
+        "version" : "4.2.4"
+      }
+    }
+  ],
+  "version" : 3
+}

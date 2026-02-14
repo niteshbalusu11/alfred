@@ -7,12 +7,6 @@ extension AppModel {
         }
 
         switch retryAction {
-        case .restoreSession:
-            await restoreSession()
-        case .signIn(let token, let id):
-            appleIdentityToken = token
-            deviceID = id
-            await signIn()
         case .startGoogleOAuth(let redirect):
             redirectURI = redirect
             await startGoogleOAuth()
