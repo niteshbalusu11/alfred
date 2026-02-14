@@ -59,9 +59,9 @@ jobs:
         with:
           workspaces: backend
 
-      - name: Cache sqlx-cli
+      - name: Restore sqlx-cli cache
         id: cache-sqlx-cli
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: ${{ env.SQLX_CLI_ROOT }}
           key: ${{ runner.os }}-sqlx-cli-${{ env.SQLX_CLI_VERSION }}-rustls-postgres
@@ -75,6 +75,13 @@ jobs:
             --no-default-features \
             --features rustls,postgres \
             --root $SQLX_CLI_ROOT
+
+      - name: Save sqlx-cli cache
+        if: steps.cache-sqlx-cli.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.SQLX_CLI_ROOT }}
+          key: ${{ steps.cache-sqlx-cli.outputs.cache-primary-key }}
 
       - name: Add sqlx-cli to PATH
         run: echo "$SQLX_CLI_ROOT/bin" >> "$GITHUB_PATH"

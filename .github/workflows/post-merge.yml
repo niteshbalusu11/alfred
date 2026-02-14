@@ -12,6 +12,9 @@ jobs:
   backend:
     name: Backend Checks (master)
     runs-on: ubuntu-latest
+    env:
+      SQLX_CLI_ROOT: ${{ github.workspace }}/.cargo-sqlx-cli
+      SQLX_CLI_VERSION: 0.8.6
     defaults:
       run:
         working-directory: backend
@@ -26,6 +29,30 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: backend
+
+      - name: Restore sqlx-cli cache
+        id: cache-sqlx-cli
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.SQLX_CLI_ROOT }}
+          key: ${{ runner.os }}-sqlx-cli-${{ env.SQLX_CLI_VERSION }}-rustls-postgres
+
+      - name: Install sqlx-cli
+        if: steps.cache-sqlx-cli.outputs.cache-hit != 'true'
+        run: |
+          cargo install sqlx-cli \
+            --version $SQLX_CLI_VERSION \
+            --locked \
+            --no-default-features \
+            --features rustls,postgres \
+            --root $SQLX_CLI_ROOT
+
+      - name: Save sqlx-cli cache
+        if: steps.cache-sqlx-cli.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.SQLX_CLI_ROOT }}
+          key: ${{ steps.cache-sqlx-cli.outputs.cache-primary-key }}
 
       - name: Fmt (check)
         run: cargo fmt --all --check
