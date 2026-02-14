@@ -87,6 +87,7 @@ async fn main() {
             config.tee_attestation_document_path,
         ),
         rate_limiter,
+        trusted_proxy_ips: config.trusted_proxy_ips.into_iter().collect(),
         session_ttl_seconds: config.session_ttl_seconds,
         oauth_state_ttl_seconds: config.oauth_state_ttl_seconds,
         http_client: reqwest::Client::new(),

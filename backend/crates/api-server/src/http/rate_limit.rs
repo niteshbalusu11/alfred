@@ -1,5 +1,5 @@
-use std::collections::{HashMap, VecDeque};
-use std::net::SocketAddr;
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::net::{IpAddr, SocketAddr};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -192,7 +192,7 @@ pub(super) async fn sensitive_rate_limit_middleware(
         return next.run(req).await;
     };
 
-    let subject = request_subject(&req);
+    let subject = request_subject(&req, &state.trusted_proxy_ips);
 
     match state.rate_limiter.check(endpoint, &subject) {
         RateLimitDecision::Allowed => next.run(req).await,
@@ -208,22 +208,71 @@ pub(super) async fn sensitive_rate_limit_middleware(
     }
 }
 
-fn request_subject(req: &Request) -> String {
+fn request_subject(req: &Request, trusted_proxy_ips: &HashSet<IpAddr>) -> String {
     if let Some(user) = req.extensions().get::<AuthUser>() {
         return format!("user:{}", user.user_id);
     }
 
-    if let Some(ip) = remote_ip(req) {
+    if let Some(ip) = remote_ip(req, trusted_proxy_ips) {
         return format!("ip:{ip}");
     }
 
     "anonymous".to_string()
 }
 
-fn remote_ip(req: &Request) -> Option<String> {
-    req.extensions()
+fn remote_ip(req: &Request, trusted_proxy_ips: &HashSet<IpAddr>) -> Option<IpAddr> {
+    let peer_ip = req
+        .extensions()
         .get::<ConnectInfo<SocketAddr>>()
-        .map(|connect_info| connect_info.0.ip().to_string())
+        .map(|connect_info| connect_info.0.ip())?;
+
+    if !trusted_proxy_ips.contains(&peer_ip) {
+        return Some(peer_ip);
+    }
+
+    forwarded_client_ip(req, trusted_proxy_ips, peer_ip).or(Some(peer_ip))
+}
+
+fn forwarded_client_ip(
+    req: &Request,
+    trusted_proxy_ips: &HashSet<IpAddr>,
+    peer_ip: IpAddr,
+) -> Option<IpAddr> {
+    if let Some(forwarded_for) = req
+        .headers()
+        .get("x-forwarded-for")
+        .and_then(|value| value.to_str().ok())
+    {
+        let mut chain = parse_ip_chain(forwarded_for);
+        chain.push(peer_ip);
+        if let Some(client_ip) = first_untrusted_from_right(&chain, trusted_proxy_ips) {
+            return Some(client_ip);
+        }
+    }
+
+    req.headers()
+        .get("x-real-ip")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.trim().parse::<IpAddr>().ok())
+}
+
+fn parse_ip_chain(raw: &str) -> Vec<IpAddr> {
+    raw.split(',')
+        .map(str::trim)
+        .filter(|entry| !entry.is_empty())
+        .filter_map(|entry| entry.parse::<IpAddr>().ok())
+        .collect()
+}
+
+fn first_untrusted_from_right(
+    chain: &[IpAddr],
+    trusted_proxy_ips: &HashSet<IpAddr>,
+) -> Option<IpAddr> {
+    chain
+        .iter()
+        .rev()
+        .find(|ip| !trusted_proxy_ips.contains(ip))
+        .copied()
 }
 
 #[cfg(test)]
@@ -231,6 +280,7 @@ mod tests {
     use super::*;
     use axum::body::Body;
     use axum::http::header::HeaderName;
+    use std::collections::HashSet;
 
     #[test]
     fn allows_until_limit_then_denies() {
@@ -311,6 +361,7 @@ mod tests {
 
     #[test]
     fn request_subject_prefers_connect_info_over_spoofable_forward_headers() {
+        let trusted_proxy_ips = HashSet::new();
         let mut request = Request::builder()
             .uri("/v1/auth/ios/session")
             .body(Body::empty())
@@ -324,7 +375,29 @@ mod tests {
             .extensions_mut()
             .insert(ConnectInfo(SocketAddr::from(([10, 20, 30, 40], 8080))));
 
-        let subject = request_subject(&request);
+        let subject = request_subject(&request, &trusted_proxy_ips);
         assert_eq!(subject, "ip:10.20.30.40");
+    }
+
+    #[test]
+    fn request_subject_uses_forwarded_chain_when_peer_is_trusted_proxy() {
+        let trusted_proxy_ips = HashSet::from([IpAddr::from([10, 0, 0, 5])]);
+        let mut request = Request::builder()
+            .uri("/v1/auth/ios/session")
+            .body(Body::empty())
+            .expect("request builder should work");
+
+        request.headers_mut().insert(
+            HeaderName::from_static("x-forwarded-for"),
+            "198.51.100.20, 10.0.0.5"
+                .parse()
+                .expect("header value should parse"),
+        );
+        request
+            .extensions_mut()
+            .insert(ConnectInfo(SocketAddr::from(([10, 0, 0, 5], 8080))));
+
+        let subject = request_subject(&request, &trusted_proxy_ips);
+        assert_eq!(subject, "ip:198.51.100.20");
     }
 }
