@@ -1,0 +1,380 @@
+openapi: 3.0.3
+info:
+  title: Alfred API
+  version: 1.0.0
+  description: iOS v1 API for Alfred (Gmail + Calendar + push notifications).
+servers:
+  - url: https://api.alfredapp.com
+tags:
+  - name: Auth
+  - name: Devices
+  - name: Connectors
+  - name: Preferences
+  - name: Audit
+  - name: Privacy
+paths:
+  /v1/auth/ios/session:
+    post:
+      tags: [Auth]
+      summary: Create iOS session
+      operationId: createIOSSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSessionRequest"
+      responses:
+        "200":
+          description: Session created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateSessionResponse"
+  /v1/devices/apns:
+    post:
+      tags: [Devices]
+      summary: Register APNs token for device
+      operationId: registerAPNSDevice
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterDeviceRequest"
+      responses:
+        "200":
+          description: APNs registration succeeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /v1/connectors/google/start:
+    post:
+      tags: [Connectors]
+      summary: Start Google OAuth flow
+      operationId: startGoogleOAuth
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartGoogleConnectRequest"
+      responses:
+        "200":
+          description: OAuth URL generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StartGoogleConnectResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /v1/connectors/google/callback:
+    post:
+      tags: [Connectors]
+      summary: Complete Google OAuth flow
+      operationId: completeGoogleOAuth
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompleteGoogleConnectRequest"
+      responses:
+        "200":
+          description: Connector activated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompleteGoogleConnectResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /v1/connectors/{connector_id}:
+    delete:
+      tags: [Connectors]
+      summary: Revoke connector
+      operationId: revokeConnector
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: connector_id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Connector revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevokeConnectorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /v1/preferences:
+    get:
+      tags: [Preferences]
+      summary: Get current user preferences
+      operationId: getPreferences
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: User preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Preferences"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      tags: [Preferences]
+      summary: Update current user preferences
+      operationId: updatePreferences
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePreferencesRequest"
+      responses:
+        "200":
+          description: Preferences updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /v1/audit-events:
+    get:
+      tags: [Audit]
+      summary: List redacted audit events
+      operationId: listAuditEvents
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: cursor
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Paginated audit events
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListAuditEventsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /v1/privacy/delete-all:
+    post:
+      tags: [Privacy]
+      summary: Queue delete-all request
+      operationId: requestDeleteAll
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Delete request queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteAllResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+  schemas:
+    CreateSessionRequest:
+      type: object
+      required: [apple_identity_token, device_id]
+      properties:
+        apple_identity_token:
+          type: string
+        device_id:
+          type: string
+    CreateSessionResponse:
+      type: object
+      required: [access_token, refresh_token, expires_in]
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        expires_in:
+          type: integer
+          format: int32
+          minimum: 1
+    RegisterDeviceRequest:
+      type: object
+      required: [device_id, apns_token, environment]
+      properties:
+        device_id:
+          type: string
+        apns_token:
+          type: string
+        environment:
+          type: string
+          enum: [sandbox, production]
+    StartGoogleConnectRequest:
+      type: object
+      required: [redirect_uri]
+      properties:
+        redirect_uri:
+          type: string
+          format: uri
+    StartGoogleConnectResponse:
+      type: object
+      required: [auth_url, state]
+      properties:
+        auth_url:
+          type: string
+          format: uri
+        state:
+          type: string
+    CompleteGoogleConnectRequest:
+      type: object
+      required: [code, state]
+      properties:
+        code:
+          type: string
+        state:
+          type: string
+    CompleteGoogleConnectResponse:
+      type: object
+      required: [connector_id, status, granted_scopes]
+      properties:
+        connector_id:
+          type: string
+        status:
+          type: string
+          enum: [ACTIVE]
+        granted_scopes:
+          type: array
+          items:
+            type: string
+    RevokeConnectorResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [REVOKED]
+    Preferences:
+      type: object
+      required:
+        [
+          meeting_reminder_minutes,
+          morning_brief_local_time,
+          quiet_hours_start,
+          quiet_hours_end,
+          high_risk_requires_confirm
+        ]
+      properties:
+        meeting_reminder_minutes:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 120
+        morning_brief_local_time:
+          type: string
+          pattern: "^([01]\\d|2[0-3]):[0-5]\\d$"
+        quiet_hours_start:
+          type: string
+          pattern: "^([01]\\d|2[0-3]):[0-5]\\d$"
+        quiet_hours_end:
+          type: string
+          pattern: "^([01]\\d|2[0-3]):[0-5]\\d$"
+        high_risk_requires_confirm:
+          type: boolean
+    UpdatePreferencesRequest:
+      allOf:
+        - $ref: "#/components/schemas/Preferences"
+    AuditEvent:
+      type: object
+      required: [id, timestamp, event_type, result, metadata]
+      properties:
+        id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        event_type:
+          type: string
+        connector:
+          type: string
+          nullable: true
+        result:
+          type: string
+          enum: [SUCCESS, FAILURE]
+        metadata:
+          type: object
+          additionalProperties: true
+    ListAuditEventsResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditEvent"
+        next_cursor:
+          type: string
+          nullable: true
+    DeleteAllResponse:
+      type: object
+      required: [request_id, status]
+      properties:
+        request_id:
+          type: string
+        status:
+          type: string
+          enum: [QUEUED]
+    OkResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
