@@ -229,7 +229,7 @@ impl Store {
             "SELECT COUNT(*)::bigint
              FROM privacy_delete_requests
              WHERE status <> 'COMPLETED'
-               AND created_at <= ($1 - ($2::text || ' hours')::interval)",
+               AND created_at <= ($1 - ($2 * INTERVAL '1 hour'))",
         )
         .bind(now)
         .bind(sla_hours)
