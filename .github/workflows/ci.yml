@@ -72,9 +72,24 @@ jobs:
 
       - name: Xcode Test (iOS Simulator)
         run: |
+          DESTINATION_ID="$(
+            xcodebuild \
+              -project alfred/alfred.xcodeproj \
+              -scheme alfred \
+              -showdestinations \
+            | sed -nE 's/.*platform:iOS Simulator, id:([0-9A-Fa-f-]{36}),.*/\1/p' \
+            | head -n 1
+          )"
+
+          if [ -z "${DESTINATION_ID}" ]; then
+            echo "No iOS Simulator destination found for scheme 'alfred'."
+            xcodebuild -project alfred/alfred.xcodeproj -scheme alfred -showdestinations
+            exit 1
+          fi
+
           xcodebuild \
             -project alfred/alfred.xcodeproj \
             -scheme alfred \
-            -destination 'platform=iOS Simulator,name=iPhone 17' \
+            -destination "id=${DESTINATION_ID}" \
             CODE_SIGNING_ALLOWED=NO \
             test
