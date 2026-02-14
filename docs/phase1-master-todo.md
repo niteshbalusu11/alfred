@@ -67,6 +67,7 @@ Ship a private beta where iOS users can:
 | BE-010 | P0 | Implement `/v1/privacy/delete-all` async job trigger | BE | 2026-03-12 | DONE | DB-007 | Delete request queued and trackable |
 | BE-011 | P1 | Add endpoint-level rate limiting | BE | 2026-03-14 | DONE | BE-004 | Rate-limits enforced |
 | BE-012 | P1 | OpenAPI drift check in CI | BE | 2026-03-14 | TODO | BE-004 | CI fails on contract drift |
+| BE-013 | P1 | Refactor oversized security-critical backend modules for maintainability | BE | 2026-03-16 | DONE | BE-006, WRK-007 | `worker/src/main.rs` and `http/connectors.rs` decomposed into focused modules with behavior parity |
 
 ### C) Database and Migrations
 
