@@ -106,9 +106,9 @@ Ship a private beta where iOS users can:
 | WRK-001 | P0 | Implement due-job fetch with row leasing | BE | 2026-03-06 | DONE | DB-005 | No duplicate processing on concurrency test |
 | WRK-002 | P0 | Implement retry policy (transient/permanent) | BE | 2026-03-08 | DONE | WRK-001 | Retries respect policy |
 | WRK-003 | P1 | Implement dead-letter writes | BE | 2026-03-09 | DONE | DB-006, WRK-002 | Failed jobs land in DLQ table |
-| WRK-004 | P0 | Implement meeting reminder job | BE | 2026-03-12 | TODO | WRK-001, APNS-001 | Reminder push end-to-end works |
-| WRK-005 | P0 | Implement morning brief job | BE | 2026-03-15 | TODO | WRK-001, APNS-001 | Morning brief push works |
-| WRK-006 | P0 | Implement urgent-email scan job | BE | 2026-03-18 | TODO | BE-006, WRK-001 | Alerts generated via rule engine |
+| WRK-004 | P0 | Implement meeting reminder job | BE | 2026-03-12 | DONE | WRK-001, APNS-001 | Reminder push end-to-end works |
+| WRK-005 | P0 | Implement morning brief job | BE | 2026-03-15 | DONE | WRK-001, APNS-001 | Morning brief push works |
+| WRK-006 | P0 | Implement urgent-email scan job | BE | 2026-03-18 | DONE | BE-006, WRK-001 | Alerts generated via rule engine |
 | WRK-007 | P0 | Add idempotency keys for outbound actions | BE | 2026-03-14 | DONE | WRK-002 | Duplicate sends prevented |
 | WRK-008 | P1 | Add per-user concurrency limits | BE | 2026-03-19 | DONE | WRK-001 | Limits enforced in worker |
 | WRK-009 | P1 | Add worker lag metrics and alerts | SRE | 2026-03-20 | TODO | OBS-001 | Lag dashboard + alert live |

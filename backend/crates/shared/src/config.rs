@@ -42,6 +42,9 @@ pub struct WorkerConfig {
     pub apns_sandbox_endpoint: Option<String>,
     pub apns_production_endpoint: Option<String>,
     pub apns_auth_token: Option<String>,
+    pub google_client_id: String,
+    pub google_client_secret: String,
+    pub google_token_url: String,
     pub google_revoke_url: String,
     pub privacy_delete_batch_size: u32,
     pub privacy_delete_lease_seconds: u64,
@@ -224,6 +227,10 @@ impl WorkerConfig {
             apns_sandbox_endpoint: optional_trimmed_env("APNS_SANDBOX_ENDPOINT"),
             apns_production_endpoint: optional_trimmed_env("APNS_PRODUCTION_ENDPOINT"),
             apns_auth_token: optional_trimmed_env("APNS_AUTH_TOKEN"),
+            google_client_id: require_env("GOOGLE_OAUTH_CLIENT_ID")?,
+            google_client_secret: require_env("GOOGLE_OAUTH_CLIENT_SECRET")?,
+            google_token_url: env::var("GOOGLE_OAUTH_TOKEN_URL")
+                .unwrap_or_else(|_| "https://oauth2.googleapis.com/token".to_string()),
             google_revoke_url: env::var("GOOGLE_OAUTH_REVOKE_URL")
                 .unwrap_or_else(|_| "https://oauth2.googleapis.com/revoke".to_string()),
             privacy_delete_batch_size,
