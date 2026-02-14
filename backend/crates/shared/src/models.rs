@@ -4,29 +4,6 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateSessionRequest {
-    pub apple_identity_token: String,
-    pub device_id: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateSessionResponse {
-    pub access_token: String,
-    pub refresh_token: String,
-    pub expires_in: u32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RefreshSessionRequest {
-    pub refresh_token: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RevokeSessionRequest {
-    pub refresh_token: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ApnsEnvironment {
     Sandbox,

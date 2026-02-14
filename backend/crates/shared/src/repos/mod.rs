@@ -160,11 +160,3 @@ pub struct DeviceRegistration {
     pub apns_token: String,
     pub environment: ApnsEnvironment,
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SessionTokenStatus {
-    Active,
-    Expired,
-    Revoked,
-    NotFound,
-}

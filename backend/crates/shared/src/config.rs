@@ -12,9 +12,10 @@ pub struct ApiConfig {
     pub database_max_connections: u32,
     pub migrations_dir: PathBuf,
     pub data_encryption_key: String,
-    pub session_ttl_seconds: u64,
     pub oauth_state_ttl_seconds: u64,
-    pub apple_ios_audience: String,
+    pub clerk_issuer: String,
+    pub clerk_audience: String,
+    pub clerk_jwks_url: String,
     pub google_client_id: String,
     pub google_client_secret: String,
     pub google_redirect_uri: String,
@@ -120,13 +121,24 @@ impl ApiConfig {
             ));
         }
 
-        let apple_ios_audience = optional_trimmed_env("APPLE_IOS_AUDIENCE")
-            .unwrap_or_else(|| "com.prodata.alfred".to_string());
-        if apple_ios_audience.is_empty() {
+        let clerk_issuer = require_env("CLERK_ISSUER")?;
+        if clerk_issuer.trim().is_empty() {
             return Err(ConfigError::InvalidConfiguration(
-                "APPLE_IOS_AUDIENCE must not be empty".to_string(),
+                "CLERK_ISSUER must not be empty".to_string(),
             ));
         }
+        let clerk_audience = require_env("CLERK_AUDIENCE")?;
+        if clerk_audience.trim().is_empty() {
+            return Err(ConfigError::InvalidConfiguration(
+                "CLERK_AUDIENCE must not be empty".to_string(),
+            ));
+        }
+        let clerk_jwks_url = optional_trimmed_env("CLERK_JWKS_URL").unwrap_or_else(|| {
+            format!(
+                "{}/.well-known/jwks.json",
+                clerk_issuer.trim_end_matches('/')
+            )
+        });
 
         Ok(Self {
             bind_addr: env::var("API_BIND_ADDR").unwrap_or_else(|_| "127.0.0.1:8080".to_string()),
@@ -138,9 +150,10 @@ impl ApiConfig {
                     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../db/migrations")
                 }),
             data_encryption_key: require_env("DATA_ENCRYPTION_KEY")?,
-            session_ttl_seconds: parse_u64_env("SESSION_TTL_SECONDS", 3600)?,
             oauth_state_ttl_seconds: parse_u64_env("OAUTH_STATE_TTL_SECONDS", 600)?,
-            apple_ios_audience,
+            clerk_issuer,
+            clerk_audience,
+            clerk_jwks_url,
             google_client_id: require_env("GOOGLE_OAUTH_CLIENT_ID")?,
             google_client_secret: require_env("GOOGLE_OAUTH_CLIENT_SECRET")?,
             google_redirect_uri: require_env("GOOGLE_OAUTH_REDIRECT_URI")?,
