@@ -434,7 +434,7 @@ async fn exchange_google_code(
             }
         }
 
-        warn!("oauth token exchange failed: status={status} body={body}");
+        warn!("oauth token exchange failed: status={status}");
         return Err(bad_gateway_response(
             "oauth_token_exchange_failed",
             "Google OAuth token exchange failed",
@@ -487,7 +487,7 @@ async fn revoke_google_token(
         return Ok(());
     }
 
-    warn!("oauth revoke failed: status={status} body={body}");
+    warn!("oauth revoke failed: status={status}");
     Err(bad_gateway_response(
         "oauth_revoke_failed",
         "Google token revoke failed",
