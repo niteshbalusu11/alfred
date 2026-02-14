@@ -1,8 +1,9 @@
 use std::collections::{HashMap, VecDeque};
+use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use axum::extract::{Request, State};
+use axum::extract::{ConnectInfo, Request, State};
 use axum::http::Method;
 use axum::middleware::Next;
 use axum::response::Response;
@@ -99,6 +100,17 @@ impl SensitiveEndpoint {
 }
 
 impl RateLimiter {
+    pub fn spawn_pruner(&self, interval: Duration) -> tokio::task::JoinHandle<()> {
+        let entries = Arc::clone(&self.entries);
+        tokio::spawn(async move {
+            let mut ticker = tokio::time::interval(interval);
+            loop {
+                ticker.tick().await;
+                prune_entries(&entries, Instant::now());
+            }
+        })
+    }
+
     fn check(&self, endpoint: SensitiveEndpoint, subject: &str) -> RateLimitDecision {
         self.check_at(endpoint, subject, Instant::now())
     }
@@ -122,30 +134,8 @@ impl RateLimiter {
             .lock()
             .expect("rate limiter mutex should not be poisoned");
 
-        // Prevent unbounded key growth by pruning buckets older than the longest policy window.
-        let global_cutoff = now
-            .checked_sub(Duration::from_secs(MAX_TRACKED_WINDOW_SECONDS))
-            .unwrap_or(now);
-        entries.retain(|_, existing_bucket| {
-            while let Some(front) = existing_bucket.front() {
-                if *front <= global_cutoff {
-                    existing_bucket.pop_front();
-                } else {
-                    break;
-                }
-            }
-            !existing_bucket.is_empty()
-        });
-
         let bucket = entries.entry(bucket_key).or_default();
-
-        while let Some(front) = bucket.front() {
-            if *front <= cutoff {
-                bucket.pop_front();
-            } else {
-                break;
-            }
-        }
+        prune_bucket(bucket, cutoff);
 
         if bucket.len() >= policy.max_requests {
             let retry_after_seconds = bucket
@@ -163,6 +153,33 @@ impl RateLimiter {
         bucket.push_back(now);
 
         RateLimitDecision::Allowed
+    }
+}
+
+fn prune_entries(
+    entries: &Arc<Mutex<HashMap<RateLimitBucketKey, VecDeque<Instant>>>>,
+    now: Instant,
+) {
+    let global_cutoff = now
+        .checked_sub(Duration::from_secs(MAX_TRACKED_WINDOW_SECONDS))
+        .unwrap_or(now);
+    let mut state = entries
+        .lock()
+        .expect("rate limiter prune mutex should not be poisoned");
+
+    state.retain(|_, bucket| {
+        prune_bucket(bucket, global_cutoff);
+        !bucket.is_empty()
+    });
+}
+
+fn prune_bucket(bucket: &mut VecDeque<Instant>, cutoff: Instant) {
+    while let Some(front) = bucket.front() {
+        if *front <= cutoff {
+            bucket.pop_front();
+        } else {
+            break;
+        }
     }
 }
 
@@ -196,34 +213,24 @@ fn request_subject(req: &Request) -> String {
         return format!("user:{}", user.user_id);
     }
 
-    if let Some(ip) = forwarded_for_ip(req) {
+    if let Some(ip) = remote_ip(req) {
         return format!("ip:{ip}");
     }
 
     "anonymous".to_string()
 }
 
-fn forwarded_for_ip(req: &Request) -> Option<String> {
-    req.headers()
-        .get("x-forwarded-for")
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.split(',').next())
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToString::to_string)
-        .or_else(|| {
-            req.headers()
-                .get("x-real-ip")
-                .and_then(|value| value.to_str().ok())
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .map(ToString::to_string)
-        })
+fn remote_ip(req: &Request) -> Option<String> {
+    req.extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|connect_info| connect_info.0.ip().to_string())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::body::Body;
+    use axum::http::header::HeaderName;
 
     #[test]
     fn allows_until_limit_then_denies() {
@@ -287,25 +294,37 @@ mod tests {
     fn stale_buckets_are_pruned() {
         let limiter = RateLimiter::default();
         let start = Instant::now();
-        let after_max_window = start + Duration::from_secs(MAX_TRACKED_WINDOW_SECONDS + 1);
+        let stale_cutoff = start + Duration::from_secs(MAX_TRACKED_WINDOW_SECONDS + 1);
 
         assert_eq!(
             limiter.check_at(SensitiveEndpoint::AuthSession, "user:stale", start),
             RateLimitDecision::Allowed
         );
-        assert_eq!(
-            limiter.check_at(
-                SensitiveEndpoint::GoogleConnectStart,
-                "user:fresh",
-                after_max_window
-            ),
-            RateLimitDecision::Allowed
-        );
+        prune_entries(&limiter.entries, stale_cutoff);
 
         let entries = limiter
             .entries
             .lock()
             .expect("test mutex should not be poisoned");
-        assert_eq!(entries.len(), 1);
+        assert!(entries.is_empty());
+    }
+
+    #[test]
+    fn request_subject_prefers_connect_info_over_spoofable_forward_headers() {
+        let mut request = Request::builder()
+            .uri("/v1/auth/ios/session")
+            .body(Body::empty())
+            .expect("request builder should work");
+
+        request.headers_mut().insert(
+            HeaderName::from_static("x-forwarded-for"),
+            "203.0.113.99".parse().expect("header value should parse"),
+        );
+        request
+            .extensions_mut()
+            .insert(ConnectInfo(SocketAddr::from(([10, 20, 30, 40], 8080))));
+
+        let subject = request_subject(&request);
+        assert_eq!(subject, "ip:10.20.30.40");
     }
 }
