@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		C3AABD012F40C03E00D8F6E7 /* AlfredAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = C3AABD002F40C03E00D8F6E7 /* AlfredAPIClient */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		C3E6B8CC2F3FFFBD00C03FF0 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C3AABD012F40C03E00D8F6E7 /* AlfredAPIClient in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +117,7 @@
 			);
 			name = alfred;
 			packageProductDependencies = (
+				C3AABD002F40C03E00D8F6E7 /* AlfredAPIClient */,
 			);
 			productName = alfred;
 			productReference = C3E6B8BE2F3FFFBC00C03FF0 /* alfred.app */;
@@ -195,6 +201,9 @@
 			);
 			mainGroup = C3E6B8B52F3FFFBC00C03FF0;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				C3AABCFF2F40C03E00D8F6E7 /* XCLocalSwiftPackageReference "Packages/AlfredAPIClient" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = C3E6B8BF2F3FFFBC00C03FF0 /* Products */;
 			projectDirPath = "";
@@ -578,6 +587,20 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		C3AABCFF2F40C03E00D8F6E7 /* XCLocalSwiftPackageReference "Packages/AlfredAPIClient" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/AlfredAPIClient;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		C3AABD002F40C03E00D8F6E7 /* AlfredAPIClient */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AlfredAPIClient;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = C3E6B8B62F3FFFBC00C03FF0 /* Project object */;
 }

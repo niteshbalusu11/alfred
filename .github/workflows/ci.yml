@@ -70,11 +70,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Xcode Build (iOS Simulator)
+      - name: Xcode Test (iOS Simulator)
         run: |
           xcodebuild \
             -project alfred/alfred.xcodeproj \
             -scheme alfred \
-            -destination 'generic/platform=iOS Simulator' \
+            -destination 'platform=iOS Simulator,name=iPhone 17' \
             CODE_SIGNING_ALLOWED=NO \
-            build
+            test
