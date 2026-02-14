@@ -33,6 +33,7 @@ pub(super) async fn dispatch_job_action(
     {
         return Err(simulated_failure);
     }
+    let request_id = helpers::extract_request_id(job.payload_ciphertext.as_deref());
 
     let preferences = store
         .get_or_create_preferences(job.user_id)
@@ -74,6 +75,9 @@ pub(super) async fn dispatch_job_action(
     action
         .metadata
         .insert("job_type".to_string(), job.job_type.as_str().to_string());
+    if let Some(request_id) = request_id {
+        action.metadata.insert("request_id".to_string(), request_id);
+    }
 
     let Some(content) = action.notification.as_ref() else {
         let mut metadata = action.metadata.clone();
@@ -123,6 +127,7 @@ pub(super) async fn dispatch_job_action(
         info!(
             job_id = %job.id,
             user_id = %job.user_id,
+            request_id = ?action.metadata.get("request_id"),
             quiet_hours_start = %preferences.quiet_hours_start,
             quiet_hours_end = %preferences.quiet_hours_end,
             "notification suppressed by quiet hours"
@@ -151,6 +156,7 @@ async fn send_notification_to_devices(
     metadata_base: &HashMap<String, String>,
     metrics: &mut WorkerTickMetrics,
 ) -> Result<(), JobExecutionError> {
+    let request_id = metadata_base.get("request_id").map(String::as_str);
     let devices = store
         .list_registered_devices(job.user_id)
         .await
@@ -240,6 +246,7 @@ async fn send_notification_to_devices(
                 warn!(
                     job_id = %job.id,
                     user_id = %job.user_id,
+                    request_id = ?request_id,
                     device_id = %device.device_id,
                     error_code = %error_code,
                     error_message = %error_message,
@@ -274,6 +281,7 @@ async fn record_notification_audit(
     result: AuditResult,
     metadata: HashMap<String, String>,
 ) {
+    let request_id = metadata.get("request_id").map(String::as_str);
     if let Err(err) = store
         .add_audit_event(user_id, event_type, None, result, &metadata)
         .await
@@ -281,6 +289,7 @@ async fn record_notification_audit(
         warn!(
             user_id = %user_id,
             event_type = %event_type,
+            request_id = ?request_id,
             "failed to persist notification audit event: {err}"
         );
     }

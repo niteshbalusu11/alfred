@@ -13,6 +13,7 @@ mod connectors;
 mod devices;
 mod errors;
 mod health;
+mod observability;
 mod preferences;
 mod privacy;
 mod rate_limit;
@@ -129,5 +130,9 @@ pub fn build_router(app_state: AppState) -> Router {
         ))
         .with_state(app_state);
 
-    public_routes.merge(protected_routes)
+    public_routes
+        .merge(protected_routes)
+        .layer(middleware::from_fn(
+            observability::request_observability_middleware,
+        ))
 }

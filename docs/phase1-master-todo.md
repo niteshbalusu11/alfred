@@ -147,14 +147,14 @@ Ship a private beta where iOS users can:
 
 | ID | Pri | Task | Owner | ETA | Status | Depends On | Exit Criteria |
 |---|---|---|---|---|---|---|---|
-| OBS-001 | P0 | Define core service metrics (API, jobs, push) | SRE | 2026-03-01 | TODO | BE-003 | Metrics spec approved |
-| OBS-002 | P0 | Add metrics instrumentation to API | BE | 2026-03-08 | TODO | OBS-001 | API dashboards populated |
-| OBS-003 | P0 | Add metrics instrumentation to worker | BE | 2026-03-10 | TODO | OBS-001 | Worker dashboards populated |
-| OBS-004 | P0 | Add alerting for job lag and failure spikes | SRE | 2026-03-15 | TODO | OBS-002, OBS-003 | Alerts firing in test drills |
-| OBS-005 | P1 | Add tracing across API->worker->push path | SRE | 2026-03-18 | TODO | OBS-002 | Trace spans visible |
-| OBS-006 | P0 | SLO definition and dashboard | SRE | 2026-03-20 | TODO | OBS-004 | SLO page published |
+| OBS-001 | P0 | Define core service metrics (API, jobs, push) | SRE | 2026-03-01 | DONE | BE-003 | Metrics spec approved |
+| OBS-002 | P0 | Add metrics instrumentation to API | BE | 2026-03-08 | DONE | OBS-001 | API dashboards populated |
+| OBS-003 | P0 | Add metrics instrumentation to worker | BE | 2026-03-10 | DONE | OBS-001 | Worker dashboards populated |
+| OBS-004 | P0 | Add alerting for job lag and failure spikes | SRE | 2026-03-15 | IN_PROGRESS | OBS-002, OBS-003 | Alerts firing in test drills |
+| OBS-005 | P1 | Add tracing across API->worker->push path | SRE | 2026-03-18 | DONE | OBS-002 | Trace spans visible |
+| OBS-006 | P0 | SLO definition and dashboard | SRE | 2026-03-20 | IN_PROGRESS | OBS-004 | SLO page published |
 | OBS-007 | P1 | Backup + restore rehearsal for Postgres | SRE | 2026-03-25 | TODO | DB-002 | Restore drill report approved |
-| OBS-008 | P1 | Runbook for top 5 incidents | SRE | 2026-03-28 | TODO | OBS-004 | Runbooks available in docs |
+| OBS-008 | P1 | Runbook for top 5 incidents | SRE | 2026-03-28 | IN_PROGRESS | OBS-004 | Runbooks available in docs |
 
 ### I) Testing and QA
 
