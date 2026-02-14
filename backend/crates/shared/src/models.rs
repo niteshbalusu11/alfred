@@ -31,6 +31,20 @@ pub struct RegisterDeviceRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SendTestNotificationRequest {
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub body: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SendTestNotificationResponse {
+    pub queued_job_id: String,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StartGoogleConnectRequest {
     pub redirect_uri: String,
 }

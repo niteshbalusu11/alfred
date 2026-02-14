@@ -50,6 +50,26 @@ public struct RegisterDeviceRequest: Codable, Sendable {
     }
 }
 
+public struct SendTestNotificationRequest: Codable, Sendable {
+    public let title: String?
+    public let body: String?
+
+    public init(title: String? = nil, body: String? = nil) {
+        self.title = title
+        self.body = body
+    }
+}
+
+public struct SendTestNotificationResponse: Codable, Sendable {
+    public let queuedJobId: String
+    public let status: String
+
+    enum CodingKeys: String, CodingKey {
+        case queuedJobId = "queued_job_id"
+        case status
+    }
+}
+
 public struct StartGoogleConnectRequest: Codable, Sendable {
     public let redirectURI: String
 

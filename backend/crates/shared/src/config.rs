@@ -39,6 +39,9 @@ pub struct WorkerConfig {
     pub per_user_concurrency_limit: u32,
     pub retry_base_delay_seconds: u64,
     pub retry_max_delay_seconds: u64,
+    pub apns_sandbox_endpoint: Option<String>,
+    pub apns_production_endpoint: Option<String>,
+    pub apns_auth_token: Option<String>,
     pub database_url: String,
     pub database_max_connections: u32,
     pub data_encryption_key: String,
@@ -174,6 +177,9 @@ impl WorkerConfig {
             per_user_concurrency_limit,
             retry_base_delay_seconds,
             retry_max_delay_seconds,
+            apns_sandbox_endpoint: optional_trimmed_env("APNS_SANDBOX_ENDPOINT"),
+            apns_production_endpoint: optional_trimmed_env("APNS_PRODUCTION_ENDPOINT"),
+            apns_auth_token: optional_trimmed_env("APNS_AUTH_TOKEN"),
             database_url: require_env("DATABASE_URL")?,
             database_max_connections: parse_u32_env("DATABASE_MAX_CONNECTIONS", 5)?,
             data_encryption_key: require_env("DATA_ENCRYPTION_KEY")?,
@@ -253,4 +259,15 @@ fn parse_csv_list(raw: String) -> Vec<String> {
     } else {
         parsed
     }
+}
+
+fn optional_trimmed_env(key: &str) -> Option<String> {
+    env::var(key).ok().and_then(|value| {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        }
+    })
 }

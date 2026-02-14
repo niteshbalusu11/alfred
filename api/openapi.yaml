@@ -53,6 +53,30 @@ paths:
                 $ref: "#/components/schemas/OkResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
+  /v1/devices/apns/test:
+    post:
+      tags: [Devices]
+      summary: Queue a test push notification
+      operationId: sendAPNSTestNotification
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendTestNotificationRequest"
+      responses:
+        "200":
+          description: Test notification queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SendTestNotificationResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /v1/connectors/google/start:
     post:
       tags: [Connectors]
@@ -266,6 +290,26 @@ components:
         environment:
           type: string
           enum: [sandbox, production]
+    SendTestNotificationRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          nullable: true
+          maxLength: 120
+        body:
+          type: string
+          nullable: true
+          maxLength: 500
+    SendTestNotificationResponse:
+      type: object
+      required: [queued_job_id, status]
+      properties:
+        queued_job_id:
+          type: string
+        status:
+          type: string
+          enum: [QUEUED]
     StartGoogleConnectRequest:
       type: object
       required: [redirect_uri]

@@ -31,7 +31,7 @@ ios-build:
   xcodebuild -project {{ios_project}} -scheme {{ios_scheme}} -destination 'generic/platform=iOS Simulator' build
 
 # Run iOS tests on a specific simulator.
-ios-test destination='platform=iOS Simulator,name=iPhone 16':
+ios-test destination='platform=iOS Simulator,name=iPhone 17':
   xcodebuild -project {{ios_project}} -scheme {{ios_scheme}} -destination '{{destination}}' test
 
 # Compile the local Swift package used by the iOS app.
