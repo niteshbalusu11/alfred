@@ -7,14 +7,13 @@ use axum::response::{IntoResponse, Response};
 use chrono::Utc;
 use serde_json::json;
 use shared::models::{
-    ErrorBody, ErrorResponse, OkResponse, RegisterDeviceRequest, SendTestNotificationRequest,
-    SendTestNotificationResponse,
+    OkResponse, RegisterDeviceRequest, SendTestNotificationRequest, SendTestNotificationResponse,
 };
 use shared::repos::{AuditResult, JobType};
-use tracing::error;
 use uuid::Uuid;
 
 use super::errors::{bad_request_response, store_error_response};
+use super::observability::RequestContext;
 use super::{AppState, AuthUser};
 
 pub(super) async fn register_device(
@@ -58,6 +57,7 @@ pub(super) async fn register_device(
 pub(super) async fn send_test_notification(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
+    Extension(request_context): Extension<RequestContext>,
     Json(req): Json<SendTestNotificationRequest>,
 ) -> Response {
     match state.store.has_registered_device(user.user_id).await {
@@ -98,27 +98,15 @@ pub(super) async fn send_test_notification(
         );
     }
 
-    let payload = match serde_json::to_vec(&json!({
-        "notification": {
-            "title": title,
-            "body": body
-        }
-    })) {
-        Ok(payload) => payload,
-        Err(err) => {
-            error!("failed to serialize test notification payload: {err}");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: ErrorBody {
-                        code: "internal_error".to_string(),
-                        message: "Unexpected server error".to_string(),
-                    },
-                }),
-            )
-                .into_response();
-        }
-    };
+    let payload = super::observability::attach_request_trace(
+        json!({
+            "notification": {
+                "title": title,
+                "body": body
+            }
+        }),
+        &request_context.request_id,
+    );
 
     let idempotency_key = format!("TEST_NOTIFICATION:{}", Uuid::new_v4());
     let job_id = match state

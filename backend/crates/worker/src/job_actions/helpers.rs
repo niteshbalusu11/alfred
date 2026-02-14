@@ -14,6 +14,16 @@ struct NotificationPayloadBody {
     body: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct TraceJobPayload {
+    trace: Option<TracePayloadBody>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TracePayloadBody {
+    request_id: Option<String>,
+}
+
 pub(super) fn parse_notification_payload(payload: Option<&[u8]>) -> Option<NotificationContent> {
     let payload = payload?;
     let parsed: NotificationJobPayload = serde_json::from_slice(payload).ok()?;
@@ -52,6 +62,13 @@ pub(super) fn parse_simulated_failure(payload: Option<&[u8]>) -> Option<JobExecu
     }
 }
 
+pub(super) fn extract_request_id(payload: Option<&[u8]>) -> Option<String> {
+    let payload = payload?;
+    let parsed: TraceJobPayload = serde_json::from_slice(payload).ok()?;
+    let request_id = parsed.trace?.request_id?;
+    normalize_request_id(&request_id)
+}
+
 pub(super) fn is_within_quiet_hours(
     now: NaiveTime,
     start: &str,
@@ -76,11 +93,23 @@ fn parse_hhmm(value: &str) -> Result<NaiveTime, String> {
         .map_err(|_| format!("time must be in HH:MM format: {value}"))
 }
 
+fn normalize_request_id(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() || trimmed.len() > 128 {
+        return None;
+    }
+
+    let valid = trimmed
+        .bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'));
+    valid.then(|| trimmed.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use chrono::NaiveTime;
 
-    use super::{is_within_quiet_hours, parse_simulated_failure};
+    use super::{extract_request_id, is_within_quiet_hours, parse_simulated_failure};
 
     #[test]
     fn quiet_hours_supports_wrapped_ranges() {
@@ -117,5 +146,20 @@ mod tests {
         let permanent = parse_simulated_failure(Some(b"simulate-failure:permanent:FATAL:stop"))
             .expect("permanent error");
         assert_eq!(permanent.code, "FATAL");
+    }
+
+    #[test]
+    fn extracts_request_id_from_trace_payload() {
+        let payload = br#"{"trace":{"request_id":"req-123"}} "#;
+        assert_eq!(
+            extract_request_id(Some(payload)),
+            Some("req-123".to_string())
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_request_id_from_trace_payload() {
+        let payload = br#"{"trace":{"request_id":"bad$id"}} "#;
+        assert!(extract_request_id(Some(payload)).is_none());
     }
 }

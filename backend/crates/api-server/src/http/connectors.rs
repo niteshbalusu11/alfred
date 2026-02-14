@@ -21,6 +21,7 @@ use uuid::Uuid;
 use super::errors::{
     bad_gateway_response, bad_request_response, security_error_response, store_error_response,
 };
+use super::observability::RequestContext;
 use super::tokens::{generate_secure_token, hash_token};
 use super::{AppState, AuthUser, OAuthConfig};
 
@@ -90,6 +91,7 @@ pub(super) async fn start_google_connect(
 pub(super) async fn complete_google_connect(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
+    Extension(request_context): Extension<RequestContext>,
     Json(req): Json<CompleteGoogleConnectRequest>,
 ) -> Response {
     let Some(redirect_uri) = (match state
@@ -172,9 +174,15 @@ pub(super) async fn complete_google_connect(
         Err(err) => return store_error_response(err),
     };
 
+    let trace_payload = super::observability::request_trace_payload(&request_context.request_id);
     if let Err(err) = state
         .store
-        .enqueue_job(user.user_id, JobType::UrgentEmailCheck, Utc::now(), None)
+        .enqueue_job(
+            user.user_id,
+            JobType::UrgentEmailCheck,
+            Utc::now(),
+            Some(&trace_payload),
+        )
         .await
     {
         return store_error_response(err);
