@@ -42,6 +42,21 @@ pub struct WorkerConfig {
     pub apns_sandbox_endpoint: Option<String>,
     pub apns_production_endpoint: Option<String>,
     pub apns_auth_token: Option<String>,
+    pub google_revoke_url: String,
+    pub privacy_delete_batch_size: u32,
+    pub privacy_delete_lease_seconds: u64,
+    pub privacy_delete_sla_hours: u64,
+    pub tee_attestation_required: bool,
+    pub tee_expected_runtime: String,
+    pub tee_allowed_measurements: Vec<String>,
+    pub tee_attestation_document: Option<String>,
+    pub tee_attestation_document_path: Option<PathBuf>,
+    pub tee_attestation_public_key: Option<String>,
+    pub tee_attestation_max_age_seconds: u64,
+    pub tee_allow_insecure_dev_attestation: bool,
+    pub kms_key_id: String,
+    pub kms_key_version: i32,
+    pub kms_allowed_measurements: Vec<String>,
     pub database_url: String,
     pub database_max_connections: u32,
     pub data_encryption_key: String,
@@ -131,6 +146,8 @@ impl ApiConfig {
 
 impl WorkerConfig {
     pub fn from_env() -> Result<Self, ConfigError> {
+        let tee_allowed_measurements =
+            parse_list_env("TEE_ALLOWED_MEASUREMENTS", &["dev-local-enclave"]);
         let tick_seconds = match env::var("WORKER_TICK_SECONDS") {
             Ok(raw) => raw
                 .parse::<u64>()
@@ -142,6 +159,10 @@ impl WorkerConfig {
         let per_user_concurrency_limit = parse_u32_env("WORKER_PER_USER_CONCURRENCY_LIMIT", 1)?;
         let retry_base_delay_seconds = parse_u64_env("WORKER_RETRY_BASE_DELAY_SECONDS", 30)?;
         let retry_max_delay_seconds = parse_u64_env("WORKER_RETRY_MAX_DELAY_SECONDS", 1800)?;
+        let privacy_delete_batch_size = parse_u32_env("WORKER_PRIVACY_DELETE_BATCH_SIZE", 10)?;
+        let privacy_delete_lease_seconds =
+            parse_u64_env("WORKER_PRIVACY_DELETE_LEASE_SECONDS", 120)?;
+        let privacy_delete_sla_hours = parse_u64_env("PRIVACY_DELETE_SLA_HOURS", 24)?;
 
         if batch_size == 0 {
             return Err(ConfigError::InvalidConfiguration(
@@ -169,6 +190,29 @@ impl WorkerConfig {
                     .to_string(),
             ));
         }
+        if privacy_delete_batch_size == 0 {
+            return Err(ConfigError::InvalidConfiguration(
+                "WORKER_PRIVACY_DELETE_BATCH_SIZE must be greater than 0".to_string(),
+            ));
+        }
+        if privacy_delete_lease_seconds == 0 {
+            return Err(ConfigError::InvalidConfiguration(
+                "WORKER_PRIVACY_DELETE_LEASE_SECONDS must be greater than 0".to_string(),
+            ));
+        }
+        if privacy_delete_sla_hours == 0 {
+            return Err(ConfigError::InvalidConfiguration(
+                "PRIVACY_DELETE_SLA_HOURS must be greater than 0".to_string(),
+            ));
+        }
+
+        let tee_attestation_required = parse_bool_env("TEE_ATTESTATION_REQUIRED", true)?;
+        let tee_allow_insecure_dev_attestation =
+            parse_bool_env("TEE_ALLOW_INSECURE_DEV_ATTESTATION", false)?;
+        let tee_attestation_document = env::var("TEE_ATTESTATION_DOCUMENT").ok();
+        let tee_attestation_document_path = env::var("TEE_ATTESTATION_DOCUMENT_PATH")
+            .ok()
+            .map(PathBuf::from);
 
         Ok(Self {
             tick_seconds,
@@ -180,6 +224,27 @@ impl WorkerConfig {
             apns_sandbox_endpoint: optional_trimmed_env("APNS_SANDBOX_ENDPOINT"),
             apns_production_endpoint: optional_trimmed_env("APNS_PRODUCTION_ENDPOINT"),
             apns_auth_token: optional_trimmed_env("APNS_AUTH_TOKEN"),
+            google_revoke_url: env::var("GOOGLE_OAUTH_REVOKE_URL")
+                .unwrap_or_else(|_| "https://oauth2.googleapis.com/revoke".to_string()),
+            privacy_delete_batch_size,
+            privacy_delete_lease_seconds,
+            privacy_delete_sla_hours,
+            tee_attestation_required,
+            tee_expected_runtime: env::var("TEE_EXPECTED_RUNTIME")
+                .unwrap_or_else(|_| "nitro".to_string()),
+            tee_allowed_measurements: tee_allowed_measurements.clone(),
+            tee_attestation_document,
+            tee_attestation_document_path,
+            tee_attestation_public_key: env::var("TEE_ATTESTATION_PUBLIC_KEY").ok(),
+            tee_attestation_max_age_seconds: parse_u64_env("TEE_ATTESTATION_MAX_AGE_SECONDS", 300)?,
+            tee_allow_insecure_dev_attestation,
+            kms_key_id: env::var("KMS_KEY_ID")
+                .unwrap_or_else(|_| "kms/local/alfred-refresh-token".to_string()),
+            kms_key_version: parse_i32_env("KMS_KEY_VERSION", 1)?,
+            kms_allowed_measurements: parse_list_env_with_fallback(
+                "KMS_ALLOWED_MEASUREMENTS",
+                &tee_allowed_measurements,
+            ),
             database_url: require_env("DATABASE_URL")?,
             database_max_connections: parse_u32_env("DATABASE_MAX_CONNECTIONS", 5)?,
             data_encryption_key: require_env("DATA_ENCRYPTION_KEY")?,

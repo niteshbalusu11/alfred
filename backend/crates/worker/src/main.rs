@@ -6,10 +6,14 @@ use serde::{Deserialize, Serialize};
 use shared::config::WorkerConfig;
 use shared::models::ApnsEnvironment;
 use shared::repos::{AuditResult, ClaimedJob, DeviceRegistration, JobType, Store};
+use shared::security::{KmsDecryptPolicy, SecretRuntime, TeeAttestationPolicy};
 use tokio::signal;
 use tokio::time::{self, Duration};
 use tracing::{error, info, warn};
 use uuid::Uuid;
+
+mod privacy_delete;
+mod privacy_delete_revoke;
 
 #[derive(Debug, Clone, Copy)]
 enum FailureClass {
@@ -167,6 +171,24 @@ async fn main() {
         config.apns_production_endpoint.clone(),
         config.apns_auth_token.clone(),
     );
+    let oauth_client = reqwest::Client::new();
+    let secret_runtime = SecretRuntime::new(
+        TeeAttestationPolicy {
+            required: config.tee_attestation_required,
+            expected_runtime: config.tee_expected_runtime.clone(),
+            allowed_measurements: config.tee_allowed_measurements.clone(),
+            attestation_public_key: config.tee_attestation_public_key.clone(),
+            max_attestation_age_seconds: config.tee_attestation_max_age_seconds,
+            allow_insecure_dev_attestation: config.tee_allow_insecure_dev_attestation,
+        },
+        KmsDecryptPolicy {
+            key_id: config.kms_key_id.clone(),
+            key_version: config.kms_key_version,
+            allowed_measurements: config.kms_allowed_measurements.clone(),
+        },
+        config.tee_attestation_document.clone(),
+        config.tee_attestation_document_path.clone(),
+    );
 
     let worker_id = Uuid::new_v4();
     info!(
@@ -189,6 +211,13 @@ async fn main() {
                 break;
             }
             _ = ticker.tick() => {
+                privacy_delete::process_delete_requests(
+                    &store,
+                    &config,
+                    &secret_runtime,
+                    &oauth_client,
+                    worker_id,
+                ).await;
                 process_due_jobs(&store, &config, &push_sender, worker_id).await;
             }
         }

@@ -64,7 +64,7 @@ Ship a private beta where iOS users can:
 | BE-007 | P0 | Implement `/v1/connectors/{id}` revoke + provider-side revoke | BE | 2026-03-05 | DONE | BE-006 | Connector revoke fully works |
 | BE-008 | P0 | Implement `/v1/preferences` persistence | BE | 2026-03-06 | TODO | DB-001 | Read/write preferences backed by DB |
 | BE-009 | P0 | Implement `/v1/audit-events` pagination and filters | BE | 2026-03-10 | TODO | DB-004 | Cursor pagination works |
-| BE-010 | P0 | Implement `/v1/privacy/delete-all` async job trigger | BE | 2026-03-12 | TODO | DB-007 | Delete request queued and trackable |
+| BE-010 | P0 | Implement `/v1/privacy/delete-all` async job trigger | BE | 2026-03-12 | DONE | DB-007 | Delete request queued and trackable |
 | BE-011 | P1 | Add endpoint-level rate limiting | BE | 2026-03-14 | TODO | BE-004 | Rate-limits enforced |
 | BE-012 | P1 | OpenAPI drift check in CI | BE | 2026-03-14 | TODO | BE-004 | CI fails on contract drift |
 
@@ -78,7 +78,7 @@ Ship a private beta where iOS users can:
 | DB-004 | P0 | Add audit_events indexes and query plan checks | BE | 2026-03-01 | TODO | DB-002 | Audit endpoint query < target latency |
 | DB-005 | P0 | Add jobs table locking/lease fields | BE | 2026-03-02 | DONE | DB-002 | Worker-safe leasing possible |
 | DB-006 | P1 | Add dead-letter table for failed jobs | BE | 2026-03-04 | DONE | DB-005 | Failed job archival works |
-| DB-007 | P0 | Add privacy_delete_requests workflow states | BE | 2026-03-05 | TODO | DB-002 | Delete-all flow persists state |
+| DB-007 | P0 | Add privacy_delete_requests workflow states | BE | 2026-03-05 | DONE | DB-002 | Delete-all flow persists state |
 | DB-008 | P1 | Add retention policy job schema support | BE | 2026-03-10 | TODO | DB-004 | Retention window stored/configured |
 | DB-009 | P1 | Migration smoke tests in CI | QA | 2026-03-12 | TODO | DB-002 | CI executes migrations cleanly |
 
@@ -176,7 +176,7 @@ Ship a private beta where iOS users can:
 | GOV-001 | P0 | Data retention matrix by table/event type | SEC | 2026-03-15 | TODO | DB-008 | Retention policy approved |
 | GOV-002 | P0 | Privacy policy draft aligned with real architecture | FOUNDER | 2026-03-20 | TODO | SEC-010 | Legal-review ready draft |
 | GOV-003 | P0 | Terms + connector consent language | FOUNDER | 2026-03-22 | TODO | PROD-005 | Approved UX/legal copy |
-| GOV-004 | P0 | Delete-all SLA monitoring | SEC | 2026-03-25 | TODO | BE-010 | Delete requests tracked vs SLA |
+| GOV-004 | P0 | Delete-all SLA monitoring | SEC | 2026-03-25 | DONE | BE-010 | Delete requests tracked vs SLA |
 | GOV-005 | P1 | Data export workflow (basic) | BE | 2026-03-28 | TODO | DB-002 | Export available for support |
 | GOV-006 | P0 | Incident response plan + notification template | SEC | 2026-04-01 | TODO | OBS-008 | Playbook approved |
 | GOV-007 | P0 | External pentest and remediation complete | SEC | 2026-04-17 | TODO | SEC-011 | No critical unresolved issues |

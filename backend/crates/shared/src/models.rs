@@ -117,6 +117,16 @@ pub struct DeleteAllResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeleteAllStatusResponse {
+    pub request_id: String,
+    pub status: String,
+    pub created_at: DateTime<Utc>,
+    pub started_at: Option<DateTime<Utc>>,
+    pub completed_at: Option<DateTime<Utc>>,
+    pub failed_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OkResponse {
     pub ok: bool,
 }
