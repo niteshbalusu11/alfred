@@ -31,6 +31,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CreateSessionResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
   /v1/devices/apns:
     post:
       tags: [Devices]
@@ -101,6 +103,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
   /v1/connectors/google/callback:
     post:
       tags: [Connectors]
@@ -127,6 +131,8 @@ paths:
           $ref: "#/components/responses/BadGateway"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
   /v1/connectors/{connector_id}:
     delete:
       tags: [Connectors]
@@ -153,6 +159,8 @@ paths:
           $ref: "#/components/responses/NotFound"
         "502":
           $ref: "#/components/responses/BadGateway"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
   /v1/preferences:
     get:
       tags: [Preferences]
@@ -227,6 +235,8 @@ paths:
                 $ref: "#/components/schemas/DeleteAllResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
   /v1/privacy/delete-all/{request_id}:
     get:
       tags: [Privacy]
@@ -278,6 +288,18 @@ components:
             $ref: "#/components/schemas/ErrorResponse"
     NotFound:
       description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    TooManyRequests:
+      description: Request rejected by endpoint rate limiting
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+            minimum: 1
+          description: Seconds before retrying the request.
       content:
         application/json:
           schema:

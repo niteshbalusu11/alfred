@@ -1,47 +1,52 @@
-# Phase I Threat Model (TEE + KMS Decrypt Path)
+# Phase I STRIDE Threat Model
 
 - Last Updated: 2026-02-14
-- Scope: Connector refresh-token decrypt and Google API access path
+- Reviewed For Issue: `#9`
+- Scope: iOS session auth, OAuth connector lifecycle, TEE decrypt path, worker processing, privacy delete flow
 
-## 1) Assets
+## 1) System Boundaries
 
-1. Google refresh tokens in `connectors.refresh_token_ciphertext`.
-2. KMS decrypt permission bound to Alfred key policy.
-3. Attestation evidence describing enclave runtime identity and measurement.
-4. Attestation verification key used to validate evidence signatures.
-5. Runtime-refreshed attestation document source (`TEE_ATTESTATION_DOCUMENT_PATH`).
+1. iOS client calls API endpoints over TLS.
+2. API server writes/reads operational state in Postgres.
+3. Worker executes scheduled jobs and provider fetches.
+4. Enclave + KMS path is required for refresh-token decrypt.
+5. APNs is used for outbound user notifications.
 
-## 2) Trust Boundaries
+## 2) Critical Assets
 
-1. API host process is untrusted for plaintext refresh tokens.
-2. Attested enclave runtime is trusted to request decrypt only when:
-   1. Runtime matches expected TEE platform.
-   2. Measurement is in approved allow-list.
-   3. Evidence signature is valid and evidence timestamp is fresh.
-3. KMS decrypt policy is trusted to enforce measurement + key constraints.
+1. Connector refresh token ciphertext and key metadata.
+2. iOS access/refresh session tokens and hashed lookup keys.
+3. User PII and preferences persisted in backend tables.
+4. Audit event stream proving security-sensitive actions.
+5. Attestation documents, allowed measurements, and KMS key policy bindings.
 
-## 3) Primary Threats and Mitigations
+## 3) STRIDE Analysis
 
-1. DB ciphertext exfiltration:
-   1. Mitigation: decrypt requires valid attestation and matching KMS key metadata.
-2. Host-level compromise attempts token decrypt:
-   1. Mitigation: runtime/measurement checks plus signed attestation verification deny decrypt before token retrieval.
-3. Key confusion during rotation:
-   1. Mitigation: connector rows persist `token_key_id` and `token_version`; decrypt requires exact match.
-4. Legacy row migration lockout:
-   1. Mitigation: legacy connector rows are marked with `__legacy__` and adopted to active key-id + key-version before strict checks.
-5. Sensitive value leakage in logs:
-   1. Mitigation: token plaintext never logged; denial paths log only policy reasons.
+| Category | Threat | Impact | Current Mitigations | Residual Risk |
+|---|---|---|---|---|
+| Spoofing | Forged session bearer token or stolen OAuth state | Unauthorized account access or connector hijack | Hashed token lookup, OAuth state TTL + one-time consumption, auth middleware rejects invalid bearer | Medium: relies on client token handling hygiene |
+| Tampering | DB row mutation of connector key metadata or status | Incorrect decrypt policy path, revoke bypass | Strict key-id/key-version checks, ACTIVE status checks, migration-backed schema | Medium: requires tight DB IAM + change auditing |
+| Repudiation | Actor denies issuing revoke/delete-all/security-sensitive actions | Weak incident forensics and support evidence | Audit events for session/connect/revoke/delete lifecycle; deterministic API outcomes | Low: enrich actor metadata over time |
+| Information Disclosure | Token/plaintext leakage via logs/errors or host decrypt path | Credential compromise and privacy breach | Redacted errors, no plaintext token logs, enclave/attestation gating for decrypt | Medium: guardrails must remain tested in CI |
+| Denial of Service | Endpoint abuse (auth/connect/delete) and retry storms | Service instability or user lockouts | Endpoint rate limiting for sensitive routes; deterministic 429 + Retry-After; worker lease/retry controls | Medium: distributed abuse needs upstream WAF controls too |
+| Elevation of Privilege | Host process or compromised runtime bypasses enclave constraints | Decrypt outside trusted boundary | Attestation verification + measurement allow-lists + KMS-bound policy; fail-closed checks | Medium: depends on secure key and attestation ops |
 
-## 4) Decrypt Authorization Contract
+## 4) Threat-Specific Controls Added in This Pass
 
-Decrypt is authorized only when all conditions pass:
+1. Endpoint rate limits now enforce quotas on:
+   1. `POST /v1/auth/ios/session`
+   2. `POST /v1/connectors/google/start`
+   3. `POST /v1/connectors/google/callback`
+   4. `DELETE /v1/connectors/{connector_id}`
+   5. `POST /v1/privacy/delete-all`
+2. Secret-scanning is required in CI and blocks merge on detected leaks.
+3. IAM least-privilege evidence is documented in `docs/iam-least-privilege-review.md`.
+4. Security hardening checklist completion is tracked in `docs/security-hardening-checklist.md`.
 
-1. Connector exists and is `ACTIVE`.
-2. Persisted connector metadata (`token_key_id`, `token_version`) matches active KMS policy.
-3. Attestation document is valid JSON and runtime matches expected TEE runtime.
-4. Attestation signature validates against trusted attestation public key.
-5. Attestation timestamp is within freshness window.
-6. Attested measurement is allow-listed in TEE and KMS policies.
+## 5) Review Outcome
 
-Failure in any condition must deny decrypt.
+1. No unresolved critical risks were identified in this pass.
+2. Remaining medium risks are operational and tracked for follow-up hardening:
+   1. Upstream WAF/IP reputation controls for distributed abuse patterns.
+   2. Periodic attestation/KMS policy drift review.
+   3. Automated verification that log redaction coverage stays complete.

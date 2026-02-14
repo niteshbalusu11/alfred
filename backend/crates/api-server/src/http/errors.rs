@@ -1,5 +1,5 @@
 use axum::Json;
-use axum::http::StatusCode;
+use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use shared::models::{ErrorBody, ErrorResponse};
 use shared::repos::StoreError;
@@ -43,6 +43,27 @@ pub(super) fn unauthorized_response() -> Response {
         }),
     )
         .into_response()
+}
+
+pub(super) fn too_many_requests_response(retry_after_seconds: u64) -> Response {
+    let mut response = (
+        StatusCode::TOO_MANY_REQUESTS,
+        Json(ErrorResponse {
+            error: ErrorBody {
+                code: "rate_limited".to_string(),
+                message: "Too many requests; retry later".to_string(),
+            },
+        }),
+    )
+        .into_response();
+
+    if let Ok(retry_after_value) = HeaderValue::from_str(&retry_after_seconds.to_string()) {
+        response
+            .headers_mut()
+            .insert(header::RETRY_AFTER, retry_after_value);
+    }
+
+    response
 }
 
 pub(super) fn security_error_response(err: SecurityError) -> Response {
