@@ -19,7 +19,13 @@ async fn main() {
         }
     };
 
-    let store = match Store::connect(&config.database_url, config.database_max_connections).await {
+    let store = match Store::connect(
+        &config.database_url,
+        config.database_max_connections,
+        &config.data_encryption_key,
+    )
+    .await
+    {
         Ok(store) => store,
         Err(err) => {
             error!("failed to connect to postgres: {err}");

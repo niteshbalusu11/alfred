@@ -59,16 +59,24 @@ pub enum StoreError {
 #[derive(Clone)]
 pub struct Store {
     pool: PgPool,
+    data_encryption_key: String,
 }
 
 impl Store {
-    pub async fn connect(database_url: &str, max_connections: u32) -> Result<Self, sqlx::Error> {
+    pub async fn connect(
+        database_url: &str,
+        max_connections: u32,
+        data_encryption_key: &str,
+    ) -> Result<Self, sqlx::Error> {
         let pool = PgPoolOptions::new()
             .max_connections(max_connections)
             .connect(database_url)
             .await?;
 
-        Ok(Self { pool })
+        Ok(Self {
+            pool,
+            data_encryption_key: data_encryption_key.to_string(),
+        })
     }
 
     pub fn pool(&self) -> &PgPool {
@@ -95,6 +103,102 @@ impl Store {
         Ok(())
     }
 
+    pub async fn create_session(
+        &self,
+        user_id: Uuid,
+        access_token_hash: &[u8],
+        refresh_token_hash: &[u8],
+        expires_at: DateTime<Utc>,
+    ) -> Result<(), StoreError> {
+        self.ensure_user(user_id).await?;
+
+        sqlx::query(
+            "INSERT INTO auth_sessions (user_id, access_token_hash, refresh_token_hash, expires_at)
+             VALUES ($1, $2, $3, $4)",
+        )
+        .bind(user_id)
+        .bind(access_token_hash)
+        .bind(refresh_token_hash)
+        .bind(expires_at)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn resolve_session_user(
+        &self,
+        access_token_hash: &[u8],
+        now: DateTime<Utc>,
+    ) -> Result<Option<Uuid>, StoreError> {
+        let user_id = sqlx::query_scalar(
+            "SELECT user_id
+             FROM auth_sessions
+             WHERE access_token_hash = $1
+               AND revoked_at IS NULL
+               AND expires_at > $2",
+        )
+        .bind(access_token_hash)
+        .bind(now)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(user_id)
+    }
+
+    pub async fn store_oauth_state(
+        &self,
+        user_id: Uuid,
+        state_hash: &[u8],
+        redirect_uri: &str,
+        expires_at: DateTime<Utc>,
+    ) -> Result<(), StoreError> {
+        self.ensure_user(user_id).await?;
+
+        sqlx::query(
+            "INSERT INTO oauth_states (user_id, state_hash, redirect_uri, expires_at)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (state_hash)
+             DO UPDATE SET
+               user_id = EXCLUDED.user_id,
+               redirect_uri = EXCLUDED.redirect_uri,
+               expires_at = EXCLUDED.expires_at,
+               consumed_at = NULL",
+        )
+        .bind(user_id)
+        .bind(state_hash)
+        .bind(redirect_uri)
+        .bind(expires_at)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn consume_oauth_state(
+        &self,
+        user_id: Uuid,
+        state_hash: &[u8],
+        now: DateTime<Utc>,
+    ) -> Result<Option<String>, StoreError> {
+        let redirect_uri = sqlx::query_scalar(
+            "UPDATE oauth_states
+             SET consumed_at = NOW()
+             WHERE user_id = $1
+               AND state_hash = $2
+               AND consumed_at IS NULL
+               AND expires_at > $3
+             RETURNING redirect_uri",
+        )
+        .bind(user_id)
+        .bind(state_hash)
+        .bind(now)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(redirect_uri)
+    }
+
     pub async fn register_device(
         &self,
         user_id: Uuid,
@@ -106,17 +210,18 @@ impl Store {
 
         sqlx::query(
             "INSERT INTO devices (user_id, device_identifier, apns_token_ciphertext, environment)
-             VALUES ($1, $2, $3, $4)
+             VALUES ($1, $2, pgp_sym_encrypt($3, $5), $4)
              ON CONFLICT (user_id, device_identifier)
              DO UPDATE SET
-               apns_token_ciphertext = EXCLUDED.apns_token_ciphertext,
+               apns_token_ciphertext = pgp_sym_encrypt($3, $5),
                environment = EXCLUDED.environment,
                updated_at = NOW()",
         )
         .bind(user_id)
         .bind(device_id)
-        .bind(apns_token.as_bytes())
+        .bind(apns_token)
         .bind(apns_environment_str(environment))
+        .bind(&self.data_encryption_key)
         .execute(&self.pool)
         .await?;
 
@@ -126,25 +231,26 @@ impl Store {
     pub async fn upsert_google_connector(
         &self,
         user_id: Uuid,
-        token_ciphertext: &[u8],
+        refresh_token: &str,
         scopes: &[String],
     ) -> Result<Uuid, StoreError> {
         self.ensure_user(user_id).await?;
 
         let connector_id: Uuid = sqlx::query_scalar(
             "INSERT INTO connectors (user_id, provider, scopes, refresh_token_ciphertext, status)
-             VALUES ($1, 'google', $2, $3, 'ACTIVE')
+             VALUES ($1, 'google', $2, pgp_sym_encrypt($3, $4), 'ACTIVE')
              ON CONFLICT (user_id, provider)
              DO UPDATE SET
                scopes = EXCLUDED.scopes,
-               refresh_token_ciphertext = EXCLUDED.refresh_token_ciphertext,
+               refresh_token_ciphertext = pgp_sym_encrypt($3, $4),
                status = 'ACTIVE',
                revoked_at = NULL
              RETURNING id",
         )
         .bind(user_id)
         .bind(scopes)
-        .bind(token_ciphertext)
+        .bind(refresh_token)
+        .bind(&self.data_encryption_key)
         .fetch_one(&self.pool)
         .await?;
 
@@ -266,7 +372,13 @@ impl Store {
         let redacted_metadata = Value::Object(
             metadata
                 .iter()
-                .map(|(k, v)| (k.clone(), Value::String(v.clone())))
+                .map(|(key, value)| {
+                    if is_sensitive_metadata_key(key) {
+                        (key.clone(), Value::String("[REDACTED]".to_string()))
+                    } else {
+                        (key.clone(), Value::String(value.clone()))
+                    }
+                })
                 .collect(),
         );
 
@@ -453,4 +565,13 @@ fn json_value_to_string_map(value: Value) -> HashMap<String, String> {
             .collect(),
         _ => HashMap::new(),
     }
+}
+
+fn is_sensitive_metadata_key(key: &str) -> bool {
+    let key = key.to_ascii_lowercase();
+    key.contains("token")
+        || key.contains("secret")
+        || key.contains("password")
+        || key.contains("authorization")
+        || key.contains("code")
 }

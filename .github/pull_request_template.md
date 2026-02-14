@@ -18,4 +18,4 @@
 - [ ] Merge decision is `APPROVE` only if all above pass
 
 ## AI Review Report
-- Attach or paste using: `/Users/niteshchowdharybalusu/Documents/alfred/docs/ai-review-template.md`
+- Attach or paste using: `docs/ai-review-template.md`

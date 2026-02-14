@@ -25,17 +25,17 @@ After implementing any issue, complete all of the following before handoff:
    1. list concrete findings or state `no findings`
    2. include unresolved risks and follow-ups
 6. Before merge, add the structured AI review report in PR/issue using:
-   1. `/Users/niteshchowdharybalusu/Documents/alfred/docs/ai-review-template.md`
+   1. `docs/ai-review-template.md`
 
 ## 2) Backend Layering Rules (Required)
 
 Use strict separation of concerns:
 
 1. Database/repository code:
-   1. Must live under `/Users/niteshchowdharybalusu/Documents/alfred/backend/crates/shared/src/repos`
+   1. Must live under `backend/crates/shared/src/repos`
    2. `sqlx` queries must not appear in HTTP handler modules
 2. HTTP API code:
-   1. Must live under `/Users/niteshchowdharybalusu/Documents/alfred/backend/crates/api-server/src/http.rs` (or future `/http/*` modules)
+   1. Must live under `backend/crates/api-server/src/http.rs` (or future `/http/*` modules)
    2. Should handle request/response mapping and auth middleware only
 3. Startup/bootstrap code:
    1. `main.rs` should wire config, infra, and router construction only
