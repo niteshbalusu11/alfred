@@ -11,6 +11,12 @@ public enum AlfredAPIClientError: Error, Sendable {
 }
 
 public final class AlfredAPIClient: Sendable {
+    private static let pathComponentAllowedCharacters: CharacterSet = {
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove(charactersIn: "/")
+        return allowed
+    }()
+
     private let baseURL: URL
     private let session: URLSession
     private let tokenProvider: AccessTokenProvider?
@@ -81,9 +87,13 @@ public final class AlfredAPIClient: Sendable {
     }
 
     public func revokeConnector(connectorID: String) async throws -> RevokeConnectorResponse {
-        try await send(
+        guard let encodedConnectorID = connectorID.addingPercentEncoding(withAllowedCharacters: Self.pathComponentAllowedCharacters) else {
+            throw AlfredAPIClientError.invalidURL
+        }
+
+        return try await send(
             method: "DELETE",
-            path: "/v1/connectors/\(connectorID)",
+            path: "/v1/connectors/\(encodedConnectorID)",
             body: Optional<EmptyBody>.none,
             requiresAuth: true
         )

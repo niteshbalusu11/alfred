@@ -75,7 +75,10 @@ final class SessionManager {
     }
 
     func isAuthenticated() -> Bool {
-        (try? accessToken()) != nil
+        guard let session else {
+            return false
+        }
+        return session.isValid(at: now())
     }
 
     func clearSession() {
