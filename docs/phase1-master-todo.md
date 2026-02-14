@@ -90,11 +90,11 @@ Ship a private beta where iOS users can:
 | SEC-002 | P0 | Build enclave image baseline | SEC | 2026-02-28 | TODO | SEC-001 | Image boot + smoke pass |
 | SEC-003 | P0 | Implement enclave attestation validation | SEC | 2026-03-04 | IN_PROGRESS | SEC-002 | Attestation verified end-to-end |
 | SEC-004 | P0 | Bind KMS decrypt access to enclave measurements | SEC | 2026-03-06 | IN_PROGRESS | SEC-003 | Decrypt denied outside attested enclave |
-| SEC-005 | P0 | Implement secure host<->enclave RPC contract | SEC | 2026-03-08 | TODO | SEC-002 | RPC path stable and tested |
+| SEC-005 | P0 | Implement secure host<->enclave RPC contract | SEC | 2026-03-08 | IN_PROGRESS | SEC-002 | RPC path stable and tested |
 | SEC-006 | P0 | Move Google API fetch/decrypt path into enclave process | SEC | 2026-03-13 | TODO | SEC-004, BE-006 | Sensitive path enclave-only |
 | SEC-007 | P0 | Token encryption/decryption service with key versioning | SEC | 2026-03-09 | IN_PROGRESS | SEC-004 | Key versioned crypto works |
 | SEC-008 | P1 | Add key rotation runbook + scripts | SEC | 2026-03-15 | TODO | SEC-007 | Rotation test executed |
-| SEC-009 | P0 | Secrets never logged tests and lint checks | SEC | 2026-03-10 | TODO | BE-003 | No secret leakage in logs |
+| SEC-009 | P0 | Secrets never logged tests and lint checks | SEC | 2026-03-10 | IN_PROGRESS | BE-003 | No secret leakage in logs |
 | SEC-010 | P0 | Threat model review (STRIDE) | SEC | 2026-03-17 | DONE | SEC-006 | Signed threat model doc |
 | SEC-011 | P0 | External security assessment prep | SEC | 2026-04-03 | TODO | SEC-010 | Scope + test plan ready |
 | SEC-012 | P0 | Remediate critical findings before beta | SEC | 2026-04-17 | TODO | SEC-011 | No open critical findings |
