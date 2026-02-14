@@ -73,8 +73,26 @@ After every issue with backend impact, complete this before handoff:
 Required architecture boundary:
 
 1. DB repository code must stay in `backend/crates/shared/src/repos`.
-2. HTTP routing/handlers/middleware must stay in `backend/crates/api-server/src/http.rs` (or future `/http/*` modules).
+2. HTTP routing/handlers/middleware must stay in `backend/crates/api-server/src/http/*` modules.
 3. `main.rs` files should remain startup/bootstrap only.
+
+## Code Structure and File Size Policy (Non-Negotiable)
+
+Code must remain modular by default. Do not keep adding logic to a single large file.
+
+1. Keep one clear responsibility per file/module.
+2. For handwritten source files, target `<= 300` lines.
+3. If a file grows beyond `500` lines, split it in the same issue unless there is a documented blocker.
+4. Do not increase line count in an already-large file (`> 500` lines) without first extracting modules/helpers.
+5. Allowed exceptions:
+   1. generated code
+   2. migration SQL
+   3. test fixture data files
+6. Refactor trigger:
+   1. If you touch a large file, include at least one modularization step in that same change when practical.
+7. PR/issue notes must call out structural changes:
+   1. list which modules were created/extracted
+   2. mention any deferred split with a follow-up issue number
 
 ## Frontend Test Policy
 

@@ -255,8 +255,24 @@ Use this sequence for most engineering tasks:
 ## Mandatory Scalability Boundaries
 
 1. All database/repository code must live in `backend/crates/shared/src/repos`.
-2. All API HTTP handlers/middleware/routing must live in `backend/crates/api-server/src/http.rs` (or future `/http/*` modules).
+2. All API HTTP handlers/middleware/routing must live in `backend/crates/api-server/src/http/*` modules.
 3. Keep `main.rs` limited to startup wiring/config/bootstrap.
+
+## Mandatory Code Decomposition Policy
+
+Avoid monolithic files. New work should keep files focused and easy to review.
+
+1. Prefer one responsibility per file/module.
+2. For handwritten source files, keep a target size of `<= 300` lines.
+3. When a file exceeds `500` lines, split it into submodules in the same issue unless blocked.
+4. If touching a file already over `500` lines, do not add net-new complexity without extracting logic first.
+5. Exceptions are limited to:
+   1. generated files
+   2. migration SQL
+   3. test fixture data files
+6. During issue updates and PR summaries:
+   1. explicitly list newly extracted modules
+   2. include follow-up issue references for any deferred decomposition
 
 ## Current Known State (Scaffold Stage)
 
