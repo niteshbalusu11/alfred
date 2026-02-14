@@ -82,6 +82,7 @@ async fn main() {
             config.tee_attestation_document,
             config.tee_attestation_document_path,
         ),
+        rate_limiter: http::RateLimiter::default(),
         session_ttl_seconds: config.session_ttl_seconds,
         oauth_state_ttl_seconds: config.oauth_state_ttl_seconds,
         http_client: reqwest::Client::new(),

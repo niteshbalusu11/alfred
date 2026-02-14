@@ -1,0 +1,311 @@
+use std::collections::{HashMap, VecDeque};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+
+use axum::extract::{Request, State};
+use axum::http::Method;
+use axum::middleware::Next;
+use axum::response::Response;
+use tracing::warn;
+
+use super::errors::too_many_requests_response;
+use super::{AppState, AuthUser};
+
+#[derive(Clone, Default)]
+pub struct RateLimiter {
+    entries: Arc<Mutex<HashMap<RateLimitBucketKey, VecDeque<Instant>>>>,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum SensitiveEndpoint {
+    AuthSession,
+    GoogleConnectStart,
+    GoogleConnectCallback,
+    RevokeConnector,
+    PrivacyDeleteAll,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RateLimitDecision {
+    Allowed,
+    Denied { retry_after_seconds: u64 },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct RateLimitBucketKey {
+    endpoint: &'static str,
+    subject: String,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct RateLimitPolicy {
+    max_requests: usize,
+    window_seconds: u64,
+}
+
+const MAX_TRACKED_WINDOW_SECONDS: u64 = 3600;
+
+impl SensitiveEndpoint {
+    fn from_request(req: &Request) -> Option<Self> {
+        let method = req.method();
+        let path = req.uri().path();
+
+        match (method, path) {
+            (&Method::POST, "/v1/auth/ios/session") => Some(Self::AuthSession),
+            (&Method::POST, "/v1/connectors/google/start") => Some(Self::GoogleConnectStart),
+            (&Method::POST, "/v1/connectors/google/callback") => Some(Self::GoogleConnectCallback),
+            (&Method::DELETE, path) if path.starts_with("/v1/connectors/") => {
+                Some(Self::RevokeConnector)
+            }
+            (&Method::POST, "/v1/privacy/delete-all") => Some(Self::PrivacyDeleteAll),
+            _ => None,
+        }
+    }
+
+    fn key_name(self) -> &'static str {
+        match self {
+            Self::AuthSession => "auth_session",
+            Self::GoogleConnectStart => "google_connect_start",
+            Self::GoogleConnectCallback => "google_connect_callback",
+            Self::RevokeConnector => "revoke_connector",
+            Self::PrivacyDeleteAll => "privacy_delete_all",
+        }
+    }
+
+    fn policy(self) -> RateLimitPolicy {
+        match self {
+            Self::AuthSession => RateLimitPolicy {
+                max_requests: 10,
+                window_seconds: 60,
+            },
+            Self::GoogleConnectStart => RateLimitPolicy {
+                max_requests: 20,
+                window_seconds: 60,
+            },
+            Self::GoogleConnectCallback => RateLimitPolicy {
+                max_requests: 20,
+                window_seconds: 60,
+            },
+            Self::RevokeConnector => RateLimitPolicy {
+                max_requests: 10,
+                window_seconds: 60,
+            },
+            Self::PrivacyDeleteAll => RateLimitPolicy {
+                max_requests: 3,
+                window_seconds: 3600,
+            },
+        }
+    }
+}
+
+impl RateLimiter {
+    fn check(&self, endpoint: SensitiveEndpoint, subject: &str) -> RateLimitDecision {
+        self.check_at(endpoint, subject, Instant::now())
+    }
+
+    fn check_at(
+        &self,
+        endpoint: SensitiveEndpoint,
+        subject: &str,
+        now: Instant,
+    ) -> RateLimitDecision {
+        let policy = endpoint.policy();
+        let window = Duration::from_secs(policy.window_seconds);
+        let cutoff = now.checked_sub(window).unwrap_or(now);
+        let bucket_key = RateLimitBucketKey {
+            endpoint: endpoint.key_name(),
+            subject: subject.to_string(),
+        };
+
+        let mut entries = self
+            .entries
+            .lock()
+            .expect("rate limiter mutex should not be poisoned");
+
+        // Prevent unbounded key growth by pruning buckets older than the longest policy window.
+        let global_cutoff = now
+            .checked_sub(Duration::from_secs(MAX_TRACKED_WINDOW_SECONDS))
+            .unwrap_or(now);
+        entries.retain(|_, existing_bucket| {
+            while let Some(front) = existing_bucket.front() {
+                if *front <= global_cutoff {
+                    existing_bucket.pop_front();
+                } else {
+                    break;
+                }
+            }
+            !existing_bucket.is_empty()
+        });
+
+        let bucket = entries.entry(bucket_key).or_default();
+
+        while let Some(front) = bucket.front() {
+            if *front <= cutoff {
+                bucket.pop_front();
+            } else {
+                break;
+            }
+        }
+
+        if bucket.len() >= policy.max_requests {
+            let retry_after_seconds = bucket
+                .front()
+                .map(|first_seen| {
+                    let elapsed = now.saturating_duration_since(*first_seen);
+                    window.saturating_sub(elapsed).as_secs().max(1)
+                })
+                .unwrap_or(policy.window_seconds);
+            return RateLimitDecision::Denied {
+                retry_after_seconds,
+            };
+        }
+
+        bucket.push_back(now);
+
+        RateLimitDecision::Allowed
+    }
+}
+
+pub(super) async fn sensitive_rate_limit_middleware(
+    State(state): State<AppState>,
+    req: Request,
+    next: Next,
+) -> Response {
+    let Some(endpoint) = SensitiveEndpoint::from_request(&req) else {
+        return next.run(req).await;
+    };
+
+    let subject = request_subject(&req);
+
+    match state.rate_limiter.check(endpoint, &subject) {
+        RateLimitDecision::Allowed => next.run(req).await,
+        RateLimitDecision::Denied {
+            retry_after_seconds,
+        } => {
+            warn!(
+                endpoint = endpoint.key_name(),
+                retry_after_seconds, "request denied by endpoint rate limit",
+            );
+            too_many_requests_response(retry_after_seconds)
+        }
+    }
+}
+
+fn request_subject(req: &Request) -> String {
+    if let Some(user) = req.extensions().get::<AuthUser>() {
+        return format!("user:{}", user.user_id);
+    }
+
+    if let Some(ip) = forwarded_for_ip(req) {
+        return format!("ip:{ip}");
+    }
+
+    "anonymous".to_string()
+}
+
+fn forwarded_for_ip(req: &Request) -> Option<String> {
+    req.headers()
+        .get("x-forwarded-for")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(',').next())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+        .or_else(|| {
+            req.headers()
+                .get("x-real-ip")
+                .and_then(|value| value.to_str().ok())
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(ToString::to_string)
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn allows_until_limit_then_denies() {
+        let limiter = RateLimiter::default();
+        let start = Instant::now();
+
+        for _ in 0..10 {
+            assert_eq!(
+                limiter.check_at(SensitiveEndpoint::AuthSession, "ip:1.2.3.4", start),
+                RateLimitDecision::Allowed
+            );
+        }
+
+        let denied = limiter.check_at(SensitiveEndpoint::AuthSession, "ip:1.2.3.4", start);
+        assert!(matches!(
+            denied,
+            RateLimitDecision::Denied {
+                retry_after_seconds: 1..=60
+            }
+        ));
+    }
+
+    #[test]
+    fn different_endpoints_have_independent_limits() {
+        let limiter = RateLimiter::default();
+        let start = Instant::now();
+
+        for _ in 0..10 {
+            assert_eq!(
+                limiter.check_at(SensitiveEndpoint::AuthSession, "ip:1.2.3.4", start),
+                RateLimitDecision::Allowed
+            );
+        }
+
+        assert_eq!(
+            limiter.check_at(SensitiveEndpoint::GoogleConnectStart, "ip:1.2.3.4", start),
+            RateLimitDecision::Allowed
+        );
+    }
+
+    #[test]
+    fn window_resets_after_expiration() {
+        let limiter = RateLimiter::default();
+        let start = Instant::now();
+        let after_window = start + Duration::from_secs(61);
+
+        for _ in 0..10 {
+            assert_eq!(
+                limiter.check_at(SensitiveEndpoint::AuthSession, "ip:1.2.3.4", start),
+                RateLimitDecision::Allowed
+            );
+        }
+
+        assert_eq!(
+            limiter.check_at(SensitiveEndpoint::AuthSession, "ip:1.2.3.4", after_window),
+            RateLimitDecision::Allowed
+        );
+    }
+
+    #[test]
+    fn stale_buckets_are_pruned() {
+        let limiter = RateLimiter::default();
+        let start = Instant::now();
+        let after_max_window = start + Duration::from_secs(MAX_TRACKED_WINDOW_SECONDS + 1);
+
+        assert_eq!(
+            limiter.check_at(SensitiveEndpoint::AuthSession, "user:stale", start),
+            RateLimitDecision::Allowed
+        );
+        assert_eq!(
+            limiter.check_at(
+                SensitiveEndpoint::GoogleConnectStart,
+                "user:fresh",
+                after_max_window
+            ),
+            RateLimitDecision::Allowed
+        );
+
+        let entries = limiter
+            .entries
+            .lock()
+            .expect("test mutex should not be poisoned");
+        assert_eq!(entries.len(), 1);
+    }
+}

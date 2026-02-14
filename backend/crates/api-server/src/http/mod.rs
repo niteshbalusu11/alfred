@@ -12,8 +12,10 @@ mod errors;
 mod health;
 mod preferences;
 mod privacy;
+mod rate_limit;
 mod session;
 mod tokens;
+pub use rate_limit::RateLimiter;
 
 #[derive(Clone)]
 pub struct OAuthConfig {
@@ -31,6 +33,7 @@ pub struct AppState {
     pub store: Store,
     pub oauth: OAuthConfig,
     pub secret_runtime: SecretRuntime,
+    pub rate_limiter: RateLimiter,
     pub session_ttl_seconds: u64,
     pub oauth_state_ttl_seconds: u64,
     pub http_client: reqwest::Client,
@@ -42,13 +45,21 @@ pub(super) struct AuthUser {
 }
 
 pub fn build_router(app_state: AppState) -> Router {
+    let rate_limit_layer_state = app_state.clone();
     let public_routes = Router::new()
         .route("/healthz", get(health::healthz))
         .route("/readyz", get(health::readyz))
-        .route("/v1/auth/ios/session", post(session::create_session))
+        .route(
+            "/v1/auth/ios/session",
+            post(session::create_session).layer(middleware::from_fn_with_state(
+                rate_limit_layer_state.clone(),
+                rate_limit::sensitive_rate_limit_middleware,
+            )),
+        )
         .with_state(app_state.clone());
 
     let auth_layer_state = app_state.clone();
+    let protected_rate_limit_layer_state = app_state.clone();
 
     let protected_routes = Router::new()
         .route("/v1/devices/apns", post(devices::register_device))
@@ -78,6 +89,10 @@ pub fn build_router(app_state: AppState) -> Router {
             "/v1/privacy/delete-all/{request_id}",
             get(privacy::get_delete_all_status),
         )
+        .layer(middleware::from_fn_with_state(
+            protected_rate_limit_layer_state,
+            rate_limit::sensitive_rate_limit_middleware,
+        ))
         .layer(middleware::from_fn_with_state(
             auth_layer_state,
             authn::auth_middleware,
