@@ -22,12 +22,11 @@ pub(super) async fn request_observability_middleware(mut req: Request, next: Nex
     });
 
     let method = req.method().clone();
-    let path = req.uri().path().to_string();
     let route = req
         .extensions()
         .get::<MatchedPath>()
         .map(|matched| matched.as_str().to_string())
-        .unwrap_or(path);
+        .unwrap_or_else(|| "<unmatched>".to_string());
     let started_at = Instant::now();
 
     let mut response = next.run(req).await;

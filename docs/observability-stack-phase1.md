@@ -76,4 +76,4 @@ This document defines the baseline observability stack for API, worker, and push
 
 ## Runbook
 
-Use `/Users/niteshchowdharybalusu/Documents/alfred/docs/observability-incident-runbook.md` for triage and escalation.
+Use `docs/observability-incident-runbook.md` for triage and escalation.
