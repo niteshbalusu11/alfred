@@ -25,12 +25,7 @@ extension AppModel {
         case .loadPreferences:
             await loadPreferences()
         case .savePreferences(let payload):
-            meetingReminderMinutes = String(payload.meetingReminderMinutes)
-            morningBriefLocalTime = payload.morningBriefLocalTime
-            quietHoursStart = payload.quietHoursStart
-            quietHoursEnd = payload.quietHoursEnd
-            highRiskRequiresConfirm = payload.highRiskRequiresConfirm
-            await savePreferences()
+            await savePreferences(payload: payload)
         case .revokeConnector(let id):
             connectorID = id
             await revokeConnector()

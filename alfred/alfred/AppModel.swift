@@ -122,17 +122,9 @@ final class AppModel: ObservableObject {
 
     func signOut() async {
         sessionManager.clearSession()
-        isAuthenticated = false
-        auditEvents = []
-        nextAuditCursor = nil
-        deleteAllStatus = ""
-        revokeStatus = ""
-        appleIdentityToken = ""
-        googleAuthURL = ""
-        googleState = ""
-        googleCode = ""
-        googleCallbackError = ""
-        googleErrorDescription = ""
+        resetAuthenticationState()
+        resetGoogleOAuthState()
+        resetRequestStatusState()
         errorBanner = nil
     }
 
@@ -207,6 +199,10 @@ final class AppModel: ObservableObject {
             highRiskRequiresConfirm: highRiskRequiresConfirm
         )
 
+        await savePreferences(payload: payload)
+    }
+
+    func savePreferences(payload: Preferences) async {
         await run(action: .savePreferences, retryAction: .savePreferences(payload)) { [self] in
             _ = try await apiClient.updatePreferences(payload)
         }
@@ -274,5 +270,25 @@ final class AppModel: ObservableObject {
                 sourceAction: action
             )
         }
+    }
+
+    private func resetAuthenticationState() {
+        isAuthenticated = false
+        auditEvents = []
+        nextAuditCursor = nil
+        appleIdentityToken = ""
+    }
+
+    private func resetGoogleOAuthState() {
+        googleAuthURL = ""
+        googleState = ""
+        googleCode = ""
+        googleCallbackError = ""
+        googleErrorDescription = ""
+    }
+
+    private func resetRequestStatusState() {
+        deleteAllStatus = ""
+        revokeStatus = ""
     }
 }
