@@ -18,3 +18,8 @@ tracing-subscriber.workspace = true
 url.workspace = true
 uuid.workspace = true
 shared = { path = "../shared" }
+
+[dev-dependencies]
+base64.workspace = true
+rand = "0.8"
+rsa = { version = "0.9", features = ["pem"] }

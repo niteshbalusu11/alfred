@@ -37,9 +37,12 @@ name = "api-server"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "base64",
  "chrono",
  "jsonwebtoken",
+ "rand 0.8.5",
  "reqwest",
+ "rsa",
  "serde",
  "serde_json",
  "sha2",
