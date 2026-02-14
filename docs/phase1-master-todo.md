@@ -76,8 +76,8 @@ Ship a private beta where iOS users can:
 | DB-002 | P0 | Convert draft SQL into migration sequence | BE | 2026-02-24 | DONE | DB-001 | `migrate up` produces schema |
 | DB-003 | P0 | Add token encryption metadata fields (version/rotated_at) | BE | 2026-02-27 | TODO | DB-002 | Schema supports key rotation |
 | DB-004 | P0 | Add audit_events indexes and query plan checks | BE | 2026-03-01 | TODO | DB-002 | Audit endpoint query < target latency |
-| DB-005 | P0 | Add jobs table locking/lease fields | BE | 2026-03-02 | TODO | DB-002 | Worker-safe leasing possible |
-| DB-006 | P1 | Add dead-letter table for failed jobs | BE | 2026-03-04 | TODO | DB-005 | Failed job archival works |
+| DB-005 | P0 | Add jobs table locking/lease fields | BE | 2026-03-02 | DONE | DB-002 | Worker-safe leasing possible |
+| DB-006 | P1 | Add dead-letter table for failed jobs | BE | 2026-03-04 | DONE | DB-005 | Failed job archival works |
 | DB-007 | P0 | Add privacy_delete_requests workflow states | BE | 2026-03-05 | TODO | DB-002 | Delete-all flow persists state |
 | DB-008 | P1 | Add retention policy job schema support | BE | 2026-03-10 | TODO | DB-004 | Retention window stored/configured |
 | DB-009 | P1 | Migration smoke tests in CI | QA | 2026-03-12 | TODO | DB-002 | CI executes migrations cleanly |
@@ -103,14 +103,14 @@ Ship a private beta where iOS users can:
 
 | ID | Pri | Task | Owner | ETA | Status | Depends On | Exit Criteria |
 |---|---|---|---|---|---|---|---|
-| WRK-001 | P0 | Implement due-job fetch with row leasing | BE | 2026-03-06 | TODO | DB-005 | No duplicate processing on concurrency test |
-| WRK-002 | P0 | Implement retry policy (transient/permanent) | BE | 2026-03-08 | TODO | WRK-001 | Retries respect policy |
-| WRK-003 | P1 | Implement dead-letter writes | BE | 2026-03-09 | TODO | DB-006, WRK-002 | Failed jobs land in DLQ table |
+| WRK-001 | P0 | Implement due-job fetch with row leasing | BE | 2026-03-06 | DONE | DB-005 | No duplicate processing on concurrency test |
+| WRK-002 | P0 | Implement retry policy (transient/permanent) | BE | 2026-03-08 | DONE | WRK-001 | Retries respect policy |
+| WRK-003 | P1 | Implement dead-letter writes | BE | 2026-03-09 | DONE | DB-006, WRK-002 | Failed jobs land in DLQ table |
 | WRK-004 | P0 | Implement meeting reminder job | BE | 2026-03-12 | TODO | WRK-001, APNS-001 | Reminder push end-to-end works |
 | WRK-005 | P0 | Implement morning brief job | BE | 2026-03-15 | TODO | WRK-001, APNS-001 | Morning brief push works |
 | WRK-006 | P0 | Implement urgent-email scan job | BE | 2026-03-18 | TODO | BE-006, WRK-001 | Alerts generated via rule engine |
-| WRK-007 | P0 | Add idempotency keys for outbound actions | BE | 2026-03-14 | TODO | WRK-002 | Duplicate sends prevented |
-| WRK-008 | P1 | Add per-user concurrency limits | BE | 2026-03-19 | TODO | WRK-001 | Limits enforced in worker |
+| WRK-007 | P0 | Add idempotency keys for outbound actions | BE | 2026-03-14 | DONE | WRK-002 | Duplicate sends prevented |
+| WRK-008 | P1 | Add per-user concurrency limits | BE | 2026-03-19 | DONE | WRK-001 | Limits enforced in worker |
 | WRK-009 | P1 | Add worker lag metrics and alerts | SRE | 2026-03-20 | TODO | OBS-001 | Lag dashboard + alert live |
 | WRK-010 | P1 | Add outage recovery/backfill command | BE | 2026-03-22 | TODO | WRK-001 | Backfill tested in staging |
 
