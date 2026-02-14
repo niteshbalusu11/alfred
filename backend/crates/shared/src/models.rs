@@ -17,6 +17,16 @@ pub struct CreateSessionResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RefreshSessionRequest {
+    pub refresh_token: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RevokeSessionRequest {
+    pub refresh_token: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ApnsEnvironment {
     Sandbox,

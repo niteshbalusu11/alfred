@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-use super::{Store, StoreError};
+use super::{SessionTokenStatus, Store, StoreError};
 
 impl Store {
     pub async fn create_session(
@@ -45,6 +45,103 @@ impl Store {
         .await?;
 
         Ok(user_id)
+    }
+
+    pub async fn rotate_session_by_refresh_token(
+        &self,
+        refresh_token_hash: &[u8],
+        new_access_token_hash: &[u8],
+        new_refresh_token_hash: &[u8],
+        expires_at: DateTime<Utc>,
+        now: DateTime<Utc>,
+    ) -> Result<(SessionTokenStatus, Option<Uuid>), StoreError> {
+        let row = sqlx::query_as::<_, (Uuid, DateTime<Utc>, Option<DateTime<Utc>>)>(
+            "SELECT user_id, expires_at, revoked_at
+             FROM auth_sessions
+             WHERE refresh_token_hash = $1",
+        )
+        .bind(refresh_token_hash)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let Some((user_id, current_expires_at, revoked_at)) = row else {
+            return Ok((SessionTokenStatus::NotFound, None));
+        };
+
+        if revoked_at.is_some() {
+            return Ok((SessionTokenStatus::Revoked, Some(user_id)));
+        }
+
+        if current_expires_at <= now {
+            return Ok((SessionTokenStatus::Expired, Some(user_id)));
+        }
+
+        let updated = sqlx::query_scalar::<_, Uuid>(
+            "UPDATE auth_sessions
+             SET access_token_hash = $2,
+                 refresh_token_hash = $3,
+                 expires_at = $4
+             WHERE refresh_token_hash = $1
+               AND revoked_at IS NULL
+               AND expires_at > $5
+             RETURNING user_id",
+        )
+        .bind(refresh_token_hash)
+        .bind(new_access_token_hash)
+        .bind(new_refresh_token_hash)
+        .bind(expires_at)
+        .bind(now)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        match updated {
+            Some(user_id) => Ok((SessionTokenStatus::Active, Some(user_id))),
+            None => Ok((SessionTokenStatus::NotFound, None)),
+        }
+    }
+
+    pub async fn revoke_session_by_refresh_token(
+        &self,
+        refresh_token_hash: &[u8],
+        now: DateTime<Utc>,
+    ) -> Result<(SessionTokenStatus, Option<Uuid>), StoreError> {
+        let row = sqlx::query_as::<_, (Uuid, DateTime<Utc>, Option<DateTime<Utc>>)>(
+            "SELECT user_id, expires_at, revoked_at
+             FROM auth_sessions
+             WHERE refresh_token_hash = $1",
+        )
+        .bind(refresh_token_hash)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let Some((user_id, expires_at, revoked_at)) = row else {
+            return Ok((SessionTokenStatus::NotFound, None));
+        };
+
+        if revoked_at.is_some() {
+            return Ok((SessionTokenStatus::Revoked, Some(user_id)));
+        }
+
+        if expires_at <= now {
+            return Ok((SessionTokenStatus::Expired, Some(user_id)));
+        }
+
+        let updated = sqlx::query_scalar::<_, Uuid>(
+            "UPDATE auth_sessions
+             SET revoked_at = $2
+             WHERE refresh_token_hash = $1
+               AND revoked_at IS NULL
+             RETURNING user_id",
+        )
+        .bind(refresh_token_hash)
+        .bind(now)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        match updated {
+            Some(user_id) => Ok((SessionTokenStatus::Active, Some(user_id))),
+            None => Ok((SessionTokenStatus::NotFound, None)),
+        }
     }
 
     pub async fn store_oauth_state(

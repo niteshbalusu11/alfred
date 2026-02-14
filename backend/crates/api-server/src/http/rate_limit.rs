@@ -53,6 +53,8 @@ impl SensitiveEndpoint {
 
         match (method, path) {
             (&Method::POST, "/v1/auth/ios/session") => Some(Self::AuthSession),
+            (&Method::POST, "/v1/auth/ios/session/refresh") => Some(Self::AuthSession),
+            (&Method::POST, "/v1/auth/ios/session/revoke") => Some(Self::AuthSession),
             (&Method::POST, "/v1/connectors/google/start") => Some(Self::GoogleConnectStart),
             (&Method::POST, "/v1/connectors/google/callback") => Some(Self::GoogleConnectCallback),
             (&Method::DELETE, path) if path.starts_with("/v1/connectors/") => {

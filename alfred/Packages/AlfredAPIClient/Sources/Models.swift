@@ -27,6 +27,30 @@ public struct CreateSessionResponse: Codable, Sendable {
     }
 }
 
+public struct RefreshSessionRequest: Codable, Sendable {
+    public let refreshToken: String
+
+    enum CodingKeys: String, CodingKey {
+        case refreshToken = "refresh_token"
+    }
+
+    public init(refreshToken: String) {
+        self.refreshToken = refreshToken
+    }
+}
+
+public struct RevokeSessionRequest: Codable, Sendable {
+    public let refreshToken: String
+
+    enum CodingKeys: String, CodingKey {
+        case refreshToken = "refresh_token"
+    }
+
+    public init(refreshToken: String) {
+        self.refreshToken = refreshToken
+    }
+}
+
 public enum APNSEnvironment: String, Codable, Sendable {
     case sandbox
     case production

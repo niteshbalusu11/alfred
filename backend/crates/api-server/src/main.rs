@@ -90,6 +90,7 @@ async fn main() {
         trusted_proxy_ips: config.trusted_proxy_ips.into_iter().collect(),
         session_ttl_seconds: config.session_ttl_seconds,
         oauth_state_ttl_seconds: config.oauth_state_ttl_seconds,
+        apple_ios_audience: config.apple_ios_audience,
         http_client: reqwest::Client::new(),
     });
 

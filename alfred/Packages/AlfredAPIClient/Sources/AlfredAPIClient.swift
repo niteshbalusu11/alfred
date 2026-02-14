@@ -50,6 +50,24 @@ public final class AlfredAPIClient: Sendable {
         )
     }
 
+    public func refreshIOSSession(_ request: RefreshSessionRequest) async throws -> CreateSessionResponse {
+        try await send(
+            method: "POST",
+            path: "/v1/auth/ios/session/refresh",
+            body: request,
+            requiresAuth: false
+        )
+    }
+
+    public func revokeIOSSession(_ request: RevokeSessionRequest) async throws -> OkResponse {
+        try await send(
+            method: "POST",
+            path: "/v1/auth/ios/session/revoke",
+            body: request,
+            requiresAuth: false
+        )
+    }
+
     public func registerAPNSDevice(_ request: RegisterDeviceRequest) async throws -> OkResponse {
         try await send(
             method: "POST",
