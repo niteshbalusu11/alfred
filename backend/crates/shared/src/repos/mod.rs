@@ -95,6 +95,13 @@ pub struct ClaimedJob {
     pub idempotency_key: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct DeviceRegistration {
+    pub device_id: String,
+    pub apns_token: String,
+    pub environment: ApnsEnvironment,
+}
+
 impl Store {
     pub async fn connect(
         database_url: &str,
@@ -259,6 +266,57 @@ impl Store {
         .await?;
 
         Ok(())
+    }
+
+    pub async fn has_registered_device(&self, user_id: Uuid) -> Result<bool, StoreError> {
+        self.ensure_user(user_id).await?;
+
+        let has_device: bool = sqlx::query_scalar(
+            "SELECT EXISTS (
+                SELECT 1
+                FROM devices
+                WHERE user_id = $1
+            )",
+        )
+        .bind(user_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(has_device)
+    }
+
+    pub async fn list_registered_devices(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<DeviceRegistration>, StoreError> {
+        self.ensure_user(user_id).await?;
+
+        let rows = sqlx::query(
+            "SELECT
+                device_identifier,
+                pgp_sym_decrypt(apns_token_ciphertext, $2) AS apns_token,
+                environment
+             FROM devices
+             WHERE user_id = $1",
+        )
+        .bind(user_id)
+        .bind(&self.data_encryption_key)
+        .fetch_all(&self.pool)
+        .await?;
+
+        rows.into_iter()
+            .map(|row| {
+                let device_id: String = row.try_get("device_identifier")?;
+                let apns_token: String = row.try_get("apns_token")?;
+                let environment: String = row.try_get("environment")?;
+
+                Ok(DeviceRegistration {
+                    device_id,
+                    apns_token,
+                    environment: parse_apns_environment(&environment)?,
+                })
+            })
+            .collect()
     }
 
     pub async fn upsert_google_connector(
@@ -1065,6 +1123,16 @@ fn apns_environment_str(value: &ApnsEnvironment) -> &'static str {
     match value {
         ApnsEnvironment::Sandbox => "sandbox",
         ApnsEnvironment::Production => "production",
+    }
+}
+
+fn parse_apns_environment(value: &str) -> Result<ApnsEnvironment, StoreError> {
+    match value {
+        "sandbox" => Ok(ApnsEnvironment::Sandbox),
+        "production" => Ok(ApnsEnvironment::Production),
+        _ => Err(StoreError::InvalidData(format!(
+            "unknown apns environment persisted: {value}"
+        ))),
     }
 }
 

@@ -8,12 +8,14 @@ use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use chrono::{Duration, Utc};
 use serde::Deserialize;
+use serde_json::json;
 use sha2::{Digest, Sha256};
 use shared::models::{
     CompleteGoogleConnectRequest, CompleteGoogleConnectResponse, ConnectorStatus,
     CreateSessionRequest, CreateSessionResponse, DeleteAllResponse, ErrorBody, ErrorResponse,
     ListAuditEventsResponse, OkResponse, Preferences, RegisterDeviceRequest,
-    RevokeConnectorResponse, StartGoogleConnectRequest, StartGoogleConnectResponse,
+    RevokeConnectorResponse, SendTestNotificationRequest, SendTestNotificationResponse,
+    StartGoogleConnectRequest, StartGoogleConnectResponse,
 };
 use shared::repos::{AuditResult, JobType, LEGACY_CONNECTOR_TOKEN_KEY_ID, Store, StoreError};
 use shared::security::{ConnectorKeyMetadata, SecretRuntime, SecurityError};
@@ -58,6 +60,7 @@ pub fn build_router(app_state: AppState) -> Router {
 
     let protected_routes = Router::new()
         .route("/v1/devices/apns", post(register_device))
+        .route("/v1/devices/apns/test", post(send_test_notification))
         .route("/v1/connectors/google/start", post(start_google_connect))
         .route(
             "/v1/connectors/google/callback",
@@ -225,6 +228,118 @@ async fn register_device(
     }
 
     (StatusCode::OK, Json(OkResponse { ok: true })).into_response()
+}
+
+async fn send_test_notification(
+    State(state): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(req): Json<SendTestNotificationRequest>,
+) -> impl IntoResponse {
+    match state.store.has_registered_device(user.user_id).await {
+        Ok(true) => {}
+        Ok(false) => {
+            return bad_request_response(
+                "no_registered_device",
+                "Register an APNs device before requesting a test notification",
+            );
+        }
+        Err(err) => return store_error_response(err),
+    }
+
+    let title = req
+        .title
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("Alfred test notification");
+    let body = req
+        .body
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("This notification confirms your push pipeline is active.");
+
+    if title.chars().count() > 120 {
+        return bad_request_response(
+            "invalid_title",
+            "Notification title must be at most 120 characters",
+        );
+    }
+
+    if body.chars().count() > 500 {
+        return bad_request_response(
+            "invalid_body",
+            "Notification body must be at most 500 characters",
+        );
+    }
+
+    let payload = match serde_json::to_vec(&json!({
+        "notification": {
+            "title": title,
+            "body": body
+        }
+    })) {
+        Ok(payload) => payload,
+        Err(err) => {
+            error!("failed to serialize test notification payload: {err}");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: ErrorBody {
+                        code: "internal_error".to_string(),
+                        message: "Unexpected server error".to_string(),
+                    },
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    let idempotency_key = format!("TEST_NOTIFICATION:{}", Uuid::new_v4());
+    let job_id = match state
+        .store
+        .enqueue_job_with_idempotency_key(
+            user.user_id,
+            JobType::MeetingReminder,
+            Utc::now(),
+            Some(&payload),
+            &idempotency_key,
+        )
+        .await
+    {
+        Ok(job_id) => job_id,
+        Err(err) => return store_error_response(err),
+    };
+
+    let mut metadata = HashMap::new();
+    metadata.insert("job_id".to_string(), job_id.to_string());
+    metadata.insert(
+        "job_type".to_string(),
+        JobType::MeetingReminder.as_str().to_string(),
+    );
+
+    if let Err(err) = state
+        .store
+        .add_audit_event(
+            user.user_id,
+            "TEST_NOTIFICATION_QUEUED",
+            None,
+            AuditResult::Success,
+            &metadata,
+        )
+        .await
+    {
+        return store_error_response(err);
+    }
+
+    (
+        StatusCode::OK,
+        Json(SendTestNotificationResponse {
+            queued_job_id: job_id.to_string(),
+            status: "QUEUED".to_string(),
+        }),
+    )
+        .into_response()
 }
 
 async fn start_google_connect(

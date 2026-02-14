@@ -60,3 +60,13 @@ These vars control TEE/KMS-bound decrypt policy for connector refresh tokens:
 10. `KMS_KEY_ID` (default: `kms/local/alfred-refresh-token`)
 11. `KMS_KEY_VERSION` (default: `1`)
 12. `KMS_ALLOWED_MEASUREMENTS` (CSV; defaults to `TEE_ALLOWED_MEASUREMENTS`)
+
+## Push Delivery Environment (Worker)
+
+Optional worker vars for APNs delivery abstraction:
+
+1. `APNS_SANDBOX_ENDPOINT` (HTTP endpoint used for sandbox device deliveries)
+2. `APNS_PRODUCTION_ENDPOINT` (HTTP endpoint used for production device deliveries)
+3. `APNS_AUTH_TOKEN` (optional bearer token attached to push delivery requests)
+
+If no endpoint is configured for a device environment, worker delivery is simulated and still logged/audited for local development.

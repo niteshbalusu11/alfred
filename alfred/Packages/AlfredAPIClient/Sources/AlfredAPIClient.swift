@@ -53,6 +53,15 @@ public final class AlfredAPIClient: Sendable {
         )
     }
 
+    public func sendAPNSTestNotification(_ request: SendTestNotificationRequest) async throws -> SendTestNotificationResponse {
+        try await send(
+            method: "POST",
+            path: "/v1/devices/apns/test",
+            body: request,
+            requiresAuth: true
+        )
+    }
+
     public func startGoogleOAuth(_ request: StartGoogleConnectRequest) async throws -> StartGoogleConnectResponse {
         try await send(
             method: "POST",
