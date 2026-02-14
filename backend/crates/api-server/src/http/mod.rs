@@ -6,9 +6,9 @@ use std::collections::HashSet;
 use std::net::IpAddr;
 use uuid::Uuid;
 
-mod apple_identity;
 mod audit;
 mod authn;
+mod clerk_identity;
 mod connectors;
 mod devices;
 mod errors;
@@ -17,7 +17,6 @@ mod observability;
 mod preferences;
 mod privacy;
 mod rate_limit;
-mod session;
 mod tokens;
 pub use rate_limit::RateLimiter;
 
@@ -39,9 +38,11 @@ pub struct AppState {
     pub secret_runtime: SecretRuntime,
     pub rate_limiter: RateLimiter,
     pub trusted_proxy_ips: HashSet<IpAddr>,
-    pub session_ttl_seconds: u64,
     pub oauth_state_ttl_seconds: u64,
-    pub apple_ios_audience: String,
+    pub clerk_issuer: String,
+    pub clerk_audience: String,
+    pub clerk_secret_key: String,
+    pub clerk_jwks_url: String,
     pub http_client: reqwest::Client,
 }
 
@@ -51,31 +52,9 @@ pub(super) struct AuthUser {
 }
 
 pub fn build_router(app_state: AppState) -> Router {
-    let rate_limit_layer_state = app_state.clone();
     let public_routes = Router::new()
         .route("/healthz", get(health::healthz))
         .route("/readyz", get(health::readyz))
-        .route(
-            "/v1/auth/ios/session",
-            post(session::create_session).layer(middleware::from_fn_with_state(
-                rate_limit_layer_state.clone(),
-                rate_limit::sensitive_rate_limit_middleware,
-            )),
-        )
-        .route(
-            "/v1/auth/ios/session/refresh",
-            post(session::refresh_session).layer(middleware::from_fn_with_state(
-                rate_limit_layer_state.clone(),
-                rate_limit::sensitive_rate_limit_middleware,
-            )),
-        )
-        .route(
-            "/v1/auth/ios/session/revoke",
-            post(session::revoke_session).layer(middleware::from_fn_with_state(
-                rate_limit_layer_state,
-                rate_limit::sensitive_rate_limit_middleware,
-            )),
-        )
         .with_state(app_state.clone());
 
     let auth_layer_state = app_state.clone();

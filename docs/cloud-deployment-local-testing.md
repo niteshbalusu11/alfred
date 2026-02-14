@@ -5,13 +5,13 @@ Last updated: 2026-02-14
 This guide is for first-time manual testing when you have not used the app/backend before.
 
 Auth note:
-1. Auth direction is migrating to Clerk (epic `#52`).
-2. Until migration issues are complete, parts of this guide use the current legacy local auth bootstrap path.
+1. Alfred backend auth is Clerk-only (epic `#52`).
+2. Protected endpoints require a valid Clerk JWT bearer token.
 
 ## 1) Current Reality (What Is Already Implemented)
 
 Backend:
-1. API routes are implemented for auth, devices/APNs registration, Google connector start/callback/revoke, preferences, audit events, and privacy delete-all.
+1. API routes are implemented for devices/APNs registration, Google connector start/callback/revoke, preferences, audit events, and privacy delete-all.
 2. Worker job engine, retries/idempotency, notification dispatch path, and privacy delete processing are implemented.
 
 iOS:
@@ -26,7 +26,6 @@ iOS:
 1. Docker + Docker Compose
 2. Rust toolchain (`cargo`)
 3. `sqlx-cli` (auto-installed by `just backend-migrate`)
-4. `psql` client (recommended for the local auth bootstrap step)
 
 ### Step A: Start local DB and apply migrations
 
@@ -46,6 +45,9 @@ Terminal 1 (API on port 3000 so it matches current iOS default):
 cd backend
 export DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/alfred
 export DATA_ENCRYPTION_KEY=dev-only-change-me
+export CLERK_ISSUER=https://your-tenant.clerk.accounts.dev
+export CLERK_AUDIENCE=alfred-api
+export CLERK_SECRET_KEY=sk_test_replace_me
 export GOOGLE_OAUTH_CLIENT_ID=dev-client-id
 export GOOGLE_OAUTH_CLIENT_SECRET=dev-client-secret
 export GOOGLE_OAUTH_REDIRECT_URI=http://localhost/oauth/callback
@@ -62,6 +64,9 @@ Terminal 2 (worker):
 cd backend
 export DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/alfred
 export DATA_ENCRYPTION_KEY=dev-only-change-me
+export CLERK_ISSUER=https://your-tenant.clerk.accounts.dev
+export CLERK_AUDIENCE=alfred-api
+export CLERK_SECRET_KEY=sk_test_replace_me
 export GOOGLE_OAUTH_CLIENT_ID=dev-client-id
 export GOOGLE_OAUTH_CLIENT_SECRET=dev-client-secret
 export TEE_ATTESTATION_REQUIRED=false
@@ -79,31 +84,12 @@ curl -s http://127.0.0.1:3000/readyz
 
 Both should return `{"ok":true}`.
 
-### Step D: Create a local dev session token (bypass Apple sign-in for local testing only)
+### Step D: Export a Clerk bearer token for manual API testing
 
-`/v1/auth/ios/session` requires a real Apple identity token. For local manual API testing, create a session directly in Postgres:
+Use a valid Clerk session token for the configured Clerk application:
 
 ```bash
-export DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/alfred
-export DEV_USER_ID="$(uuidgen | tr '[:upper:]' '[:lower:]')"
-export DEV_ACCESS_TOKEN="dev-at-$(uuidgen | tr '[:upper:]' '[:lower:]')"
-export DEV_REFRESH_TOKEN="dev-rt-$(uuidgen | tr '[:upper:]' '[:lower:]')"
-
-psql "$DATABASE_URL" <<SQL
-INSERT INTO users (id, status) VALUES ('$DEV_USER_ID', 'ACTIVE')
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO auth_sessions (user_id, access_token_hash, refresh_token_hash, expires_at)
-VALUES (
-  '$DEV_USER_ID',
-  digest('$DEV_ACCESS_TOKEN', 'sha256'),
-  digest('$DEV_REFRESH_TOKEN', 'sha256'),
-  NOW() + INTERVAL '24 hours'
-);
-SQL
-
-echo "Use this bearer token:"
-echo "$DEV_ACCESS_TOKEN"
+export DEV_ACCESS_TOKEN="<paste-valid-clerk-jwt>"
 ```
 
 Set helper env var:
@@ -199,8 +185,8 @@ just ios-open
 
 ### Important auth limitation
 
-The sign-in API validates real Apple identity tokens against Apple JWKS.
-For app sign-in, you must provide a real Apple identity token; a fake token will be rejected.
+The backend validates bearer tokens against Clerk JWKS/issuer/audience.
+For app sign-in and manual API calls, a valid Clerk token is required.
 
 ## 4) Cloud Deployment (Staging First)
 
@@ -216,12 +202,16 @@ There is currently no committed Dockerfile/Terraform/Kubernetes manifest in this
 Shared:
 1. `DATABASE_URL`
 2. `DATA_ENCRYPTION_KEY`
-3. `GOOGLE_OAUTH_CLIENT_ID`
-4. `GOOGLE_OAUTH_CLIENT_SECRET`
-5. `GOOGLE_OAUTH_REDIRECT_URI`
-6. `GOOGLE_OAUTH_AUTH_URL` (optional default exists)
-7. `GOOGLE_OAUTH_TOKEN_URL` (optional default exists)
-8. `GOOGLE_OAUTH_REVOKE_URL` (optional default exists)
+3. `CLERK_ISSUER`
+4. `CLERK_AUDIENCE`
+5. `CLERK_SECRET_KEY`
+6. `CLERK_BACKEND_API_URL` (optional default is `https://api.clerk.com/v1`)
+7. `GOOGLE_OAUTH_CLIENT_ID`
+8. `GOOGLE_OAUTH_CLIENT_SECRET`
+9. `GOOGLE_OAUTH_REDIRECT_URI`
+10. `GOOGLE_OAUTH_AUTH_URL` (optional default exists)
+11. `GOOGLE_OAUTH_TOKEN_URL` (optional default exists)
+12. `GOOGLE_OAUTH_REVOKE_URL` (optional default exists)
 
 API:
 1. `API_BIND_ADDR` (for cloud: usually `0.0.0.0:8080`)
@@ -252,5 +242,5 @@ Worker/APNs (if testing push delivery):
 ## 6) Known Gaps
 
 1. No turnkey one-command cloud deploy manifest exists yet.
-2. App sign-in requires real Apple identity token (no dev bypass endpoint yet).
+2. App sign-in/manual API calls require a valid Clerk token (no local token mint helper in this repo yet).
 3. API default bind port (`8080`) differs from current iOS default base URL (`3000`), so local runs must align one side.

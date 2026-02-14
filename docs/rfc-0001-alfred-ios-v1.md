@@ -51,12 +51,12 @@ This RFC defines iOS app behavior, backend API contracts, security constraints, 
 1. Swift + SwiftUI.
 2. `ASWebAuthenticationSession` for Google OAuth.
 3. `URLSession` for API requests.
-4. Keychain for auth/session token storage.
+4. Keychain for Clerk session token storage.
 5. APNs for push receipt.
 
 ### 5.2 iOS Modules
 
-1. `AuthModule`: sign-in/session refresh/logout.
+1. `AuthModule`: Clerk sign-in/session/logout.
 2. `ConnectorModule`: Google connect, scope display, revoke.
 3. `SettingsModule`: reminder lead time, quiet hours, risk controls.
 4. `AuditModule`: user-visible redacted activity logs.
@@ -88,26 +88,11 @@ All endpoints require bearer auth unless noted.
 
 ### 7.1 Auth
 
-`POST /v1/auth/ios/session`
+Alfred uses Clerk-managed authentication.
 
-Request:
-
-```json
-{
-  "apple_identity_token": "base64-jwt",
-  "device_id": "ios-device-uuid"
-}
-```
-
-Response:
-
-```json
-{
-  "access_token": "jwt",
-  "refresh_token": "opaque",
-  "expires_in": 3600
-}
-```
+Backend contract:
+1. Protected API routes require `Authorization: Bearer <clerk-jwt>`.
+2. Legacy custom auth routes (`/v1/auth/ios/session*`) are removed.
 
 ### 7.2 Push Registration
 

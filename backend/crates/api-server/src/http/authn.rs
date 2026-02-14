@@ -2,12 +2,14 @@ use axum::extract::{Request, State};
 use axum::http::header;
 use axum::middleware::Next;
 use axum::response::Response;
-use chrono::Utc;
 use tracing::warn;
+use uuid::Uuid;
 
-use super::errors::{store_error_response, unauthorized_response};
-use super::tokens::hash_token;
+use super::clerk_identity::{ClerkIdentityError, verify_identity_token};
+use super::errors::{bad_gateway_response, store_error_response, unauthorized_response};
 use super::{AppState, AuthUser};
+
+const CLERK_SUBJECT_NAMESPACE: Uuid = Uuid::from_u128(0x10850be7d81f4f4ea2dc0bb96943a09e);
 
 pub(super) async fn auth_middleware(
     State(state): State<AppState>,
@@ -30,18 +32,38 @@ pub(super) async fn auth_middleware(
         return unauthorized_response();
     };
 
-    let token_hash = hash_token(token);
-
-    let user_id = match state
-        .store
-        .resolve_session_user(&token_hash, Utc::now())
-        .await
+    let identity = match verify_identity_token(
+        &state.http_client,
+        &state.clerk_jwks_url,
+        &state.clerk_secret_key,
+        &state.clerk_issuer,
+        &state.clerk_audience,
+        token,
+    )
+    .await
     {
-        Ok(Some(user_id)) => user_id,
-        Ok(None) => return unauthorized_response(),
-        Err(err) => return store_error_response(err),
+        Ok(identity) => identity,
+        Err(ClerkIdentityError::InvalidToken { code, message }) => {
+            warn!("clerk auth rejected: code={code}, message={message}");
+            return unauthorized_response();
+        }
+        Err(ClerkIdentityError::UpstreamUnavailable { code, message }) => {
+            warn!("clerk auth upstream unavailable: code={code}, message={message}");
+            return bad_gateway_response(code, message);
+        }
     };
+
+    let user_id = user_id_for_clerk_subject(&state.clerk_issuer, &identity.subject);
+    match state.store.ensure_user(user_id).await {
+        Ok(()) => {}
+        Err(err) => return store_error_response(err),
+    }
 
     req.extensions_mut().insert(AuthUser { user_id });
     next.run(req).await
+}
+
+fn user_id_for_clerk_subject(issuer: &str, subject: &str) -> Uuid {
+    let stable_subject = format!("{}:{subject}", issuer.trim_end_matches('/'));
+    Uuid::new_v5(&CLERK_SUBJECT_NAMESPACE, stable_subject.as_bytes())
 }

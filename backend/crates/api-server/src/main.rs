@@ -93,9 +93,11 @@ async fn main() {
         ),
         rate_limiter,
         trusted_proxy_ips: config.trusted_proxy_ips.into_iter().collect(),
-        session_ttl_seconds: config.session_ttl_seconds,
         oauth_state_ttl_seconds: config.oauth_state_ttl_seconds,
-        apple_ios_audience: config.apple_ios_audience,
+        clerk_issuer: config.clerk_issuer,
+        clerk_audience: config.clerk_audience,
+        clerk_secret_key: config.clerk_secret_key,
+        clerk_jwks_url: config.clerk_jwks_url,
         http_client: reqwest::Client::new(),
     });
 

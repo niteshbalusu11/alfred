@@ -15,7 +15,7 @@
 ## 2) Critical Assets
 
 1. Connector refresh token ciphertext and key metadata.
-2. iOS access/refresh session tokens and hashed lookup keys.
+2. Clerk-issued bearer tokens used for protected API authorization.
 3. User PII and preferences persisted in backend tables.
 4. Audit event stream proving security-sensitive actions.
 5. Attestation documents, allowed measurements, and KMS key policy bindings.
@@ -24,7 +24,7 @@
 
 | Category | Threat | Impact | Current Mitigations | Residual Risk |
 |---|---|---|---|---|
-| Spoofing | Forged session bearer token or stolen OAuth state | Unauthorized account access or connector hijack | Hashed token lookup, OAuth state TTL + one-time consumption, auth middleware rejects invalid bearer | Medium: relies on client token handling hygiene |
+| Spoofing | Forged Clerk bearer token or stolen OAuth state | Unauthorized account access or connector hijack | Clerk JWT verification (JWKS + issuer + audience + expiry), OAuth state TTL + one-time consumption | Medium: relies on client token handling hygiene |
 | Tampering | DB row mutation of connector key metadata or status | Incorrect decrypt policy path, revoke bypass | Strict key-id/key-version checks, ACTIVE status checks, migration-backed schema | Medium: requires tight DB IAM + change auditing |
 | Repudiation | Actor denies issuing revoke/delete-all/security-sensitive actions | Weak incident forensics and support evidence | Audit events for session/connect/revoke/delete lifecycle; deterministic API outcomes | Low: enrich actor metadata over time |
 | Information Disclosure | Token/plaintext leakage via logs/errors or host decrypt path | Credential compromise and privacy breach | Redacted errors, no plaintext token logs, enclave RPC-only decrypt/refresh/revoke path, attestation/KMS gating | Low-Medium: guardrails must remain tested in CI |
@@ -34,11 +34,10 @@
 ## 4) Threat-Specific Controls Added in This Pass
 
 1. Endpoint rate limits now enforce quotas on:
-   1. `POST /v1/auth/ios/session`
-   2. `POST /v1/connectors/google/start`
-   3. `POST /v1/connectors/google/callback`
-   4. `DELETE /v1/connectors/{connector_id}`
-   5. `POST /v1/privacy/delete-all`
+   1. `POST /v1/connectors/google/start`
+   2. `POST /v1/connectors/google/callback`
+   3. `DELETE /v1/connectors/{connector_id}`
+   4. `POST /v1/privacy/delete-all`
 2. Secret-scanning is required in CI and blocks merge on detected leaks.
 3. IAM least-privilege evidence is documented in `docs/iam-least-privilege-review.md`.
 4. Security hardening checklist completion is tracked in `docs/security-hardening-checklist.md`.

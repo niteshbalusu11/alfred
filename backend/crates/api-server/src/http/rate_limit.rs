@@ -19,7 +19,6 @@ pub struct RateLimiter {
 
 #[derive(Debug, Clone, Copy)]
 enum SensitiveEndpoint {
-    AuthSession,
     GoogleConnectStart,
     GoogleConnectCallback,
     RevokeConnector,
@@ -52,9 +51,6 @@ impl SensitiveEndpoint {
         let path = req.uri().path();
 
         match (method, path) {
-            (&Method::POST, "/v1/auth/ios/session") => Some(Self::AuthSession),
-            (&Method::POST, "/v1/auth/ios/session/refresh") => Some(Self::AuthSession),
-            (&Method::POST, "/v1/auth/ios/session/revoke") => Some(Self::AuthSession),
             (&Method::POST, "/v1/connectors/google/start") => Some(Self::GoogleConnectStart),
             (&Method::POST, "/v1/connectors/google/callback") => Some(Self::GoogleConnectCallback),
             (&Method::DELETE, path) if path.starts_with("/v1/connectors/") => {
@@ -67,7 +63,6 @@ impl SensitiveEndpoint {
 
     fn key_name(self) -> &'static str {
         match self {
-            Self::AuthSession => "auth_session",
             Self::GoogleConnectStart => "google_connect_start",
             Self::GoogleConnectCallback => "google_connect_callback",
             Self::RevokeConnector => "revoke_connector",
@@ -77,10 +72,6 @@ impl SensitiveEndpoint {
 
     fn policy(self) -> RateLimitPolicy {
         match self {
-            Self::AuthSession => RateLimitPolicy {
-                max_requests: 10,
-                window_seconds: 60,
-            },
             Self::GoogleConnectStart => RateLimitPolicy {
                 max_requests: 20,
                 window_seconds: 60,
@@ -294,14 +285,14 @@ mod tests {
         let limiter = RateLimiter::default();
         let start = Instant::now();
 
-        for _ in 0..10 {
+        for _ in 0..20 {
             assert_eq!(
-                limiter.check_at(SensitiveEndpoint::AuthSession, "ip:1.2.3.4", start),
+                limiter.check_at(SensitiveEndpoint::GoogleConnectStart, "ip:1.2.3.4", start),
                 RateLimitDecision::Allowed
             );
         }
 
-        let denied = limiter.check_at(SensitiveEndpoint::AuthSession, "ip:1.2.3.4", start);
+        let denied = limiter.check_at(SensitiveEndpoint::GoogleConnectStart, "ip:1.2.3.4", start);
         assert!(matches!(
             denied,
             RateLimitDecision::Denied {
@@ -315,15 +306,19 @@ mod tests {
         let limiter = RateLimiter::default();
         let start = Instant::now();
 
-        for _ in 0..10 {
+        for _ in 0..20 {
             assert_eq!(
-                limiter.check_at(SensitiveEndpoint::AuthSession, "ip:1.2.3.4", start),
+                limiter.check_at(SensitiveEndpoint::GoogleConnectStart, "ip:1.2.3.4", start),
                 RateLimitDecision::Allowed
             );
         }
 
         assert_eq!(
-            limiter.check_at(SensitiveEndpoint::GoogleConnectStart, "ip:1.2.3.4", start),
+            limiter.check_at(
+                SensitiveEndpoint::GoogleConnectCallback,
+                "ip:1.2.3.4",
+                start
+            ),
             RateLimitDecision::Allowed
         );
     }
@@ -334,15 +329,19 @@ mod tests {
         let start = Instant::now();
         let after_window = start + Duration::from_secs(61);
 
-        for _ in 0..10 {
+        for _ in 0..20 {
             assert_eq!(
-                limiter.check_at(SensitiveEndpoint::AuthSession, "ip:1.2.3.4", start),
+                limiter.check_at(SensitiveEndpoint::GoogleConnectStart, "ip:1.2.3.4", start),
                 RateLimitDecision::Allowed
             );
         }
 
         assert_eq!(
-            limiter.check_at(SensitiveEndpoint::AuthSession, "ip:1.2.3.4", after_window),
+            limiter.check_at(
+                SensitiveEndpoint::GoogleConnectStart,
+                "ip:1.2.3.4",
+                after_window
+            ),
             RateLimitDecision::Allowed
         );
     }
@@ -354,7 +353,7 @@ mod tests {
         let stale_cutoff = start + Duration::from_secs(MAX_TRACKED_WINDOW_SECONDS + 1);
 
         assert_eq!(
-            limiter.check_at(SensitiveEndpoint::AuthSession, "user:stale", start),
+            limiter.check_at(SensitiveEndpoint::GoogleConnectStart, "user:stale", start),
             RateLimitDecision::Allowed
         );
         prune_entries(&limiter.entries, stale_cutoff);
@@ -370,7 +369,7 @@ mod tests {
     fn request_subject_prefers_connect_info_over_spoofable_forward_headers() {
         let trusted_proxy_ips = HashSet::new();
         let mut request = Request::builder()
-            .uri("/v1/auth/ios/session")
+            .uri("/v1/connectors/google/start")
             .body(Body::empty())
             .expect("request builder should work");
 
@@ -390,7 +389,7 @@ mod tests {
     fn request_subject_uses_forwarded_chain_when_peer_is_trusted_proxy() {
         let trusted_proxy_ips = HashSet::from([IpAddr::from([10, 0, 0, 5])]);
         let mut request = Request::builder()
-            .uri("/v1/auth/ios/session")
+            .uri("/v1/connectors/google/start")
             .body(Body::empty())
             .expect("request builder should work");
 
@@ -413,7 +412,7 @@ mod tests {
         let trusted_proxy_ips =
             HashSet::from([IpAddr::from([10, 0, 0, 5]), IpAddr::from([10, 0, 0, 9])]);
         let mut request = Request::builder()
-            .uri("/v1/auth/ios/session")
+            .uri("/v1/connectors/google/start")
             .body(Body::empty())
             .expect("request builder should work");
 
