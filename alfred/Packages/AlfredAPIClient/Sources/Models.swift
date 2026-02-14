@@ -73,12 +73,23 @@ public struct StartGoogleConnectResponse: Codable, Sendable {
 }
 
 public struct CompleteGoogleConnectRequest: Codable, Sendable {
-    public let code: String
+    public let code: String?
     public let state: String
+    public let error: String?
+    public let errorDescription: String?
 
-    public init(code: String, state: String) {
+    enum CodingKeys: String, CodingKey {
+        case code
+        case state
+        case error
+        case errorDescription = "error_description"
+    }
+
+    public init(code: String? = nil, state: String, error: String? = nil, errorDescription: String? = nil) {
         self.code = code
         self.state = state
+        self.error = error
+        self.errorDescription = errorDescription
     }
 }
 

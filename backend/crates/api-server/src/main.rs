@@ -58,6 +58,7 @@ async fn main() {
             redirect_uri: config.google_redirect_uri,
             auth_url: config.google_auth_url,
             token_url: config.google_token_url,
+            revoke_url: config.google_revoke_url,
             scopes: vec![
                 "https://www.googleapis.com/auth/gmail.readonly".to_string(),
                 "https://www.googleapis.com/auth/calendar.readonly".to_string(),

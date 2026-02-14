@@ -62,6 +62,12 @@ pub struct Store {
     data_encryption_key: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct ConnectorSecret {
+    pub provider: String,
+    pub refresh_token: String,
+}
+
 impl Store {
     pub async fn connect(
         database_url: &str,
@@ -273,6 +279,35 @@ impl Store {
         .await?;
 
         Ok(result.rows_affected() > 0)
+    }
+
+    pub async fn get_active_connector_secret(
+        &self,
+        user_id: Uuid,
+        connector_id: Uuid,
+    ) -> Result<Option<ConnectorSecret>, StoreError> {
+        let row = sqlx::query(
+            "SELECT provider, pgp_sym_decrypt(refresh_token_ciphertext, $3) AS refresh_token
+             FROM connectors
+             WHERE id = $1
+               AND user_id = $2
+               AND status = 'ACTIVE'",
+        )
+        .bind(connector_id)
+        .bind(user_id)
+        .bind(&self.data_encryption_key)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        row.map(|row| {
+            let provider: String = row.try_get("provider")?;
+            let refresh_token: String = row.try_get("refresh_token")?;
+            Ok(ConnectorSecret {
+                provider,
+                refresh_token,
+            })
+        })
+        .transpose()
     }
 
     pub async fn get_or_create_preferences(

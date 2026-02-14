@@ -73,6 +73,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/StartGoogleConnectResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
   /v1/connectors/google/callback:
@@ -95,6 +97,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CompleteGoogleConnectResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "502":
+          $ref: "#/components/responses/BadGateway"
         "401":
           $ref: "#/components/responses/Unauthorized"
   /v1/connectors/{connector_id}:
@@ -121,6 +127,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/BadGateway"
   /v1/preferences:
     get:
       tags: [Preferences]
@@ -202,6 +210,18 @@ components:
       scheme: bearer
       bearerFormat: JWT
   responses:
+    BadRequest:
+      description: Request rejected due to invalid input or OAuth error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    BadGateway:
+      description: Upstream OAuth provider unavailable or failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
     Unauthorized:
       description: Unauthorized
       content:
@@ -264,11 +284,16 @@ components:
           type: string
     CompleteGoogleConnectRequest:
       type: object
-      required: [code, state]
+      required: [state]
       properties:
         code:
           type: string
+          nullable: true
         state:
+          type: string
+        error:
+          type: string
+        error_description:
           type: string
     CompleteGoogleConnectResponse:
       type: object

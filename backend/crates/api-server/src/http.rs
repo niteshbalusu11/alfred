@@ -27,6 +27,7 @@ pub struct OAuthConfig {
     pub redirect_uri: String,
     pub auth_url: String,
     pub token_url: String,
+    pub revoke_url: String,
     pub scopes: Vec<String>,
 }
 
@@ -303,17 +304,42 @@ async fn complete_google_connect(
         return bad_request_response("invalid_state", "OAuth state is invalid or expired");
     };
 
-    let token_response = match exchange_google_code(
-        &state.http_client,
-        &state.oauth,
-        &req.code,
-        &redirect_uri,
-    )
-    .await
+    if let Some(error) = req.error.as_deref() {
+        if error == "access_denied" {
+            return bad_request_response(
+                "oauth_consent_denied",
+                req.error_description
+                    .as_deref()
+                    .unwrap_or("Google consent was denied"),
+            );
+        }
+
+        return bad_request_response(
+            "oauth_callback_error",
+            "Google OAuth callback contained an error",
+        );
+    }
+
+    let code = match req
+        .code
+        .as_deref()
+        .map(str::trim)
+        .filter(|code| !code.is_empty())
     {
-        Ok(token_response) => token_response,
-        Err(response) => return response,
+        Some(code) => code,
+        None => {
+            return bad_request_response(
+                "invalid_oauth_code",
+                "Authorization code is missing or invalid",
+            );
+        }
     };
+
+    let token_response =
+        match exchange_google_code(&state.http_client, &state.oauth, code, &redirect_uri).await {
+            Ok(token_response) => token_response,
+            Err(response) => return response,
+        };
 
     let Some(refresh_token) = token_response.refresh_token else {
         return bad_request_response(
@@ -395,6 +421,44 @@ async fn revoke_connector(
                 .into_response();
         }
     };
+
+    let connector_secret = match state
+        .store
+        .get_active_connector_secret(user.user_id, connector_id)
+        .await
+    {
+        Ok(Some(connector_secret)) => connector_secret,
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse {
+                    error: ErrorBody {
+                        code: "not_found".to_string(),
+                        message: "Connector not found".to_string(),
+                    },
+                }),
+            )
+                .into_response();
+        }
+        Err(err) => return store_error_response(err),
+    };
+
+    if connector_secret.provider != "google" {
+        return bad_request_response(
+            "unsupported_provider",
+            "Connector provider is not supported",
+        );
+    }
+
+    if let Err(response) = revoke_google_token(
+        &state.http_client,
+        &state.oauth,
+        &connector_secret.refresh_token,
+    )
+    .await
+    {
+        return response;
+    }
 
     match state
         .store
@@ -549,6 +613,12 @@ struct GoogleTokenResponse {
     scope: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+struct GoogleOAuthErrorResponse {
+    error: String,
+    error_description: Option<String>,
+}
+
 async fn exchange_google_code(
     client: &reqwest::Client,
     oauth: &OAuthConfig,
@@ -580,6 +650,28 @@ async fn exchange_google_code(
     if !response.status().is_success() {
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
+
+        if status == StatusCode::BAD_REQUEST
+            && let Some(error) = parse_google_oauth_error(&body)
+        {
+            if error.error == "invalid_grant" {
+                return Err(bad_request_response(
+                    "invalid_oauth_code",
+                    "Authorization code is invalid or expired",
+                ));
+            }
+
+            if error.error == "access_denied" {
+                return Err(bad_request_response(
+                    "oauth_consent_denied",
+                    error
+                        .error_description
+                        .as_deref()
+                        .unwrap_or("Google consent was denied"),
+                ));
+            }
+        }
+
         warn!("oauth token exchange failed: status={status} body={body}");
         return Err(bad_gateway_response(
             "oauth_token_exchange_failed",
@@ -597,6 +689,51 @@ async fn exchange_google_code(
             ))
         }
     }
+}
+
+async fn revoke_google_token(
+    client: &reqwest::Client,
+    oauth: &OAuthConfig,
+    refresh_token: &str,
+) -> Result<(), Response> {
+    let response = match client
+        .post(&oauth.revoke_url)
+        .form(&[("token", refresh_token)])
+        .send()
+        .await
+    {
+        Ok(response) => response,
+        Err(err) => {
+            warn!("oauth revoke request failed: {err}");
+            return Err(bad_gateway_response(
+                "oauth_revoke_unavailable",
+                "Unable to reach Google OAuth revoke endpoint",
+            ));
+        }
+    };
+
+    if response.status().is_success() {
+        return Ok(());
+    }
+
+    let status = response.status();
+    let body = response.text().await.unwrap_or_default();
+    if status == StatusCode::BAD_REQUEST
+        && let Some(error) = parse_google_oauth_error(&body)
+        && error.error == "invalid_token"
+    {
+        return Ok(());
+    }
+
+    warn!("oauth revoke failed: status={status} body={body}");
+    Err(bad_gateway_response(
+        "oauth_revoke_failed",
+        "Google token revoke failed",
+    ))
+}
+
+fn parse_google_oauth_error(body: &str) -> Option<GoogleOAuthErrorResponse> {
+    serde_json::from_str::<GoogleOAuthErrorResponse>(body).ok()
 }
 
 fn build_google_auth_url(

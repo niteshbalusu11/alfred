@@ -43,8 +43,13 @@ pub struct StartGoogleConnectResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompleteGoogleConnectRequest {
-    pub code: String,
+    #[serde(default)]
+    pub code: Option<String>,
     pub state: String,
+    #[serde(default)]
+    pub error: Option<String>,
+    #[serde(default)]
+    pub error_description: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
