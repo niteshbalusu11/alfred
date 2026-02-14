@@ -1,4 +1,5 @@
 use std::env;
+use std::net::IpAddr;
 use std::path::PathBuf;
 
 use thiserror::Error;
@@ -18,6 +19,7 @@ pub struct ApiConfig {
     pub google_auth_url: String,
     pub google_token_url: String,
     pub google_revoke_url: String,
+    pub trusted_proxy_ips: Vec<IpAddr>,
     pub tee_attestation_required: bool,
     pub tee_expected_runtime: String,
     pub tee_allowed_measurements: Vec<String>,
@@ -127,6 +129,7 @@ impl ApiConfig {
                 .unwrap_or_else(|_| "https://oauth2.googleapis.com/token".to_string()),
             google_revoke_url: env::var("GOOGLE_OAUTH_REVOKE_URL")
                 .unwrap_or_else(|_| "https://oauth2.googleapis.com/revoke".to_string()),
+            trusted_proxy_ips: parse_ip_list_env("TRUSTED_PROXY_IPS")?,
             tee_attestation_required,
             tee_expected_runtime: env::var("TEE_EXPECTED_RUNTIME")
                 .unwrap_or_else(|_| "nitro".to_string()),
@@ -302,6 +305,24 @@ fn parse_bool_env(key: &str, default: bool) -> Result<bool, ConfigError> {
         }
         Err(_) => Ok(default),
     }
+}
+
+fn parse_ip_list_env(key: &str) -> Result<Vec<IpAddr>, ConfigError> {
+    let Some(raw) = optional_trimmed_env(key) else {
+        return Ok(Vec::new());
+    };
+
+    raw.split(',')
+        .map(str::trim)
+        .filter(|item| !item.is_empty())
+        .map(|item| {
+            item.parse::<IpAddr>().map_err(|_| {
+                ConfigError::InvalidConfiguration(format!(
+                    "{key} contains invalid IP address '{item}'"
+                ))
+            })
+        })
+        .collect()
 }
 
 fn parse_list_env(key: &str, default: &[&str]) -> Vec<String> {

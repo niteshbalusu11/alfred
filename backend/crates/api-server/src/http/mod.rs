@@ -2,6 +2,8 @@ use axum::routing::{delete, get, post};
 use axum::{Router, middleware};
 use shared::repos::Store;
 use shared::security::SecretRuntime;
+use std::collections::HashSet;
+use std::net::IpAddr;
 use uuid::Uuid;
 
 mod audit;
@@ -34,6 +36,7 @@ pub struct AppState {
     pub oauth: OAuthConfig,
     pub secret_runtime: SecretRuntime,
     pub rate_limiter: RateLimiter,
+    pub trusted_proxy_ips: HashSet<IpAddr>,
     pub session_ttl_seconds: u64,
     pub oauth_state_ttl_seconds: u64,
     pub http_client: reqwest::Client,

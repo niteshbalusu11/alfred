@@ -60,6 +60,7 @@ These vars control TEE/KMS-bound decrypt policy for connector refresh tokens:
 10. `KMS_KEY_ID` (default: `kms/local/alfred-refresh-token`)
 11. `KMS_KEY_VERSION` (default: `1`)
 12. `KMS_ALLOWED_MEASUREMENTS` (CSV; defaults to `TEE_ALLOWED_MEASUREMENTS`)
+13. `TRUSTED_PROXY_IPS` (CSV of proxy/LB source IPs; only these peers are allowed to supply forwarded client IP headers for unauthenticated rate limiting)
 
 ## Push Delivery Environment (Worker)
 
