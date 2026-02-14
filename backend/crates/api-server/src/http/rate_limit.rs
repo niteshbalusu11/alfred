@@ -238,12 +238,8 @@ fn forwarded_client_ip(
     trusted_proxy_ips: &HashSet<IpAddr>,
     peer_ip: IpAddr,
 ) -> Option<IpAddr> {
-    if let Some(forwarded_for) = req
-        .headers()
-        .get("x-forwarded-for")
-        .and_then(|value| value.to_str().ok())
-    {
-        let mut chain = parse_ip_chain(forwarded_for);
+    let mut chain = forwarded_for_chain(req);
+    if !chain.is_empty() {
         chain.push(peer_ip);
         if let Some(client_ip) = first_untrusted_from_right(&chain, trusted_proxy_ips) {
             return Some(client_ip);
@@ -254,6 +250,15 @@ fn forwarded_client_ip(
         .get("x-real-ip")
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.trim().parse::<IpAddr>().ok())
+}
+
+fn forwarded_for_chain(req: &Request) -> Vec<IpAddr> {
+    req.headers()
+        .get_all("x-forwarded-for")
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .flat_map(parse_ip_chain)
+        .collect()
 }
 
 fn parse_ip_chain(raw: &str) -> Vec<IpAddr> {
@@ -390,6 +395,33 @@ mod tests {
         request.headers_mut().insert(
             HeaderName::from_static("x-forwarded-for"),
             "198.51.100.20, 10.0.0.5"
+                .parse()
+                .expect("header value should parse"),
+        );
+        request
+            .extensions_mut()
+            .insert(ConnectInfo(SocketAddr::from(([10, 0, 0, 5], 8080))));
+
+        let subject = request_subject(&request, &trusted_proxy_ips);
+        assert_eq!(subject, "ip:198.51.100.20");
+    }
+
+    #[test]
+    fn request_subject_consumes_all_xff_header_values() {
+        let trusted_proxy_ips =
+            HashSet::from([IpAddr::from([10, 0, 0, 5]), IpAddr::from([10, 0, 0, 9])]);
+        let mut request = Request::builder()
+            .uri("/v1/auth/ios/session")
+            .body(Body::empty())
+            .expect("request builder should work");
+
+        request.headers_mut().append(
+            HeaderName::from_static("x-forwarded-for"),
+            "203.0.113.250".parse().expect("header value should parse"),
+        );
+        request.headers_mut().append(
+            HeaderName::from_static("x-forwarded-for"),
+            "198.51.100.20, 10.0.0.9"
                 .parse()
                 .expect("header value should parse"),
         );
