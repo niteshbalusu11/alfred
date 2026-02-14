@@ -86,6 +86,16 @@ Phase I labels currently in use:
 6. Use standard comment formats from:
    1. `/Users/niteshchowdharybalusu/Documents/alfred/docs/issue-update-template.md`
 
+### PR Lifecycle Protocol
+
+1. Open PR targeting `master`.
+2. Wait for CI checks:
+   1. `.github/workflows/ci.yml` (`Backend Checks`, `iOS Build`)
+3. Merge only after checks pass.
+4. Once merged:
+   1. run `just sync-master`
+   2. pick next highest-priority unblocked issue
+
 ### Sync Rule: GitHub Issues vs Phase I Board
 
 1. GitHub issue is the immediate execution source.
@@ -149,6 +159,8 @@ Primary commands:
     1. Runs API server + worker together.
 15. `just docs`
     1. Prints key project documentation paths.
+16. `just sync-master`
+    1. Fetches remote, checks out `master`, and fast-forward pulls latest.
 
 ## Test and Quality Policy (Strict)
 

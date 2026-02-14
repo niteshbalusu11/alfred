@@ -75,6 +75,17 @@ Notes:
 7. Use standard issue update format:
    1. `/Users/niteshchowdharybalusu/Documents/alfred/docs/issue-update-template.md`
 
+## PR and Merge Lifecycle (Required)
+
+1. Create PR from working branch to `master`.
+2. Wait for GitHub Actions checks to pass:
+   1. `Backend Checks`
+   2. `iOS Build`
+3. Merge only after required checks are green.
+4. After merge, sync local environment:
+   1. `just sync-master`
+5. Start next task from updated `master`.
+
 ## Key Paths
 
 1. iOS app: `/Users/niteshchowdharybalusu/Documents/alfred/alfred`

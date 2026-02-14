@@ -34,9 +34,15 @@ async fn main() {
     let protected_routes = Router::new()
         .route("/v1/devices/apns", post(register_device))
         .route("/v1/connectors/google/start", post(start_google_connect))
-        .route("/v1/connectors/google/callback", post(complete_google_connect))
+        .route(
+            "/v1/connectors/google/callback",
+            post(complete_google_connect),
+        )
         .route("/v1/connectors/{connector_id}", delete(revoke_connector))
-        .route("/v1/preferences", get(get_preferences).put(update_preferences))
+        .route(
+            "/v1/preferences",
+            get(get_preferences).put(update_preferences),
+        )
         .route("/v1/audit-events", get(list_audit_events))
         .route("/v1/privacy/delete-all", post(delete_all))
         .layer(middleware::from_fn(auth_middleware));
@@ -52,7 +58,10 @@ async fn main() {
         .await
         .expect("bind should succeed");
 
-    info!("api server listening on {}", listener.local_addr().unwrap_or(addr));
+    info!(
+        "api server listening on {}",
+        listener.local_addr().unwrap_or(addr)
+    );
     axum::serve(listener, app).await.expect("server should run");
 }
 
@@ -94,9 +103,7 @@ async fn register_device(Json(_req): Json<RegisterDeviceRequest>) -> impl IntoRe
     (StatusCode::OK, Json(OkResponse { ok: true }))
 }
 
-async fn start_google_connect(
-    Json(_req): Json<StartGoogleConnectRequest>,
-) -> impl IntoResponse {
+async fn start_google_connect(Json(_req): Json<StartGoogleConnectRequest>) -> impl IntoResponse {
     let response = StartGoogleConnectResponse {
         auth_url: "https://accounts.google.com/o/oauth2/v2/auth?client_id=replace-me".to_string(),
         state: Uuid::new_v4().to_string(),
@@ -110,7 +117,10 @@ async fn complete_google_connect(
     let response = CompleteGoogleConnectResponse {
         connector_id: format!("con_{}", Uuid::new_v4()),
         status: ConnectorStatus::Active,
-        granted_scopes: vec!["gmail.readonly".to_string(), "calendar.readonly".to_string()],
+        granted_scopes: vec![
+            "gmail.readonly".to_string(),
+            "calendar.readonly".to_string(),
+        ],
     };
     (StatusCode::OK, Json(response))
 }

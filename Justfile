@@ -48,6 +48,10 @@ backend-test:
 backend-fmt:
   cd {{backend_dir}} && cargo fmt --all
 
+# Check Rust formatting (CI-safe).
+backend-fmt-check:
+  cd {{backend_dir}} && cargo fmt --all --check
+
 # Lint Rust code.
 backend-clippy:
   cd {{backend_dir}} && cargo clippy --workspace --all-targets -- -D warnings
@@ -55,6 +59,13 @@ backend-clippy:
 # Full backend quality gate for task completion.
 backend-verify:
   cd {{backend_dir}} && cargo fmt --all
+  cd {{backend_dir}} && cargo clippy --workspace --all-targets -- -D warnings
+  cd {{backend_dir}} && cargo test
+  cd {{backend_dir}} && cargo build --workspace
+
+# CI backend gate (non-mutating).
+backend-ci:
+  cd {{backend_dir}} && cargo fmt --all --check
   cd {{backend_dir}} && cargo clippy --workspace --all-targets -- -D warnings
   cd {{backend_dir}} && cargo test
   cd {{backend_dir}} && cargo build --workspace
@@ -80,3 +91,9 @@ docs:
   @echo "OpenAPI:  {{project_root}}/api/openapi.yaml"
   @echo "DB SQL:   {{project_root}}/db/migrations/0001_init.sql"
   @echo "Backend:  {{project_root}}/backend/README.md"
+
+# After PR merge: sync local branch to latest master.
+sync-master:
+  git fetch origin
+  git checkout master
+  git pull --ff-only origin master
