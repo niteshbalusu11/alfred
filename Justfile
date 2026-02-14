@@ -36,6 +36,10 @@ ios-package-build:
 backend-check:
   cd {{backend_dir}} && cargo check
 
+# Build Rust backend workspace.
+backend-build:
+  cd {{backend_dir}} && cargo build --workspace
+
 # Run Rust backend tests.
 backend-test:
   cd {{backend_dir}} && cargo test
@@ -47,6 +51,13 @@ backend-fmt:
 # Lint Rust code.
 backend-clippy:
   cd {{backend_dir}} && cargo clippy --workspace --all-targets -- -D warnings
+
+# Full backend quality gate for task completion.
+backend-verify:
+  cd {{backend_dir}} && cargo fmt --all
+  cd {{backend_dir}} && cargo clippy --workspace --all-targets -- -D warnings
+  cd {{backend_dir}} && cargo test
+  cd {{backend_dir}} && cargo build --workspace
 
 # Run API server.
 backend-api:

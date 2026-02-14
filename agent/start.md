@@ -5,6 +5,10 @@
 This file is the operational and technical entry point for agents working in this repository.
 Use it to understand the architecture quickly and run the system with consistent commands.
 
+Read this first for product/business context:
+
+`/Users/niteshchowdharybalusu/Documents/alfred/docs/product-context.md`
+
 ## Project Summary
 
 Alfred is a privacy-first iOS assistant product with a hosted backend.
@@ -32,6 +36,8 @@ The project intentionally avoids smart-home control in v1 to reduce reliability 
    1. `/Users/niteshchowdharybalusu/Documents/alfred/docs/rfc-0001-alfred-ios-v1.md`
 7. Phase I master board:
    1. `/Users/niteshchowdharybalusu/Documents/alfred/docs/phase1-master-todo.md`
+8. Product context (canonical):
+   1. `/Users/niteshchowdharybalusu/Documents/alfred/docs/product-context.md`
 
 ## Runtime Components
 
@@ -125,20 +131,53 @@ Primary commands:
    1. Builds the local Swift package (`AlfredAPIClient`).
 6. `just backend-check`
    1. Runs Rust compile checks.
-7. `just backend-test`
+7. `just backend-build`
+   1. Builds Rust backend workspace.
+8. `just backend-test`
    1. Runs Rust tests.
-8. `just backend-fmt`
+9. `just backend-fmt`
    1. Formats Rust code.
-9. `just backend-clippy`
+10. `just backend-clippy`
    1. Runs lint checks with warnings denied.
-10. `just backend-api`
+11. `just backend-verify`
+    1. Runs backend completion gate: fmt + clippy + tests + build.
+12. `just backend-api`
     1. Runs REST API server.
-11. `just backend-worker`
+13. `just backend-worker`
     1. Runs background worker.
-12. `just dev`
+14. `just dev`
     1. Runs API server + worker together.
-13. `just docs`
+15. `just docs`
     1. Prints key project documentation paths.
+
+## Test and Quality Policy (Strict)
+
+### Backend (Rust)
+
+When backend code changes, unit/integration tests are required.
+
+Required completion checks:
+
+1. `just backend-fmt`
+2. `just backend-clippy`
+3. `just backend-test`
+4. `just backend-build`
+
+Important:
+
+1. `cargo fmt` only formats code.
+2. `cargo fmt` does **not** replace linting or testing.
+3. Backend task is not done until linting, tests, and build all pass.
+4. Preferred one-shot command:
+   1. `just backend-verify`
+
+### Frontend (iOS)
+
+1. If changing core logic (state management, API client logic, data transforms), add/update Swift tests.
+2. For UI-only changes in current phase, UI tests are optional and not required by default.
+3. Minimum iOS completion check:
+   1. `just ios-build`
+4. Run `just ios-test` when logic tests were added/changed or when explicitly requested.
 
 ## Standard Agent Workflow
 
@@ -150,16 +189,17 @@ Use this sequence for most engineering tasks:
 4. `just ios-build`
 5. Implement change.
 6. Re-run:
-   1. `just backend-check`
-   2. `just ios-build`
+   1. `just ios-build`
 7. If backend behavior changed, also run:
-   1. `just backend-test`
-8. If API contract changed:
+   1. `just backend-verify`
+8. If frontend core logic changed, also run:
+   1. `just ios-test`
+9. If API contract changed:
    1. Update `/Users/niteshchowdharybalusu/Documents/alfred/api/openapi.yaml`
    2. Ensure model updates in shared/server/client code.
-9. If persistence changed:
+10. If persistence changed:
    1. Add a new migration under `/Users/niteshchowdharybalusu/Documents/alfred/db/migrations`.
-10. If issue state changed:
+11. If issue state changed:
     1. Update GitHub issue comments/checklist
     2. Keep `/docs/phase1-master-todo.md` status consistent where relevant
 

@@ -4,9 +4,10 @@ This file is intentionally at repository root so coding agents can auto-discover
 
 ## Start Here
 
-1. Read `/Users/niteshchowdharybalusu/Documents/alfred/agent/start.md` before making changes.
-2. Use the `Justfile` at repo root for all common workflows.
-3. Work from GitHub issues first, then keep the Phase I board aligned.
+1. Read `/Users/niteshchowdharybalusu/Documents/alfred/docs/product-context.md` first.
+2. Read `/Users/niteshchowdharybalusu/Documents/alfred/agent/start.md` before making changes.
+3. Use the `Justfile` at repo root for all common workflows.
+4. Work from GitHub issues first, then keep the Phase I board aligned.
 
 ## Required Workflow
 
@@ -15,9 +16,30 @@ This file is intentionally at repository root so coding agents can auto-discover
 3. Run `just ios-build`.
 4. Make scoped changes.
 5. Re-run relevant checks before finishing:
-   1. `just backend-check`
-   2. `just ios-build`
-   3. `just backend-test` when backend behavior changes
+   1. `just ios-build`
+   2. `just backend-verify` when backend behavior changes
+   3. `just ios-test` when iOS core logic changed
+
+## Backend Quality Gate (Non-Negotiable)
+
+For backend code changes, task is done only when all pass:
+
+1. `just backend-fmt`
+2. `just backend-clippy`
+3. `just backend-test`
+4. `just backend-build`
+
+Notes:
+
+1. `cargo fmt` only formats code.
+2. `cargo fmt` does not ensure clippy passes.
+3. Preferred command: `just backend-verify`
+
+## Frontend Test Policy
+
+1. Add/update Swift tests for core logic changes.
+2. UI tests are optional for now for UI-only changes.
+3. Always run `just ios-build`; run `just ios-test` for core logic test changes.
 
 ## Planning and Issue Source of Truth
 
@@ -61,6 +83,7 @@ This file is intentionally at repository root so coding agents can auto-discover
 4. OpenAPI contract: `/Users/niteshchowdharybalusu/Documents/alfred/api/openapi.yaml`
 5. DB migrations: `/Users/niteshchowdharybalusu/Documents/alfred/db/migrations`
 6. Phase I board: `/Users/niteshchowdharybalusu/Documents/alfred/docs/phase1-master-todo.md`
+7. Product context: `/Users/niteshchowdharybalusu/Documents/alfred/docs/product-context.md`
 
 ## Guardrails
 
