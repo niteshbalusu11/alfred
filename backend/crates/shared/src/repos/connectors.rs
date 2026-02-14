@@ -135,7 +135,7 @@ impl Store {
         .transpose()
     }
 
-    pub async fn decrypt_active_connector_refresh_token(
+    pub(crate) async fn decrypt_active_connector_refresh_token(
         &self,
         user_id: Uuid,
         connector_id: Uuid,

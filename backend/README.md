@@ -62,6 +62,12 @@ These vars control TEE/KMS-bound decrypt policy for connector refresh tokens:
 12. `KMS_ALLOWED_MEASUREMENTS` (CSV; defaults to `TEE_ALLOWED_MEASUREMENTS`)
 13. `TRUSTED_PROXY_IPS` (CSV of proxy/LB source IPs; only these peers are allowed to supply forwarded client IP headers for unauthenticated rate limiting)
 
+Connector token usage boundary:
+
+1. Host API/worker crates do not decrypt connector refresh tokens directly.
+2. Sensitive Google token refresh/revoke flows execute through the enclave RPC contract in `shared::enclave`.
+3. Decrypt requests fail closed when attestation/KMS policy checks fail or connector key metadata drifts.
+
 ## Push Delivery Environment (Worker)
 
 Optional worker vars for APNs delivery abstraction:

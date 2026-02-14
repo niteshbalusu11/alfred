@@ -357,18 +357,21 @@ sequenceDiagram
 sequenceDiagram
     participant S as Scheduler
     participant D as DB
-    participant T as TEE Worker
+    participant H as Host Worker
+    participant T as Enclave RPC Worker
     participant G as Google Calendar API
     participant P as Push Service
     participant I as iOS App
     S->>D: Query due jobs
     D-->>S: job ids + encrypted payload
-    S->>T: trigger(job_id,user_id)
+    S->>H: trigger(job_id,user_id)
+    H->>T: exchange_google_access_token(connector metadata)
     T->>T: Attest + request decrypt key
     T->>D: Read encrypted refresh token
-    T->>G: Fetch minimal next events
-    T->>P: Send reminder push
-    T->>D: Store redacted audit + next_run_at
+    T-->>H: access token + attested measurement
+    H->>G: Fetch minimal next events using enclave-minted access token
+    H->>P: Send reminder push
+    H->>D: Store redacted audit + next_run_at
     P-->>I: APNs notification
 ```
 
@@ -378,13 +381,15 @@ sequenceDiagram
 sequenceDiagram
     participant I as iOS App
     participant A as API
-    participant W as Privacy Worker
+    participant W as Host Privacy Worker
+    participant T as Enclave RPC Worker
     participant G as Google API
     participant D as DB
     I->>A: POST /privacy/delete-all
     A-->>I: request queued
     A->>W: enqueue delete request
-    W->>G: Revoke OAuth tokens
+    W->>T: revoke_google_connector_token(connector metadata)
+    T->>G: Revoke OAuth tokens
     W->>D: Delete connectors/jobs/secure state
     W->>D: Write final deletion audit record
 ```
@@ -398,16 +403,17 @@ sequenceDiagram
 
 Mitigations:
 
-1. TEE-gated decryption + KMS attestation.
+1. TEE-gated enclave RPC for decrypt/token-refresh/token-revoke + KMS attestation.
 2. Strict RBAC + break-glass logging.
 3. Fetch windows/scopes minimized.
 4. Safe-action policy: external actions require user confirmation in v1.
 
 ### 10.1 Trust Boundaries
 
-1. Boundary A: API host runtime is untrusted for connector-token plaintext.
+1. Boundary A: API/worker host runtimes are untrusted for connector-token plaintext and cannot directly invoke decrypt repository APIs.
 2. Boundary B: Attested enclave identity is trusted for decrypt operations only when measurement is allow-listed and attestation evidence is signed + fresh.
 3. Boundary C: KMS key policy binds decrypt capability to enclave measurement and key metadata (`token_key_id`, `token_version`).
+4. Boundary D: Google token refresh/revoke calls are issued only by enclave RPC handlers after successful decrypt authorization.
 
 ### 10.2 Decrypt Authorization Rules
 

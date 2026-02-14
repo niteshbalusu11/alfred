@@ -1,8 +1,9 @@
-use reqwest::StatusCode;
-use serde::Deserialize;
 use shared::config::WorkerConfig;
+use shared::enclave::{
+    ConnectorSecretRequest, EnclaveRpcClient, EnclaveRpcError, GoogleEnclaveOauthConfig,
+};
 use shared::repos::{LEGACY_CONNECTOR_TOKEN_KEY_ID, Store};
-use shared::security::{ConnectorKeyMetadata, SecretRuntime};
+use shared::security::SecretRuntime;
 
 use super::fetch::classified_http_error;
 use crate::JobExecutionError;
@@ -20,45 +21,20 @@ pub(super) async fn build_google_session(
     user_id: uuid::Uuid,
 ) -> Result<GoogleSession, JobExecutionError> {
     let connector = load_active_google_connector(store, config, user_id).await?;
-
-    let attested_identity = secret_runtime
-        .authorize_connector_decrypt(&ConnectorKeyMetadata {
-            key_id: connector.token_key_id.clone(),
-            key_version: connector.token_version,
-        })
-        .map_err(|err| {
-            JobExecutionError::permanent(
-                "CONNECTOR_DECRYPT_NOT_AUTHORIZED",
-                format!("decrypt authorization failed: {err}"),
-            )
-        })?;
-
-    let refresh_token = store
-        .decrypt_active_connector_refresh_token(
+    let enclave_client = build_enclave_client(store, config, secret_runtime, oauth_client);
+    let token_response = enclave_client
+        .exchange_google_access_token(ConnectorSecretRequest {
             user_id,
-            connector.connector_id,
-            &connector.token_key_id,
-            connector.token_version,
-        )
+            connector_id: connector.connector_id,
+            token_key_id: connector.token_key_id,
+            token_version: connector.token_version,
+        })
         .await
-        .map_err(|err| {
-            JobExecutionError::transient(
-                "CONNECTOR_TOKEN_DECRYPT_FAILED",
-                format!("failed to decrypt refresh token: {err}"),
-            )
-        })?
-        .ok_or_else(|| {
-            JobExecutionError::permanent(
-                "CONNECTOR_TOKEN_MISSING",
-                "refresh token was unavailable for active connector",
-            )
-        })?;
-
-    let access_token = exchange_refresh_token(oauth_client, config, &refresh_token).await?;
+        .map_err(map_exchange_enclave_error)?;
 
     Ok(GoogleSession {
-        access_token,
-        attested_measurement: attested_identity.measurement,
+        access_token: token_response.access_token,
+        attested_measurement: token_response.attested_identity.measurement,
     })
 }
 
@@ -135,66 +111,61 @@ async fn load_active_google_connector(
     })
 }
 
-async fn exchange_refresh_token(
-    oauth_client: &reqwest::Client,
+fn build_enclave_client(
+    store: &Store,
     config: &WorkerConfig,
-    refresh_token: &str,
-) -> Result<String, JobExecutionError> {
-    let response = oauth_client
-        .post(&config.google_token_url)
-        .form(&[
-            ("grant_type", "refresh_token"),
-            ("client_id", config.google_client_id.as_str()),
-            ("client_secret", config.google_client_secret.as_str()),
-            ("refresh_token", refresh_token),
-        ])
-        .send()
-        .await
-        .map_err(|err| {
+    secret_runtime: &SecretRuntime,
+    oauth_client: &reqwest::Client,
+) -> EnclaveRpcClient {
+    EnclaveRpcClient::new(
+        store.clone(),
+        secret_runtime.clone(),
+        oauth_client.clone(),
+        GoogleEnclaveOauthConfig {
+            client_id: config.google_client_id.clone(),
+            client_secret: config.google_client_secret.clone(),
+            token_url: config.google_token_url.clone(),
+            revoke_url: config.google_revoke_url.clone(),
+        },
+    )
+}
+
+fn map_exchange_enclave_error(err: EnclaveRpcError) -> JobExecutionError {
+    match err {
+        EnclaveRpcError::DecryptNotAuthorized(err) => JobExecutionError::permanent(
+            "CONNECTOR_DECRYPT_NOT_AUTHORIZED",
+            format!("decrypt authorization failed: {err}"),
+        ),
+        EnclaveRpcError::ConnectorTokenDecryptFailed(err) => JobExecutionError::transient(
+            "CONNECTOR_TOKEN_DECRYPT_FAILED",
+            format!("failed to decrypt refresh token: {err}"),
+        ),
+        EnclaveRpcError::ConnectorTokenUnavailable => JobExecutionError::permanent(
+            "CONNECTOR_TOKEN_MISSING",
+            "refresh token was unavailable for active connector",
+        ),
+        EnclaveRpcError::ProviderRequestUnavailable { message, .. } => {
             JobExecutionError::transient(
                 "GOOGLE_TOKEN_REFRESH_UNAVAILABLE",
-                format!("google token refresh request failed: {err}"),
+                format!("google token refresh request failed: {message}"),
             )
-        })?;
-
-    if !response.status().is_success() {
-        let status = response.status();
-        let body = response.text().await.unwrap_or_default();
-
-        let mut message = format!("google token refresh failed with HTTP {}", status.as_u16());
-        if status == StatusCode::BAD_REQUEST
-            && let Ok(parsed) = serde_json::from_str::<GoogleOAuthErrorResponse>(&body)
-            && let Some(error) = parsed.error
-        {
-            message = format!("google token refresh rejected: {error}");
         }
-
-        return Err(classified_http_error(
+        EnclaveRpcError::ProviderRequestFailed {
             status,
-            "GOOGLE_TOKEN_REFRESH_FAILED",
-            message,
-        ));
+            oauth_error,
+            ..
+        } => {
+            let status =
+                reqwest::StatusCode::from_u16(status).unwrap_or(reqwest::StatusCode::BAD_GATEWAY);
+            let message = match oauth_error {
+                Some(error) => format!("google token refresh rejected: {error}"),
+                None => format!("google token refresh failed with HTTP {}", status.as_u16()),
+            };
+            classified_http_error(status, "GOOGLE_TOKEN_REFRESH_FAILED", message)
+        }
+        EnclaveRpcError::ProviderResponseInvalid { message, .. } => JobExecutionError::transient(
+            "GOOGLE_TOKEN_REFRESH_PARSE_FAILED",
+            format!("google token refresh response was invalid: {message}"),
+        ),
     }
-
-    let payload = response
-        .json::<GoogleRefreshTokenResponse>()
-        .await
-        .map_err(|err| {
-            JobExecutionError::transient(
-                "GOOGLE_TOKEN_REFRESH_PARSE_FAILED",
-                format!("google token refresh response was invalid: {err}"),
-            )
-        })?;
-
-    Ok(payload.access_token)
-}
-
-#[derive(Debug, Deserialize)]
-struct GoogleRefreshTokenResponse {
-    access_token: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct GoogleOAuthErrorResponse {
-    error: Option<String>,
 }
