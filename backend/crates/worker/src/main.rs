@@ -1,5 +1,6 @@
 use chrono::Utc;
 use shared::config::WorkerConfig;
+use shared::repos::Store;
 use tokio::signal;
 use tokio::time::{self, Duration};
 use tracing::{error, info};
@@ -18,6 +19,14 @@ async fn main() {
         }
     };
 
+    let store = match Store::connect(&config.database_url, config.database_max_connections).await {
+        Ok(store) => store,
+        Err(err) => {
+            error!("failed to connect to postgres: {err}");
+            std::process::exit(1);
+        }
+    };
+
     info!(
         "worker starting (tick every {} seconds)",
         config.tick_seconds
@@ -32,18 +41,21 @@ async fn main() {
                 break;
             }
             _ = ticker.tick() => {
-                process_due_jobs().await;
+                process_due_jobs(&store).await;
             }
         }
     }
 }
 
-async fn process_due_jobs() {
-    info!(
-        "worker tick at {}: placeholder run for due jobs",
-        Utc::now().to_rfc3339()
-    );
-    // TODO: 1) fetch due jobs from Postgres
-    // TODO: 2) invoke TEE-backed task runner
-    // TODO: 3) write audit status + next_run_at
+async fn process_due_jobs(store: &Store) {
+    let now = Utc::now();
+
+    match store.count_due_jobs(now).await {
+        Ok(count) => info!(
+            "worker tick at {}: {} pending due jobs",
+            now.to_rfc3339(),
+            count
+        ),
+        Err(err) => error!("failed to count due jobs: {err}"),
+    }
 }

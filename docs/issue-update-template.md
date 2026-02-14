@@ -71,9 +71,19 @@ Validation:
 - `just backend-check` => <pass/fail>
 - `just ios-build` => <pass/fail>
 - `just backend-test` => <pass/fail or n/a>
+- `just backend-deep-review` => <pass/fail or n/a>
 
 Follow-ups:
 - <none or explicit follow-up>
+
+Deep review findings:
+- <finding or `no findings`>
+
+AI review summary:
+- Security audit: <findings or `no findings`>
+- Bug check: <findings or `no findings`>
+- Scalability/code quality review: <findings or `no findings`>
+- Merge recommendation: <APPROVE/BLOCK>
 ```
 
 ## 5) Optional PR Description Template

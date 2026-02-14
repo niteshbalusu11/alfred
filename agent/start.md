@@ -9,6 +9,14 @@ Read this first for product/business context:
 
 `/Users/niteshchowdharybalusu/Documents/alfred/docs/product-context.md`
 
+Read mandatory security/scalability rules:
+
+`/Users/niteshchowdharybalusu/Documents/alfred/docs/engineering-standards.md`
+
+Use this template for required AI review reporting before merge:
+
+`/Users/niteshchowdharybalusu/Documents/alfred/docs/ai-review-template.md`
+
 ## Project Summary
 
 Alfred is a privacy-first iOS assistant product with a hosted backend.
@@ -30,8 +38,8 @@ The project intentionally avoids smart-home control in v1 to reduce reliability 
    1. `/Users/niteshchowdharybalusu/Documents/alfred/backend`
 4. API contract:
    1. `/Users/niteshchowdharybalusu/Documents/alfred/api/openapi.yaml`
-5. DB migration draft:
-   1. `/Users/niteshchowdharybalusu/Documents/alfred/db/migrations/0001_init.sql`
+5. DB migrations:
+   1. `/Users/niteshchowdharybalusu/Documents/alfred/db/migrations`
 6. Product/architecture RFC:
    1. `/Users/niteshchowdharybalusu/Documents/alfred/docs/rfc-0001-alfred-ios-v1.md`
 7. Phase I master board:
@@ -91,8 +99,9 @@ Phase I labels currently in use:
 1. Open PR targeting `master`.
 2. Wait for CI checks:
    1. `.github/workflows/ci.yml` (`Backend Checks`, `iOS Build`)
-3. Merge only after checks pass.
-4. Once merged:
+3. Complete AI review report (security + bug check + scalability/code quality) before merge.
+4. Merge only after checks pass and AI review is documented.
+5. Once merged:
    1. run `just sync-master`
    2. pick next highest-priority unblocked issue
 
@@ -131,35 +140,55 @@ Primary commands:
 
 1. `just check-tools`
    1. Verifies local toolchain (`xcodebuild`, `cargo`, `swift`).
-2. `just ios-open`
+2. `just check-infra-tools`
+   1. Verifies local infra tooling (`docker`, `docker compose`).
+3. `just infra-up`
+   1. Starts local Postgres from `docker-compose.yml`.
+4. `just infra-stop`
+   1. Stops Postgres without deleting volumes.
+5. `just infra-down`
+   1. Stops Postgres and removes volumes.
+6. `just backend-migrate`
+   1. Applies SQL migrations from `/db/migrations`.
+7. `just backend-migrate-check`
+   1. Prints migration status for configured `DATABASE_URL`.
+8. `just ios-open`
    1. Opens the Xcode project.
-3. `just ios-build`
+9. `just ios-build`
    1. Builds iOS app for simulator.
-4. `just ios-test`
+10. `just ios-test`
    1. Runs iOS tests on default simulator destination.
-5. `just ios-package-build`
+11. `just ios-package-build`
    1. Builds the local Swift package (`AlfredAPIClient`).
-6. `just backend-check`
+12. `just backend-check`
    1. Runs Rust compile checks.
-7. `just backend-build`
+13. `just backend-build`
    1. Builds Rust backend workspace.
-8. `just backend-test`
+14. `just backend-test`
    1. Runs Rust tests.
-9. `just backend-fmt`
+15. `just backend-fmt`
    1. Formats Rust code.
-10. `just backend-clippy`
-   1. Runs lint checks with warnings denied.
-11. `just backend-verify`
+16. `just backend-clippy`
+    1. Runs lint checks with warnings denied.
+17. `just backend-verify`
     1. Runs backend completion gate: fmt + clippy + tests + build.
-12. `just backend-api`
+18. `just backend-security-audit`
+    1. Runs dependency vulnerability audit (`cargo audit`).
+19. `just backend-bug-check`
+    1. Runs backend tests and fails on placeholder/debug macros.
+20. `just backend-architecture-check`
+    1. Enforces DB/HTTP layer boundaries for scalability.
+21. `just backend-deep-review`
+    1. Runs backend verify + security audit + bug check + architecture checks.
+22. `just backend-api`
     1. Runs REST API server.
-13. `just backend-worker`
+23. `just backend-worker`
     1. Runs background worker.
-14. `just dev`
+24. `just dev`
     1. Runs API server + worker together.
-15. `just docs`
+25. `just docs`
     1. Prints key project documentation paths.
-16. `just sync-master`
+26. `just sync-master`
     1. Fetches remote, checks out `master`, and fast-forward pulls latest.
 
 ## Test and Quality Policy (Strict)
@@ -196,41 +225,54 @@ Important:
 Use this sequence for most engineering tasks:
 
 1. `just check-tools`
-2. `just backend-check`
-3. `just ios-package-build`
-4. `just ios-build`
-5. Implement change.
-6. Re-run:
+2. If backend work needs local DB:
+   1. `just check-infra-tools`
+   2. `just infra-up`
+   3. `just backend-migrate`
+3. `just backend-check`
+4. `just ios-package-build`
+5. `just ios-build`
+6. Implement change.
+7. Re-run:
    1. `just ios-build`
-7. If backend behavior changed, also run:
-   1. `just backend-verify`
-8. If frontend core logic changed, also run:
+8. If backend behavior changed, also run:
+   1. `just backend-deep-review`
+9. If frontend core logic changed, also run:
    1. `just ios-test`
-9. If API contract changed:
+10. If API contract changed:
    1. Update `/Users/niteshchowdharybalusu/Documents/alfred/api/openapi.yaml`
    2. Ensure model updates in shared/server/client code.
-10. If persistence changed:
+11. If persistence changed:
    1. Add a new migration under `/Users/niteshchowdharybalusu/Documents/alfred/db/migrations`.
-11. If issue state changed:
+12. If issue state changed:
     1. Update GitHub issue comments/checklist
     2. Keep `/docs/phase1-master-todo.md` status consistent where relevant
+13. Before PR merge (mandatory for backend-impacting issues):
+    1. Produce AI review report (security audit + bug check + scalability/cleanliness review)
+    2. Use `/Users/niteshchowdharybalusu/Documents/alfred/docs/ai-review-template.md`
+    3. Merge only after report is documented in issue/PR
+
+## Mandatory Scalability Boundaries
+
+1. All database/repository code must live in `/Users/niteshchowdharybalusu/Documents/alfred/backend/crates/shared/src/repos`.
+2. All API HTTP handlers/middleware/routing must live in `/Users/niteshchowdharybalusu/Documents/alfred/backend/crates/api-server/src/http.rs` (or future `/http/*` modules).
+3. Keep `main.rs` limited to startup wiring/config/bootstrap.
 
 ## Current Known State (Scaffold Stage)
 
-1. API handlers are stubs and return synthetic data.
-2. Worker loop is a placeholder and does not yet process real DB jobs.
+1. API server is wired to Postgres via `sqlx` with migration bootstrapping and persisted state for v1 endpoint surfaces.
+2. Worker loop is still placeholder execution and currently reports due-job counts only.
 3. iOS app currently compiles; full backend integration into app screens is still pending.
 
 ## Immediate Next Engineering Targets
 
-1. Wire backend persistence with `sqlx` and PostgreSQL.
-2. Implement real Google OAuth exchange + encrypted token persistence.
-3. Add first end-to-end flow:
+1. Implement real Google OAuth exchange + encrypted token persistence.
+2. Add first end-to-end flow:
    1. connect Google
    2. persist connector
    3. schedule reminder job
    4. worker triggers notification event
-4. Integrate `AlfredAPIClient` into iOS app screens.
+3. Integrate `AlfredAPIClient` into iOS app screens.
 
 ## Agent Guardrails
 

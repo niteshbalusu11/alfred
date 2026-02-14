@@ -12,6 +12,22 @@ jobs:
   backend:
     name: Backend Checks
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: alfred_ci
+        options: >-
+          --health-cmd "pg_isready -U postgres -d alfred_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/alfred_ci
     defaults:
       run:
         working-directory: backend
@@ -26,6 +42,14 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: backend
+
+      - name: Install sqlx-cli
+        run: cargo install sqlx-cli --no-default-features --features rustls,postgres
+
+      - name: Migration Check
+        run: |
+          sqlx migrate run --source ../db/migrations
+          sqlx migrate info --source ../db/migrations
 
       - name: Fmt (check)
         run: cargo fmt --all --check
