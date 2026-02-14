@@ -1,8 +1,9 @@
-use reqwest::StatusCode;
-use serde::Deserialize;
 use shared::config::WorkerConfig;
+use shared::enclave::{
+    ConnectorSecretRequest, EnclaveRpcClient, EnclaveRpcError, GoogleEnclaveOauthConfig,
+};
 use shared::repos::{ActiveConnectorMetadata, LEGACY_CONNECTOR_TOKEN_KEY_ID, Store};
-use shared::security::{ConnectorKeyMetadata, SecretRuntime};
+use shared::security::SecretRuntime;
 use tracing::info;
 use uuid::Uuid;
 
@@ -63,46 +64,21 @@ async fn revoke_single_connector(
     }
 
     let connector = normalize_connector_metadata(store, config, user_id, connector).await?;
-
-    let attested_identity = secret_runtime
-        .authorize_connector_decrypt(&ConnectorKeyMetadata {
-            key_id: connector.token_key_id.clone(),
-            key_version: connector.token_version,
-        })
-        .map_err(|err| {
-            DeleteRequestError::new(
-                "CONNECTOR_DECRYPT_NOT_AUTHORIZED",
-                format!("decrypt authorization failed: {err}"),
-            )
-        })?;
-
-    let refresh_token = store
-        .decrypt_active_connector_refresh_token(
+    let enclave_client = build_enclave_client(store, config, secret_runtime, oauth_client);
+    let revoke_response = enclave_client
+        .revoke_google_connector_token(ConnectorSecretRequest {
             user_id,
-            connector.connector_id,
-            &connector.token_key_id,
-            connector.token_version,
-        )
+            connector_id: connector.connector_id,
+            token_key_id: connector.token_key_id.clone(),
+            token_version: connector.token_version,
+        })
         .await
-        .map_err(|err| {
-            DeleteRequestError::new(
-                "CONNECTOR_TOKEN_DECRYPT_FAILED",
-                format!("failed to decrypt refresh token: {err}"),
-            )
-        })?
-        .ok_or_else(|| {
-            DeleteRequestError::new(
-                "CONNECTOR_TOKEN_MISSING",
-                "refresh token was unavailable for active connector",
-            )
-        })?;
-
-    revoke_google_token(oauth_client, &config.google_revoke_url, &refresh_token).await?;
+        .map_err(map_revoke_enclave_error)?;
 
     info!(
         user_id = %user_id,
         connector_id = %connector.connector_id,
-        attested_measurement = %attested_identity.measurement,
+        attested_measurement = %revoke_response.attested_identity.measurement,
         "revoked connector token for privacy delete request"
     );
 
@@ -156,48 +132,50 @@ async fn normalize_connector_metadata(
     Ok(connector)
 }
 
-async fn revoke_google_token(
-    client: &reqwest::Client,
-    revoke_url: &str,
-    refresh_token: &str,
-) -> Result<(), DeleteRequestError> {
-    let response = client
-        .post(revoke_url)
-        .form(&[("token", refresh_token)])
-        .send()
-        .await
-        .map_err(|err| {
-            DeleteRequestError::new(
-                "GOOGLE_REVOKE_UNAVAILABLE",
-                format!("failed to call Google revoke endpoint: {err}"),
-            )
-        })?;
-
-    if response.status().is_success() {
-        return Ok(());
-    }
-
-    let status = response.status();
-    let body = response.text().await.unwrap_or_default();
-
-    if status == StatusCode::BAD_REQUEST
-        && let Some(parsed) = parse_google_oauth_error(&body)
-        && parsed.error == "invalid_token"
-    {
-        return Ok(());
-    }
-
-    Err(DeleteRequestError::new(
-        "GOOGLE_REVOKE_FAILED",
-        format!("Google revoke endpoint returned HTTP {}", status.as_u16()),
-    ))
+fn build_enclave_client(
+    store: &Store,
+    config: &WorkerConfig,
+    secret_runtime: &SecretRuntime,
+    oauth_client: &reqwest::Client,
+) -> EnclaveRpcClient {
+    EnclaveRpcClient::new(
+        store.clone(),
+        secret_runtime.clone(),
+        oauth_client.clone(),
+        GoogleEnclaveOauthConfig {
+            client_id: config.google_client_id.clone(),
+            client_secret: config.google_client_secret.clone(),
+            token_url: config.google_token_url.clone(),
+            revoke_url: config.google_revoke_url.clone(),
+        },
+    )
 }
 
-#[derive(Debug, Deserialize)]
-struct GoogleOAuthErrorResponse {
-    error: String,
-}
-
-fn parse_google_oauth_error(body: &str) -> Option<GoogleOAuthErrorResponse> {
-    serde_json::from_str::<GoogleOAuthErrorResponse>(body).ok()
+fn map_revoke_enclave_error(err: EnclaveRpcError) -> DeleteRequestError {
+    match err {
+        EnclaveRpcError::DecryptNotAuthorized(err) => DeleteRequestError::new(
+            "CONNECTOR_DECRYPT_NOT_AUTHORIZED",
+            format!("decrypt authorization failed: {err}"),
+        ),
+        EnclaveRpcError::ConnectorTokenDecryptFailed(err) => DeleteRequestError::new(
+            "CONNECTOR_TOKEN_DECRYPT_FAILED",
+            format!("failed to decrypt refresh token: {err}"),
+        ),
+        EnclaveRpcError::ConnectorTokenUnavailable => DeleteRequestError::new(
+            "CONNECTOR_TOKEN_MISSING",
+            "refresh token was unavailable for active connector",
+        ),
+        EnclaveRpcError::ProviderRequestUnavailable { message, .. } => DeleteRequestError::new(
+            "GOOGLE_REVOKE_UNAVAILABLE",
+            format!("failed to call Google revoke endpoint: {message}"),
+        ),
+        EnclaveRpcError::ProviderRequestFailed { status, .. } => DeleteRequestError::new(
+            "GOOGLE_REVOKE_FAILED",
+            format!("Google revoke endpoint returned HTTP {status}"),
+        ),
+        EnclaveRpcError::ProviderResponseInvalid { .. } => DeleteRequestError::new(
+            "GOOGLE_REVOKE_FAILED",
+            "Google revoke endpoint returned an invalid response",
+        ),
+    }
 }

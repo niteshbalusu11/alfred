@@ -6,12 +6,14 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use chrono::{Duration, Utc};
 use serde::Deserialize;
+use shared::enclave::{
+    ConnectorSecretRequest, EnclaveRpcClient, EnclaveRpcError, GoogleEnclaveOauthConfig,
+};
 use shared::models::{
     CompleteGoogleConnectRequest, CompleteGoogleConnectResponse, ConnectorStatus, ErrorBody,
     ErrorResponse, RevokeConnectorResponse, StartGoogleConnectRequest, StartGoogleConnectResponse,
 };
 use shared::repos::{AuditResult, JobType, LEGACY_CONNECTOR_TOKEN_KEY_ID};
-use shared::security::ConnectorKeyMetadata;
 use tracing::warn;
 use url::Url;
 use uuid::Uuid;
@@ -283,42 +285,19 @@ pub(super) async fn revoke_connector(
         };
     }
 
-    let attested_identity =
-        match state
-            .secret_runtime
-            .authorize_connector_decrypt(&ConnectorKeyMetadata {
-                key_id: connector_metadata.token_key_id.clone(),
-                key_version: connector_metadata.token_version,
-            }) {
-            Ok(attested_identity) => attested_identity,
-            Err(err) => return security_error_response(err),
-        };
-
-    let refresh_token = match state
-        .store
-        .decrypt_active_connector_refresh_token(
-            user.user_id,
+    let enclave_client = build_enclave_client(&state);
+    let enclave_response = match enclave_client
+        .revoke_google_connector_token(ConnectorSecretRequest {
+            user_id: user.user_id,
             connector_id,
-            &connector_metadata.token_key_id,
-            connector_metadata.token_version,
-        )
+            token_key_id: connector_metadata.token_key_id.clone(),
+            token_version: connector_metadata.token_version,
+        })
         .await
     {
-        Ok(Some(refresh_token)) => refresh_token,
-        Ok(None) => {
-            return bad_request_response(
-                "connector_token_unavailable",
-                "Connector token metadata changed; retry the request",
-            );
-        }
-        Err(err) => return store_error_response(err),
+        Ok(response) => response,
+        Err(err) => return map_revoke_enclave_error(err),
     };
-
-    if let Err(response) =
-        revoke_google_token(&state.http_client, &state.oauth, &refresh_token).await
-    {
-        return response;
-    }
 
     match state
         .store
@@ -330,7 +309,7 @@ pub(super) async fn revoke_connector(
             metadata.insert("connector_id".to_string(), connector_id.to_string());
             metadata.insert(
                 "attested_measurement".to_string(),
-                attested_identity.measurement,
+                enclave_response.attested_identity.measurement,
             );
 
             if let Err(err) = state
@@ -379,6 +358,45 @@ struct GoogleTokenResponse {
 struct GoogleOAuthErrorResponse {
     error: String,
     error_description: Option<String>,
+}
+
+fn build_enclave_client(state: &AppState) -> EnclaveRpcClient {
+    EnclaveRpcClient::new(
+        state.store.clone(),
+        state.secret_runtime.clone(),
+        state.http_client.clone(),
+        GoogleEnclaveOauthConfig {
+            client_id: state.oauth.client_id.clone(),
+            client_secret: state.oauth.client_secret.clone(),
+            token_url: state.oauth.token_url.clone(),
+            revoke_url: state.oauth.revoke_url.clone(),
+        },
+    )
+}
+
+fn map_revoke_enclave_error(err: EnclaveRpcError) -> Response {
+    match err {
+        EnclaveRpcError::DecryptNotAuthorized(err) => security_error_response(err),
+        EnclaveRpcError::ConnectorTokenDecryptFailed(err) => store_error_response(err),
+        EnclaveRpcError::ConnectorTokenUnavailable => bad_request_response(
+            "connector_token_unavailable",
+            "Connector token metadata changed; retry the request",
+        ),
+        EnclaveRpcError::ProviderRequestUnavailable { message, .. } => {
+            warn!("oauth revoke request failed: {message}");
+            bad_gateway_response(
+                "oauth_revoke_unavailable",
+                "Unable to reach Google OAuth revoke endpoint",
+            )
+        }
+        EnclaveRpcError::ProviderRequestFailed { status, .. } => {
+            warn!("oauth revoke failed: status={status}");
+            bad_gateway_response("oauth_revoke_failed", "Google token revoke failed")
+        }
+        EnclaveRpcError::ProviderResponseInvalid { .. } => {
+            bad_gateway_response("oauth_revoke_failed", "Google token revoke failed")
+        }
+    }
 }
 
 async fn exchange_google_code(
@@ -451,47 +469,6 @@ async fn exchange_google_code(
             ))
         }
     }
-}
-
-async fn revoke_google_token(
-    client: &reqwest::Client,
-    oauth: &OAuthConfig,
-    refresh_token: &str,
-) -> Result<(), Response> {
-    let response = match client
-        .post(&oauth.revoke_url)
-        .form(&[("token", refresh_token)])
-        .send()
-        .await
-    {
-        Ok(response) => response,
-        Err(err) => {
-            warn!("oauth revoke request failed: {err}");
-            return Err(bad_gateway_response(
-                "oauth_revoke_unavailable",
-                "Unable to reach Google OAuth revoke endpoint",
-            ));
-        }
-    };
-
-    if response.status().is_success() {
-        return Ok(());
-    }
-
-    let status = response.status();
-    let body = response.text().await.unwrap_or_default();
-    if status == StatusCode::BAD_REQUEST
-        && let Some(error) = parse_google_oauth_error(&body)
-        && error.error == "invalid_token"
-    {
-        return Ok(());
-    }
-
-    warn!("oauth revoke failed: status={status}");
-    Err(bad_gateway_response(
-        "oauth_revoke_failed",
-        "Google token revoke failed",
-    ))
 }
 
 fn parse_google_oauth_error(body: &str) -> Option<GoogleOAuthErrorResponse> {
