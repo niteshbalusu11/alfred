@@ -13,4 +13,10 @@ enum AppConfiguration {
             .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
             .first(where: { !$0.isEmpty }) ?? ""
     }
+
+    static var requiredClerkPublishableKey: String {
+        let key = clerkPublishableKey
+        precondition(!key.isEmpty, "CLERK_PUBLISHABLE_KEY is required to initialize Clerk.")
+        return key
+    }
 }
