@@ -3,6 +3,11 @@
 
 # SwiftPM build artifacts
 .build/
+.swiftpm/
 
 # Rust
 target/
+
+# Xcode user-specific state
+*.xcuserstate
+xcuserdata/
