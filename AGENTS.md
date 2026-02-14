@@ -140,9 +140,9 @@ Code must remain modular by default. Do not keep adding logic to a single large 
 2. Wait for GitHub Actions checks to pass:
    1. `Backend Checks`
    2. `iOS Build`
-3. Complete AI review report (security + bugs + scalability/cleanliness) before merge.
-4. Merge only after required checks are green and AI review is documented.
-5. After merge, sync local environment:
+3. Complete AI review report (security + bugs + scalability/cleanliness) before merge handoff.
+4. Do not merge PRs automatically. The maintainer performs the merge manually after required checks are green and AI review is documented.
+5. After maintainer merge, sync local environment:
    1. `just sync-master`
 6. Start next task from updated `master`.
 
