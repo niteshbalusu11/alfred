@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use reqwest::StatusCode;
 use serde::Deserialize;
+use serde::de::DeserializeOwned;
 
 use crate::{FailureClass, JobExecutionError};
 
@@ -15,43 +16,29 @@ pub(super) async fn fetch_calendar_events(
     time_max: DateTime<Utc>,
     max_results: usize,
 ) -> Result<Vec<GoogleCalendarEvent>, JobExecutionError> {
-    let response = oauth_client
+    let time_min = time_min.to_rfc3339();
+    let time_max = time_max.to_rfc3339();
+    let max_results = max_results.to_string();
+    let request = oauth_client
         .get(GOOGLE_CALENDAR_EVENTS_URL)
         .bearer_auth(access_token)
         .query(&[
             ("singleEvents", "true"),
             ("orderBy", "startTime"),
-            ("timeMin", &time_min.to_rfc3339()),
-            ("timeMax", &time_max.to_rfc3339()),
-            ("maxResults", &max_results.to_string()),
-        ])
-        .send()
-        .await
-        .map_err(|err| {
-            JobExecutionError::transient(
-                "GOOGLE_CALENDAR_UNAVAILABLE",
-                format!("calendar request failed: {err}"),
-            )
-        })?;
-
-    if !response.status().is_success() {
-        let status = response.status();
-        return Err(classified_http_error(
-            status,
-            "GOOGLE_CALENDAR_FAILED",
-            format!("calendar request failed with HTTP {}", status.as_u16()),
-        ));
-    }
-
-    let payload = response
-        .json::<GoogleCalendarEventsResponse>()
-        .await
-        .map_err(|err| {
-            JobExecutionError::transient(
-                "GOOGLE_CALENDAR_PARSE_FAILED",
-                format!("calendar response was invalid: {err}"),
-            )
-        })?;
+            ("timeMin", &time_min),
+            ("timeMax", &time_max),
+            ("maxResults", &max_results),
+        ]);
+    let payload: GoogleCalendarEventsResponse = send_google_request(
+        request,
+        "GOOGLE_CALENDAR_UNAVAILABLE",
+        "calendar request failed",
+        "GOOGLE_CALENDAR_FAILED",
+        "calendar request failed",
+        "GOOGLE_CALENDAR_PARSE_FAILED",
+        "calendar response was invalid",
+    )
+    .await?;
 
     Ok(payload.items)
 }
@@ -60,37 +47,20 @@ pub(super) async fn fetch_unread_email_count(
     oauth_client: &reqwest::Client,
     access_token: &str,
 ) -> Result<usize, JobExecutionError> {
-    let response = oauth_client
+    let request = oauth_client
         .get(GOOGLE_GMAIL_MESSAGES_URL)
         .bearer_auth(access_token)
-        .query(&[("q", "is:unread newer_than:1d"), ("maxResults", "1")])
-        .send()
-        .await
-        .map_err(|err| {
-            JobExecutionError::transient(
-                "GOOGLE_GMAIL_UNAVAILABLE",
-                format!("gmail request failed: {err}"),
-            )
-        })?;
-
-    if !response.status().is_success() {
-        let status = response.status();
-        return Err(classified_http_error(
-            status,
-            "GOOGLE_GMAIL_FAILED",
-            format!("gmail request failed with HTTP {}", status.as_u16()),
-        ));
-    }
-
-    let payload = response
-        .json::<GoogleGmailListResponse>()
-        .await
-        .map_err(|err| {
-            JobExecutionError::transient(
-                "GOOGLE_GMAIL_PARSE_FAILED",
-                format!("gmail response was invalid: {err}"),
-            )
-        })?;
+        .query(&[("q", "is:unread newer_than:1d"), ("maxResults", "1")]);
+    let payload: GoogleGmailListResponse = send_google_request(
+        request,
+        "GOOGLE_GMAIL_UNAVAILABLE",
+        "gmail request failed",
+        "GOOGLE_GMAIL_FAILED",
+        "gmail request failed",
+        "GOOGLE_GMAIL_PARSE_FAILED",
+        "gmail response was invalid",
+    )
+    .await?;
 
     Ok(payload.result_size_estimate)
 }
@@ -101,37 +71,21 @@ pub(super) async fn fetch_gmail_messages(
     query: &str,
     max_results: usize,
 ) -> Result<Vec<GoogleGmailMessageRef>, JobExecutionError> {
-    let response = oauth_client
+    let max_results = max_results.to_string();
+    let request = oauth_client
         .get(GOOGLE_GMAIL_MESSAGES_URL)
         .bearer_auth(access_token)
-        .query(&[("q", query), ("maxResults", &max_results.to_string())])
-        .send()
-        .await
-        .map_err(|err| {
-            JobExecutionError::transient(
-                "GOOGLE_GMAIL_UNAVAILABLE",
-                format!("gmail request failed: {err}"),
-            )
-        })?;
-
-    if !response.status().is_success() {
-        let status = response.status();
-        return Err(classified_http_error(
-            status,
-            "GOOGLE_GMAIL_FAILED",
-            format!("gmail request failed with HTTP {}", status.as_u16()),
-        ));
-    }
-
-    let payload = response
-        .json::<GoogleGmailListResponse>()
-        .await
-        .map_err(|err| {
-            JobExecutionError::transient(
-                "GOOGLE_GMAIL_PARSE_FAILED",
-                format!("gmail response was invalid: {err}"),
-            )
-        })?;
+        .query(&[("q", query), ("maxResults", &max_results)]);
+    let payload: GoogleGmailListResponse = send_google_request(
+        request,
+        "GOOGLE_GMAIL_UNAVAILABLE",
+        "gmail request failed",
+        "GOOGLE_GMAIL_FAILED",
+        "gmail request failed",
+        "GOOGLE_GMAIL_PARSE_FAILED",
+        "gmail response was invalid",
+    )
+    .await?;
 
     Ok(payload.messages)
 }
@@ -142,42 +96,52 @@ pub(super) async fn fetch_gmail_message_detail(
     message_id: &str,
 ) -> Result<GoogleGmailMessageDetail, JobExecutionError> {
     let url = format!("{GOOGLE_GMAIL_MESSAGES_URL}/{message_id}");
+    let request = oauth_client.get(url).bearer_auth(access_token).query(&[
+        ("format", "metadata"),
+        ("metadataHeaders", "Subject"),
+        ("metadataHeaders", "From"),
+    ]);
+    send_google_request(
+        request,
+        "GOOGLE_GMAIL_MESSAGE_UNAVAILABLE",
+        "gmail message request failed",
+        "GOOGLE_GMAIL_MESSAGE_FAILED",
+        "gmail message request failed",
+        "GOOGLE_GMAIL_MESSAGE_PARSE_FAILED",
+        "gmail message response was invalid",
+    )
+    .await
+}
 
-    let response = oauth_client
-        .get(url)
-        .bearer_auth(access_token)
-        .query(&[
-            ("format", "metadata"),
-            ("metadataHeaders", "Subject"),
-            ("metadataHeaders", "From"),
-        ])
-        .send()
-        .await
-        .map_err(|err| {
-            JobExecutionError::transient(
-                "GOOGLE_GMAIL_MESSAGE_UNAVAILABLE",
-                format!("gmail message request failed: {err}"),
-            )
-        })?;
+async fn send_google_request<T>(
+    request: reqwest::RequestBuilder,
+    unavailable_code: &str,
+    unavailable_message: &str,
+    failed_code: &str,
+    failed_message_prefix: &str,
+    parse_code: &str,
+    parse_message: &str,
+) -> Result<T, JobExecutionError>
+where
+    T: DeserializeOwned,
+{
+    let response = request.send().await.map_err(|err| {
+        JobExecutionError::transient(unavailable_code, format!("{unavailable_message}: {err}"))
+    })?;
 
     if !response.status().is_success() {
         let status = response.status();
         return Err(classified_http_error(
             status,
-            "GOOGLE_GMAIL_MESSAGE_FAILED",
-            format!("gmail message request failed with HTTP {}", status.as_u16()),
+            failed_code,
+            format!("{failed_message_prefix} with HTTP {}", status.as_u16()),
         ));
     }
 
     response
-        .json::<GoogleGmailMessageDetail>()
+        .json::<T>()
         .await
-        .map_err(|err| {
-            JobExecutionError::transient(
-                "GOOGLE_GMAIL_MESSAGE_PARSE_FAILED",
-                format!("gmail message response was invalid: {err}"),
-            )
-        })
+        .map_err(|err| JobExecutionError::transient(parse_code, format!("{parse_message}: {err}")))
 }
 
 pub(super) fn classified_http_error(
