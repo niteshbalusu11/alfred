@@ -30,6 +30,8 @@ The project intentionally avoids smart-home control in v1 to reduce reliability 
    1. `/Users/niteshchowdharybalusu/Documents/alfred/db/migrations/0001_init.sql`
 6. Product/architecture RFC:
    1. `/Users/niteshchowdharybalusu/Documents/alfred/docs/rfc-0001-alfred-ios-v1.md`
+7. Phase I master board:
+   1. `/Users/niteshchowdharybalusu/Documents/alfred/docs/phase1-master-todo.md`
 
 ## Runtime Components
 
@@ -41,6 +43,49 @@ The project intentionally avoids smart-home control in v1 to reduce reliability 
    1. Periodic processing loop for scheduled/proactive jobs.
 4. Shared crate:
    1. Shared request/response models and basic runtime config.
+
+## GitHub Issue-Driven Execution
+
+Primary execution queue is GitHub issues in:
+
+`https://github.com/niteshbalusu11/alfred/issues`
+
+Phase I labels currently in use:
+
+1. Scope: `phase-1`
+2. Priority: `P0`, `P1`
+3. Domain tags: `backend`, `ios`, `security`, `database`, `oauth`, `tee`, `worker`, `notifications`, `privacy`, `observability`, `sre`, `qa`
+
+### Issue Selection Algorithm (Required)
+
+1. Select open issues with `phase-1`.
+2. Prioritize:
+   1. `P0` before `P1`
+   2. Lowest issue number first unless blocked by explicit dependency
+3. If blocked:
+   1. Comment blocker details on issue
+   2. Move to next unblocked issue
+
+### Issue Execution Protocol
+
+1. Read issue acceptance criteria before coding.
+2. Create branch with prefix `codex/`:
+   1. Example: `codex/issue-4-worker-leasing`
+3. Implement only acceptance-criteria scope.
+4. Run validation commands from `Justfile`.
+5. Update issue with:
+   1. What changed
+   2. Validation results
+   3. Remaining follow-ups
+6. Use standard comment formats from:
+   1. `/Users/niteshchowdharybalusu/Documents/alfred/docs/issue-update-template.md`
+
+### Sync Rule: GitHub Issues vs Phase I Board
+
+1. GitHub issue is the immediate execution source.
+2. `/docs/phase1-master-todo.md` is the planning/control board.
+3. If either side changes, keep them aligned in the same work cycle.
+4. Do not start untracked work; create/obtain an issue first.
 
 ## Security and Privacy Constraints
 
@@ -114,6 +159,9 @@ Use this sequence for most engineering tasks:
    2. Ensure model updates in shared/server/client code.
 9. If persistence changed:
    1. Add a new migration under `/Users/niteshchowdharybalusu/Documents/alfred/db/migrations`.
+10. If issue state changed:
+    1. Update GitHub issue comments/checklist
+    2. Keep `/docs/phase1-master-todo.md` status consistent where relevant
 
 ## Current Known State (Scaffold Stage)
 
@@ -138,3 +186,4 @@ Use this sequence for most engineering tasks:
 2. Do not add wide OAuth scopes unless required for a documented feature.
 3. Keep edits scoped and consistent with v1 goals.
 4. Preserve compatibility between OpenAPI, backend models, and iOS client models.
+5. Prefer finishing one issue cleanly over partial progress across many issues.
