@@ -6,8 +6,9 @@ This file is intentionally at repository root so coding agents can auto-discover
 
 1. Read `/Users/niteshchowdharybalusu/Documents/alfred/docs/product-context.md` first.
 2. Read `/Users/niteshchowdharybalusu/Documents/alfred/agent/start.md` before making changes.
-3. Use the `Justfile` at repo root for all common workflows.
-4. Work from GitHub issues first, then keep the Phase I board aligned.
+3. Read `/Users/niteshchowdharybalusu/Documents/alfred/docs/engineering-standards.md` for mandatory security/scalability rules.
+4. Use the `Justfile` at repo root for all common workflows.
+5. Work from GitHub issues first, then keep the Phase I board aligned.
 
 ## Required Workflow
 
@@ -19,6 +20,25 @@ This file is intentionally at repository root so coding agents can auto-discover
    1. `just ios-build`
    2. `just backend-verify` when backend behavior changes
    3. `just ios-test` when iOS core logic changed
+
+## Local Infrastructure (Postgres for Backend Work)
+
+Use Docker Compose at repo root when backend work needs a local DB.
+
+1. Run `just check-infra-tools`.
+2. Start DB: `just infra-up`.
+3. Apply migrations: `just backend-migrate`.
+4. Stop DB only: `just infra-stop`.
+5. Stop and delete DB volumes: `just infra-down`.
+
+Default local DB:
+
+1. Host: `127.0.0.1`
+2. Port: `5432`
+3. Database: `alfred`
+4. User: `postgres`
+5. Password: `postgres`
+6. `DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/alfred`
 
 ## Backend Quality Gate (Non-Negotiable)
 
@@ -34,6 +54,27 @@ Notes:
 1. `cargo fmt` only formats code.
 2. `cargo fmt` does not ensure clippy passes.
 3. Preferred command: `just backend-verify`
+
+## Deep Review Gate (Non-Negotiable)
+
+After every issue with backend impact, complete this before handoff:
+
+1. Run `just backend-deep-review`.
+2. Perform an AI deep code review for:
+   1. Security bugs and privacy boundary regressions.
+   2. Bug check (logic, edge cases, regressions, error handling).
+   3. Refactoring/scalability risks and maintainability issues.
+3. Post findings to the issue:
+   1. List concrete findings or explicitly state `no findings`.
+   2. Include any follow-up tasks.
+4. Before merge, include the AI review report in the PR using:
+   1. `/Users/niteshchowdharybalusu/Documents/alfred/docs/ai-review-template.md`
+
+Required architecture boundary:
+
+1. DB repository code must stay in `/Users/niteshchowdharybalusu/Documents/alfred/backend/crates/shared/src/repos`.
+2. HTTP routing/handlers/middleware must stay in `/Users/niteshchowdharybalusu/Documents/alfred/backend/crates/api-server/src/http.rs` (or future `/http/*` modules).
+3. `main.rs` files should remain startup/bootstrap only.
 
 ## Frontend Test Policy
 
@@ -81,10 +122,11 @@ Notes:
 2. Wait for GitHub Actions checks to pass:
    1. `Backend Checks`
    2. `iOS Build`
-3. Merge only after required checks are green.
-4. After merge, sync local environment:
+3. Complete AI review report (security + bugs + scalability/cleanliness) before merge.
+4. Merge only after required checks are green and AI review is documented.
+5. After merge, sync local environment:
    1. `just sync-master`
-5. Start next task from updated `master`.
+6. Start next task from updated `master`.
 
 ## Key Paths
 

@@ -72,8 +72,8 @@ Ship a private beta where iOS users can:
 
 | ID | Pri | Task | Owner | ETA | Status | Depends On | Exit Criteria |
 |---|---|---|---|---|---|---|---|
-| DB-001 | P0 | Wire Postgres in backend (`sqlx`) | BE | 2026-02-24 | TODO | - | App connects and queries DB |
-| DB-002 | P0 | Convert draft SQL into migration sequence | BE | 2026-02-24 | TODO | DB-001 | `migrate up` produces schema |
+| DB-001 | P0 | Wire Postgres in backend (`sqlx`) | BE | 2026-02-24 | DONE | - | App connects and queries DB |
+| DB-002 | P0 | Convert draft SQL into migration sequence | BE | 2026-02-24 | DONE | DB-001 | `migrate up` produces schema |
 | DB-003 | P0 | Add token encryption metadata fields (version/rotated_at) | BE | 2026-02-27 | TODO | DB-002 | Schema supports key rotation |
 | DB-004 | P0 | Add audit_events indexes and query plan checks | BE | 2026-03-01 | TODO | DB-002 | Audit endpoint query < target latency |
 | DB-005 | P0 | Add jobs table locking/lease fields | BE | 2026-03-02 | TODO | DB-002 | Worker-safe leasing possible |

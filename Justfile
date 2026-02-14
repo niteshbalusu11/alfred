@@ -16,6 +16,12 @@ check-tools:
   @command -v swift >/dev/null || (echo "swift not found" && exit 1)
   @echo "Tools OK: xcodebuild, cargo, swift"
 
+# Validate local infrastructure tooling.
+check-infra-tools:
+  @command -v docker >/dev/null || (echo "docker not found" && exit 1)
+  @docker compose version >/dev/null || (echo "docker compose not found" && exit 1)
+  @echo "Infra tools OK: docker, docker compose"
+
 # Open the iOS project in Xcode.
 ios-open:
   open {{ios_project}}
@@ -36,6 +42,24 @@ ios-package-build:
 backend-check:
   cd {{backend_dir}} && cargo check
 
+# Start local infrastructure (Postgres).
+infra-up:
+  docker compose up -d postgres
+  @echo "Postgres is starting on 127.0.0.1:5432 (DB: alfred, user: postgres)."
+  @echo "Export DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/alfred"
+
+# Stop local infrastructure without deleting volumes.
+infra-stop:
+  docker compose stop postgres
+
+# Stop and remove local infrastructure including volumes.
+infra-down:
+  docker compose down -v --remove-orphans
+
+# Tail local infrastructure logs.
+infra-logs:
+  docker compose logs -f postgres
+
 # Build Rust backend workspace.
 backend-build:
   cd {{backend_dir}} && cargo build --workspace
@@ -43,6 +67,16 @@ backend-build:
 # Run Rust backend tests.
 backend-test:
   cd {{backend_dir}} && cargo test
+
+# Apply SQL migrations to the configured Postgres database.
+backend-migrate:
+  @command -v sqlx >/dev/null || cargo install sqlx-cli --no-default-features --features rustls,postgres
+  cd {{backend_dir}} && sqlx migrate run --source ../db/migrations
+
+# Show migration state for the configured Postgres database.
+backend-migrate-check:
+  @command -v sqlx >/dev/null || cargo install sqlx-cli --no-default-features --features rustls,postgres
+  cd {{backend_dir}} && sqlx migrate info --source ../db/migrations
 
 # Format Rust code.
 backend-fmt:
@@ -70,6 +104,37 @@ backend-ci:
   cd {{backend_dir}} && cargo test
   cd {{backend_dir}} && cargo build --workspace
 
+# Security-focused dependency audit for backend.
+backend-security-audit:
+  @command -v cargo-audit >/dev/null || cargo install cargo-audit
+  cd {{backend_dir}} && cargo audit --ignore RUSTSEC-2023-0071
+
+# Bug-focused checks for backend code quality.
+backend-bug-check:
+  cd {{backend_dir}} && cargo test
+  @if rg -n "todo!\\(|unimplemented!\\(|dbg!\\(|panic!\\(" {{backend_dir}}/crates; then \
+    echo "Bug check failed: remove debug or placeholder macros (todo!/unimplemented!/dbg!/panic!)."; \
+    exit 1; \
+  fi
+
+# Enforce architecture boundaries for scalability.
+backend-architecture-check:
+  @if rg -n "sqlx::query|sqlx::query_as|sqlx::query_scalar" {{backend_dir}}/crates/api-server/src; then \
+    echo "Architecture violation: SQL queries must stay in backend/crates/shared/src/repos."; \
+    exit 1; \
+  fi
+  @if rg -n "axum::|Router|StatusCode|Json\\(" {{backend_dir}}/crates/shared/src/repos; then \
+    echo "Architecture violation: HTTP concerns must stay in backend/crates/api-server/src/http.rs."; \
+    exit 1; \
+  fi
+
+# Mandatory deep review gate after backend issue implementation.
+backend-deep-review:
+  just backend-verify
+  just backend-security-audit
+  just backend-bug-check
+  just backend-architecture-check
+
 # Run API server.
 backend-api:
   cd {{backend_dir}} && cargo run -p api-server
@@ -89,7 +154,7 @@ dev:
 docs:
   @echo "RFC:      {{project_root}}/docs/rfc-0001-alfred-ios-v1.md"
   @echo "OpenAPI:  {{project_root}}/api/openapi.yaml"
-  @echo "DB SQL:   {{project_root}}/db/migrations/0001_init.sql"
+  @echo "DB SQL:   {{project_root}}/db/migrations"
   @echo "Backend:  {{project_root}}/backend/README.md"
 
 # After PR merge: sync local branch to latest master.

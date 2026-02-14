@@ -1,21 +1,18 @@
--- Alfred iOS v1 initial schema
--- Date: 2026-02-14
-
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  status TEXT NOT NULL CHECK (status IN ('ACTIVE', 'DELETED'))
+  status TEXT NOT NULL CHECK (status IN ('ACTIVE', 'DELETED')) DEFAULT 'ACTIVE'
 );
 
 CREATE TABLE IF NOT EXISTS devices (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  device_identifier TEXT NOT NULL,
   apns_token_ciphertext BYTEA NOT NULL,
   environment TEXT NOT NULL CHECK (environment IN ('sandbox', 'production')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (user_id, device_identifier)
 );
 
 CREATE TABLE IF NOT EXISTS connectors (
@@ -27,7 +24,8 @@ CREATE TABLE IF NOT EXISTS connectors (
   token_version INT NOT NULL DEFAULT 1,
   status TEXT NOT NULL CHECK (status IN ('ACTIVE', 'REVOKED')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  revoked_at TIMESTAMPTZ NULL
+  revoked_at TIMESTAMPTZ NULL,
+  UNIQUE (user_id, provider)
 );
 
 CREATE TABLE IF NOT EXISTS jobs (
@@ -69,10 +67,3 @@ CREATE TABLE IF NOT EXISTS privacy_delete_requests (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
-CREATE INDEX IF NOT EXISTS idx_devices_user_id ON devices (user_id);
-CREATE INDEX IF NOT EXISTS idx_connectors_user_provider ON connectors (user_id, provider);
-CREATE INDEX IF NOT EXISTS idx_jobs_due_at_state ON jobs (due_at, state);
-CREATE INDEX IF NOT EXISTS idx_jobs_user_id ON jobs (user_id);
-CREATE INDEX IF NOT EXISTS idx_audit_events_user_created ON audit_events (user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_privacy_delete_requests_user_created ON privacy_delete_requests (user_id, created_at DESC);

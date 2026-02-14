@@ -1,0 +1,61 @@
+# Engineering Standards (Scalability + Security)
+
+- Last Updated: 2026-02-14
+- Priority: Mandatory for all issue execution
+
+## 1) Post-Issue Deep Review (Required)
+
+After implementing any issue, complete all of the following before handoff:
+
+1. Run `just backend-deep-review` for backend changes.
+2. Perform a manual security review focused on:
+   1. auth/authz and token handling
+   2. input validation and error paths
+   3. secret/log redaction and data minimization
+   4. privacy boundary regressions
+3. Perform a manual refactor/scalability review focused on:
+   1. layer boundaries and module ownership
+   2. duplication and maintainability risks
+   3. high-load behavior and growth constraints
+4. Perform a manual bug check focused on:
+   1. edge cases and invalid input behavior
+   2. regression risk in changed paths
+   3. deterministic failure handling
+5. Post findings in the issue comment:
+   1. list concrete findings or state `no findings`
+   2. include unresolved risks and follow-ups
+6. Before merge, add the structured AI review report in PR/issue using:
+   1. `/Users/niteshchowdharybalusu/Documents/alfred/docs/ai-review-template.md`
+
+## 2) Backend Layering Rules (Required)
+
+Use strict separation of concerns:
+
+1. Database/repository code:
+   1. Must live under `/Users/niteshchowdharybalusu/Documents/alfred/backend/crates/shared/src/repos`
+   2. `sqlx` queries must not appear in HTTP handler modules
+2. HTTP API code:
+   1. Must live under `/Users/niteshchowdharybalusu/Documents/alfred/backend/crates/api-server/src/http.rs` (or future `/http/*` modules)
+   2. Should handle request/response mapping and auth middleware only
+3. Startup/bootstrap code:
+   1. `main.rs` should wire config, infra, and router construction only
+4. Worker runtime:
+   1. Worker entrypoint orchestrates ticking and lifecycle
+   2. DB access goes through repository layer
+
+## 3) Scalability and Reliability Requirements
+
+All new code should be designed for growth:
+
+1. Keep APIs deterministic and backward-compatible with OpenAPI.
+2. Avoid hidden cross-layer coupling.
+3. Keep writes idempotent where retries are expected.
+4. Add indexes for query paths that become hot.
+5. Keep error handling explicit and observable.
+
+## 4) Security Baseline
+
+1. No plaintext persistence of secrets/tokens.
+2. No secret values in logs, traces, or errors.
+3. Keep least-privilege behavior by default.
+4. Fail closed for invalid auth or invalid security state.
