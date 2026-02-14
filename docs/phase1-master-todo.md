@@ -55,7 +55,7 @@ Ship a private beta where iOS users can:
 
 | ID | Pri | Task | Owner | ETA | Status | Depends On | Exit Criteria |
 |---|---|---|---|---|---|---|---|
-| BE-001 | P0 | Replace stub `/v1/auth/ios/session` with real auth flow | BE | 2026-02-24 | TODO | PROD-001 | Endpoint backed by real session issuance |
+| BE-001 | P0 | Replace stub `/v1/auth/ios/session` with real auth flow | BE | 2026-02-24 | DONE | PROD-001 | Endpoint backed by real session issuance |
 | BE-002 | P0 | Add health/readiness endpoints | BE | 2026-02-20 | TODO | - | `/healthz` and `/readyz` live |
 | BE-003 | P0 | Add structured logging with request_id | BE | 2026-02-21 | TODO | BE-002 | Request logs include trace fields |
 | BE-004 | P0 | Standardize API error envelope/codes | BE | 2026-02-22 | TODO | BE-001 | All endpoints use common error format |

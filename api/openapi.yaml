@@ -31,6 +31,58 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CreateSessionResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /v1/auth/ios/session/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh iOS session
+      operationId: refreshIOSSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshSessionRequest"
+      responses:
+        "200":
+          description: Session refreshed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateSessionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /v1/auth/ios/session/revoke:
+    post:
+      tags: [Auth]
+      summary: Revoke iOS session
+      operationId: revokeIOSSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RevokeSessionRequest"
+      responses:
+        "200":
+          description: Session revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "429":
           $ref: "#/components/responses/TooManyRequests"
   /v1/devices/apns:
@@ -313,6 +365,7 @@ components:
           type: string
         device_id:
           type: string
+          minLength: 1
     CreateSessionResponse:
       type: object
       required: [access_token, refresh_token, expires_in]
@@ -321,10 +374,24 @@ components:
           type: string
         refresh_token:
           type: string
+          minLength: 1
         expires_in:
           type: integer
           format: int32
           minimum: 1
+    RefreshSessionRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+          minLength: 1
+    RevokeSessionRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
     RegisterDeviceRequest:
       type: object
       required: [device_id, apns_token, environment]

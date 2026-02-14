@@ -6,6 +6,7 @@ use std::collections::HashSet;
 use std::net::IpAddr;
 use uuid::Uuid;
 
+mod apple_identity;
 mod audit;
 mod authn;
 mod connectors;
@@ -39,6 +40,7 @@ pub struct AppState {
     pub trusted_proxy_ips: HashSet<IpAddr>,
     pub session_ttl_seconds: u64,
     pub oauth_state_ttl_seconds: u64,
+    pub apple_ios_audience: String,
     pub http_client: reqwest::Client,
 }
 
@@ -56,6 +58,20 @@ pub fn build_router(app_state: AppState) -> Router {
             "/v1/auth/ios/session",
             post(session::create_session).layer(middleware::from_fn_with_state(
                 rate_limit_layer_state.clone(),
+                rate_limit::sensitive_rate_limit_middleware,
+            )),
+        )
+        .route(
+            "/v1/auth/ios/session/refresh",
+            post(session::refresh_session).layer(middleware::from_fn_with_state(
+                rate_limit_layer_state.clone(),
+                rate_limit::sensitive_rate_limit_middleware,
+            )),
+        )
+        .route(
+            "/v1/auth/ios/session/revoke",
+            post(session::revoke_session).layer(middleware::from_fn_with_state(
+                rate_limit_layer_state,
                 rate_limit::sensitive_rate_limit_middleware,
             )),
         )
