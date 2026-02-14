@@ -4,9 +4,9 @@ This file is intentionally at repository root so coding agents can auto-discover
 
 ## Start Here
 
-1. Read `/Users/niteshchowdharybalusu/Documents/alfred/docs/product-context.md` first.
-2. Read `/Users/niteshchowdharybalusu/Documents/alfred/agent/start.md` before making changes.
-3. Read `/Users/niteshchowdharybalusu/Documents/alfred/docs/engineering-standards.md` for mandatory security/scalability rules.
+1. Read `docs/product-context.md` first.
+2. Read `agent/start.md` before making changes.
+3. Read `docs/engineering-standards.md` for mandatory security/scalability rules.
 4. Use the `Justfile` at repo root for all common workflows.
 5. Work from GitHub issues first, then keep the Phase I board aligned.
 
@@ -68,12 +68,12 @@ After every issue with backend impact, complete this before handoff:
    1. List concrete findings or explicitly state `no findings`.
    2. Include any follow-up tasks.
 4. Before merge, include the AI review report in the PR using:
-   1. `/Users/niteshchowdharybalusu/Documents/alfred/docs/ai-review-template.md`
+   1. `docs/ai-review-template.md`
 
 Required architecture boundary:
 
-1. DB repository code must stay in `/Users/niteshchowdharybalusu/Documents/alfred/backend/crates/shared/src/repos`.
-2. HTTP routing/handlers/middleware must stay in `/Users/niteshchowdharybalusu/Documents/alfred/backend/crates/api-server/src/http.rs` (or future `/http/*` modules).
+1. DB repository code must stay in `backend/crates/shared/src/repos`.
+2. HTTP routing/handlers/middleware must stay in `backend/crates/api-server/src/http.rs` (or future `/http/*` modules).
 3. `main.rs` files should remain startup/bootstrap only.
 
 ## Frontend Test Policy
@@ -87,7 +87,7 @@ Required architecture boundary:
 1. Execution queue: GitHub issues in `niteshbalusu11/alfred` with labels:
    1. `phase-1`
    2. `P0` or `P1`
-2. Planning board: `/Users/niteshchowdharybalusu/Documents/alfred/docs/phase1-master-todo.md`
+2. Planning board: `docs/phase1-master-todo.md`
 3. Rule:
    1. If a GitHub issue and board item conflict, treat GitHub issue as immediate execution source and update docs in the same change.
 
@@ -114,7 +114,7 @@ Required architecture boundary:
    1. Add explicit blocker comment to issue
    2. Move to next unblocked highest-priority issue
 7. Use standard issue update format:
-   1. `/Users/niteshchowdharybalusu/Documents/alfred/docs/issue-update-template.md`
+   1. `docs/issue-update-template.md`
 
 ## PR and Merge Lifecycle (Required)
 
@@ -130,13 +130,13 @@ Required architecture boundary:
 
 ## Key Paths
 
-1. iOS app: `/Users/niteshchowdharybalusu/Documents/alfred/alfred`
-2. iOS API package: `/Users/niteshchowdharybalusu/Documents/alfred/alfred/Packages/AlfredAPIClient`
-3. Backend workspace: `/Users/niteshchowdharybalusu/Documents/alfred/backend`
-4. OpenAPI contract: `/Users/niteshchowdharybalusu/Documents/alfred/api/openapi.yaml`
-5. DB migrations: `/Users/niteshchowdharybalusu/Documents/alfred/db/migrations`
-6. Phase I board: `/Users/niteshchowdharybalusu/Documents/alfred/docs/phase1-master-todo.md`
-7. Product context: `/Users/niteshchowdharybalusu/Documents/alfred/docs/product-context.md`
+1. iOS app: `alfred`
+2. iOS API package: `alfred/Packages/AlfredAPIClient`
+3. Backend workspace: `backend`
+4. OpenAPI contract: `api/openapi.yaml`
+5. DB migrations: `db/migrations`
+6. Phase I board: `docs/phase1-master-todo.md`
+7. Product context: `docs/product-context.md`
 
 ## Guardrails
 

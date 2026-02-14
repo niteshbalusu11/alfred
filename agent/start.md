@@ -7,15 +7,15 @@ Use it to understand the architecture quickly and run the system with consistent
 
 Read this first for product/business context:
 
-`/Users/niteshchowdharybalusu/Documents/alfred/docs/product-context.md`
+`docs/product-context.md`
 
 Read mandatory security/scalability rules:
 
-`/Users/niteshchowdharybalusu/Documents/alfred/docs/engineering-standards.md`
+`docs/engineering-standards.md`
 
 Use this template for required AI review reporting before merge:
 
-`/Users/niteshchowdharybalusu/Documents/alfred/docs/ai-review-template.md`
+`docs/ai-review-template.md`
 
 ## Project Summary
 
@@ -31,21 +31,21 @@ The project intentionally avoids smart-home control in v1 to reduce reliability 
 ## Repository Map
 
 1. iOS app project:
-   1. `/Users/niteshchowdharybalusu/Documents/alfred/alfred`
+   1. `alfred`
 2. Local Swift package used by iOS client code:
-   1. `/Users/niteshchowdharybalusu/Documents/alfred/alfred/Packages/AlfredAPIClient`
+   1. `alfred/Packages/AlfredAPIClient`
 3. Backend Rust workspace:
-   1. `/Users/niteshchowdharybalusu/Documents/alfred/backend`
+   1. `backend`
 4. API contract:
-   1. `/Users/niteshchowdharybalusu/Documents/alfred/api/openapi.yaml`
+   1. `api/openapi.yaml`
 5. DB migrations:
-   1. `/Users/niteshchowdharybalusu/Documents/alfred/db/migrations`
+   1. `db/migrations`
 6. Product/architecture RFC:
-   1. `/Users/niteshchowdharybalusu/Documents/alfred/docs/rfc-0001-alfred-ios-v1.md`
+   1. `docs/rfc-0001-alfred-ios-v1.md`
 7. Phase I master board:
-   1. `/Users/niteshchowdharybalusu/Documents/alfred/docs/phase1-master-todo.md`
+   1. `docs/phase1-master-todo.md`
 8. Product context (canonical):
-   1. `/Users/niteshchowdharybalusu/Documents/alfred/docs/product-context.md`
+   1. `docs/product-context.md`
 
 ## Runtime Components
 
@@ -92,7 +92,7 @@ Phase I labels currently in use:
    2. Validation results
    3. Remaining follow-ups
 6. Use standard comment formats from:
-   1. `/Users/niteshchowdharybalusu/Documents/alfred/docs/issue-update-template.md`
+   1. `docs/issue-update-template.md`
 
 ### PR Lifecycle Protocol
 
@@ -108,7 +108,7 @@ Phase I labels currently in use:
 ### Sync Rule: GitHub Issues vs Phase I Board
 
 1. GitHub issue is the immediate execution source.
-2. `/docs/phase1-master-todo.md` is the planning/control board.
+2. `docs/phase1-master-todo.md` is the planning/control board.
 3. If either side changes, keep them aligned in the same work cycle.
 4. Do not start untracked work; create/obtain an issue first.
 
@@ -120,20 +120,20 @@ Agents must preserve these constraints while implementing features:
 2. Data minimization for v1:
    1. Persist only minimal state needed for scheduling, retries, and auditing.
 3. API changes must remain aligned with:
-   1. `/Users/niteshchowdharybalusu/Documents/alfred/api/openapi.yaml`
+   1. `api/openapi.yaml`
 4. Schema changes must be migration-driven:
-   1. Add/modify SQL files under `/Users/niteshchowdharybalusu/Documents/alfred/db/migrations`.
+   1. Add/modify SQL files under `db/migrations`.
 
 ## Justfile Command Reference
 
 All operational commands are centralized in:
 
-`/Users/niteshchowdharybalusu/Documents/alfred/Justfile`
+`Justfile`
 
 Run from repository root:
 
 ```bash
-cd /Users/niteshchowdharybalusu/Documents/alfred
+cd .
 ```
 
 Primary commands:
@@ -149,7 +149,7 @@ Primary commands:
 5. `just infra-down`
    1. Stops Postgres and removes volumes.
 6. `just backend-migrate`
-   1. Applies SQL migrations from `/db/migrations`.
+   1. Applies SQL migrations from `db/migrations`.
 7. `just backend-migrate-check`
    1. Prints migration status for configured `DATABASE_URL`.
 8. `just ios-open`
@@ -240,22 +240,22 @@ Use this sequence for most engineering tasks:
 9. If frontend core logic changed, also run:
    1. `just ios-test`
 10. If API contract changed:
-   1. Update `/Users/niteshchowdharybalusu/Documents/alfred/api/openapi.yaml`
+   1. Update `api/openapi.yaml`
    2. Ensure model updates in shared/server/client code.
 11. If persistence changed:
-   1. Add a new migration under `/Users/niteshchowdharybalusu/Documents/alfred/db/migrations`.
+   1. Add a new migration under `db/migrations`.
 12. If issue state changed:
     1. Update GitHub issue comments/checklist
-    2. Keep `/docs/phase1-master-todo.md` status consistent where relevant
+    2. Keep `docs/phase1-master-todo.md` status consistent where relevant
 13. Before PR merge (mandatory for backend-impacting issues):
     1. Produce AI review report (security audit + bug check + scalability/cleanliness review)
-    2. Use `/Users/niteshchowdharybalusu/Documents/alfred/docs/ai-review-template.md`
+    2. Use `docs/ai-review-template.md`
     3. Merge only after report is documented in issue/PR
 
 ## Mandatory Scalability Boundaries
 
-1. All database/repository code must live in `/Users/niteshchowdharybalusu/Documents/alfred/backend/crates/shared/src/repos`.
-2. All API HTTP handlers/middleware/routing must live in `/Users/niteshchowdharybalusu/Documents/alfred/backend/crates/api-server/src/http.rs` (or future `/http/*` modules).
+1. All database/repository code must live in `backend/crates/shared/src/repos`.
+2. All API HTTP handlers/middleware/routing must live in `backend/crates/api-server/src/http.rs` (or future `/http/*` modules).
 3. Keep `main.rs` limited to startup wiring/config/bootstrap.
 
 ## Current Known State (Scaffold Stage)

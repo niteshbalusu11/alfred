@@ -68,14 +68,16 @@ backend-build:
 backend-test:
   cd {{backend_dir}} && cargo test
 
-# Apply SQL migrations to the configured Postgres database.
-backend-migrate:
+# Install sqlx-cli locally when missing.
+install-sqlx-cli:
   @command -v sqlx >/dev/null || cargo install sqlx-cli --no-default-features --features rustls,postgres
+
+# Apply SQL migrations to the configured Postgres database.
+backend-migrate: install-sqlx-cli
   cd {{backend_dir}} && sqlx migrate run --source ../db/migrations
 
 # Show migration state for the configured Postgres database.
-backend-migrate-check:
-  @command -v sqlx >/dev/null || cargo install sqlx-cli --no-default-features --features rustls,postgres
+backend-migrate-check: install-sqlx-cli
   cd {{backend_dir}} && sqlx migrate info --source ../db/migrations
 
 # Format Rust code.
@@ -137,17 +139,35 @@ backend-deep-review:
 
 # Run API server.
 backend-api:
-  cd {{backend_dir}} && cargo run -p api-server
+  cd {{backend_dir}} && \
+    DATABASE_URL="${DATABASE_URL:-postgres://postgres:postgres@127.0.0.1:5432/alfred}" \
+    DATA_ENCRYPTION_KEY="${DATA_ENCRYPTION_KEY:-dev-only-change-me}" \
+    GOOGLE_OAUTH_CLIENT_ID="${GOOGLE_OAUTH_CLIENT_ID:-dev-client-id}" \
+    GOOGLE_OAUTH_CLIENT_SECRET="${GOOGLE_OAUTH_CLIENT_SECRET:-dev-client-secret}" \
+    GOOGLE_OAUTH_REDIRECT_URI="${GOOGLE_OAUTH_REDIRECT_URI:-http://localhost/oauth/callback}" \
+    cargo run -p api-server
 
 # Run background worker.
 backend-worker:
-  cd {{backend_dir}} && cargo run -p worker
+  cd {{backend_dir}} && \
+    DATABASE_URL="${DATABASE_URL:-postgres://postgres:postgres@127.0.0.1:5432/alfred}" \
+    DATA_ENCRYPTION_KEY="${DATA_ENCRYPTION_KEY:-dev-only-change-me}" \
+    cargo run -p worker
 
 # Run API and worker together in one terminal session.
 dev:
   @trap 'kill 0' INT TERM EXIT; \
-    (cd {{backend_dir}} && cargo run -p api-server) & \
-    (cd {{backend_dir}} && cargo run -p worker) & \
+    (cd {{backend_dir}} && \
+      DATABASE_URL="${DATABASE_URL:-postgres://postgres:postgres@127.0.0.1:5432/alfred}" \
+      DATA_ENCRYPTION_KEY="${DATA_ENCRYPTION_KEY:-dev-only-change-me}" \
+      GOOGLE_OAUTH_CLIENT_ID="${GOOGLE_OAUTH_CLIENT_ID:-dev-client-id}" \
+      GOOGLE_OAUTH_CLIENT_SECRET="${GOOGLE_OAUTH_CLIENT_SECRET:-dev-client-secret}" \
+      GOOGLE_OAUTH_REDIRECT_URI="${GOOGLE_OAUTH_REDIRECT_URI:-http://localhost/oauth/callback}" \
+      cargo run -p api-server) & \
+    (cd {{backend_dir}} && \
+      DATABASE_URL="${DATABASE_URL:-postgres://postgres:postgres@127.0.0.1:5432/alfred}" \
+      DATA_ENCRYPTION_KEY="${DATA_ENCRYPTION_KEY:-dev-only-change-me}" \
+      cargo run -p worker) & \
     wait
 
 # Show key project docs.

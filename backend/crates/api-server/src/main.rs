@@ -1,5 +1,4 @@
 use std::net::SocketAddr;
-use std::path::Path;
 
 use shared::config::ApiConfig;
 use shared::repos::Store;
@@ -24,7 +23,13 @@ async fn main() {
         }
     };
 
-    let store = match Store::connect(&config.database_url, config.database_max_connections).await {
+    let store = match Store::connect(
+        &config.database_url,
+        config.database_max_connections,
+        &config.data_encryption_key,
+    )
+    .await
+    {
         Ok(store) => store,
         Err(err) => {
             error!("failed to connect to postgres: {err}");
@@ -32,7 +37,7 @@ async fn main() {
         }
     };
 
-    let migrator = match sqlx::migrate::Migrator::new(Path::new("../db/migrations")).await {
+    let migrator = match sqlx::migrate::Migrator::new(config.migrations_dir.clone()).await {
         Ok(migrator) => migrator,
         Err(err) => {
             error!("failed to load migrations: {err}");
@@ -45,7 +50,23 @@ async fn main() {
         std::process::exit(1);
     }
 
-    let app = http::build_router(http::AppState { store });
+    let app = http::build_router(http::AppState {
+        store,
+        oauth: http::OAuthConfig {
+            client_id: config.google_client_id,
+            client_secret: config.google_client_secret,
+            redirect_uri: config.google_redirect_uri,
+            auth_url: config.google_auth_url,
+            token_url: config.google_token_url,
+            scopes: vec![
+                "https://www.googleapis.com/auth/gmail.readonly".to_string(),
+                "https://www.googleapis.com/auth/calendar.readonly".to_string(),
+            ],
+        },
+        session_ttl_seconds: config.session_ttl_seconds,
+        oauth_state_ttl_seconds: config.oauth_state_ttl_seconds,
+        http_client: reqwest::Client::new(),
+    });
 
     let addr: SocketAddr = config
         .bind_addr
