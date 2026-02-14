@@ -34,6 +34,11 @@ pub struct ApiConfig {
 #[derive(Debug, Clone)]
 pub struct WorkerConfig {
     pub tick_seconds: u64,
+    pub batch_size: u32,
+    pub lease_seconds: u64,
+    pub per_user_concurrency_limit: u32,
+    pub retry_base_delay_seconds: u64,
+    pub retry_max_delay_seconds: u64,
     pub database_url: String,
     pub database_max_connections: u32,
     pub data_encryption_key: String,
@@ -129,9 +134,46 @@ impl WorkerConfig {
                 .map_err(|_| ConfigError::ParseInt("WORKER_TICK_SECONDS".to_string()))?,
             Err(_) => 30,
         };
+        let batch_size = parse_u32_env("WORKER_BATCH_SIZE", 25)?;
+        let lease_seconds = parse_u64_env("WORKER_LEASE_SECONDS", 60)?;
+        let per_user_concurrency_limit = parse_u32_env("WORKER_PER_USER_CONCURRENCY_LIMIT", 1)?;
+        let retry_base_delay_seconds = parse_u64_env("WORKER_RETRY_BASE_DELAY_SECONDS", 30)?;
+        let retry_max_delay_seconds = parse_u64_env("WORKER_RETRY_MAX_DELAY_SECONDS", 1800)?;
+
+        if batch_size == 0 {
+            return Err(ConfigError::InvalidConfiguration(
+                "WORKER_BATCH_SIZE must be greater than 0".to_string(),
+            ));
+        }
+        if lease_seconds == 0 {
+            return Err(ConfigError::InvalidConfiguration(
+                "WORKER_LEASE_SECONDS must be greater than 0".to_string(),
+            ));
+        }
+        if per_user_concurrency_limit == 0 {
+            return Err(ConfigError::InvalidConfiguration(
+                "WORKER_PER_USER_CONCURRENCY_LIMIT must be greater than 0".to_string(),
+            ));
+        }
+        if retry_base_delay_seconds == 0 {
+            return Err(ConfigError::InvalidConfiguration(
+                "WORKER_RETRY_BASE_DELAY_SECONDS must be greater than 0".to_string(),
+            ));
+        }
+        if retry_max_delay_seconds < retry_base_delay_seconds {
+            return Err(ConfigError::InvalidConfiguration(
+                "WORKER_RETRY_MAX_DELAY_SECONDS must be >= WORKER_RETRY_BASE_DELAY_SECONDS"
+                    .to_string(),
+            ));
+        }
 
         Ok(Self {
             tick_seconds,
+            batch_size,
+            lease_seconds,
+            per_user_concurrency_limit,
+            retry_base_delay_seconds,
+            retry_max_delay_seconds,
             database_url: require_env("DATABASE_URL")?,
             database_max_connections: parse_u32_env("DATABASE_MAX_CONNECTIONS", 5)?,
             data_encryption_key: require_env("DATA_ENCRYPTION_KEY")?,
