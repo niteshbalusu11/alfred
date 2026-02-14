@@ -72,15 +72,27 @@ jobs:
 
       - name: Xcode Test (iOS Simulator)
         run: |
-          DESTINATION_ID="$(
-            xcrun simctl list devices available iOS \
-            | sed -nE 's/.*iPhone[^()]*\(([0-9A-Fa-f-]{36})\).*/\1/p' \
-            | head -n 1
-          )"
+          DESTINATION_ID=""
+          for attempt in 1 2 3; do
+            DESTINATION_ID="$(
+              xcodebuild \
+                -project alfred/alfred.xcodeproj \
+                -scheme alfred \
+                -showdestinations \
+              | sed -nE 's/.*platform:iOS Simulator,.*id:([0-9A-Fa-f-]{36}),.*/\1/p' \
+              | head -n 1
+            )"
+
+            if [ -n "${DESTINATION_ID}" ]; then
+              break
+            fi
+
+            sleep 5
+          done
 
           if [ -z "${DESTINATION_ID}" ]; then
-            echo "No available iPhone simulator runtime found."
-            xcrun simctl list devices available iOS
+            echo "No available iOS Simulator destination found for scheme 'alfred'."
+            xcodebuild -project alfred/alfred.xcodeproj -scheme alfred -showdestinations
             exit 1
           fi
 
