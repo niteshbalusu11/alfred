@@ -1,56 +1,5 @@
 import Foundation
 
-public struct CreateSessionRequest: Codable, Sendable {
-    public let appleIdentityToken: String
-    public let deviceId: String
-
-    enum CodingKeys: String, CodingKey {
-        case appleIdentityToken = "apple_identity_token"
-        case deviceId = "device_id"
-    }
-
-    public init(appleIdentityToken: String, deviceId: String) {
-        self.appleIdentityToken = appleIdentityToken
-        self.deviceId = deviceId
-    }
-}
-
-public struct CreateSessionResponse: Codable, Sendable {
-    public let accessToken: String
-    public let refreshToken: String
-    public let expiresIn: Int
-
-    enum CodingKeys: String, CodingKey {
-        case accessToken = "access_token"
-        case refreshToken = "refresh_token"
-        case expiresIn = "expires_in"
-    }
-}
-
-public struct RefreshSessionRequest: Codable, Sendable {
-    public let refreshToken: String
-
-    enum CodingKeys: String, CodingKey {
-        case refreshToken = "refresh_token"
-    }
-
-    public init(refreshToken: String) {
-        self.refreshToken = refreshToken
-    }
-}
-
-public struct RevokeSessionRequest: Codable, Sendable {
-    public let refreshToken: String
-
-    enum CodingKeys: String, CodingKey {
-        case refreshToken = "refresh_token"
-    }
-
-    public init(refreshToken: String) {
-        self.refreshToken = refreshToken
-    }
-}
-
 public enum APNSEnvironment: String, Codable, Sendable {
     case sandbox
     case production

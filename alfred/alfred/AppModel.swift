@@ -1,12 +1,11 @@
 import AlfredAPIClient
+import ClerkKit
 import Combine
 import Foundation
 
 @MainActor
 final class AppModel: ObservableObject {
     enum Action: Hashable {
-        case restoreSession
-        case signIn
         case startGoogleOAuth
         case completeGoogleOAuth
         case loadPreferences
@@ -15,9 +14,8 @@ final class AppModel: ObservableObject {
         case requestDeleteAll
         case loadAuditEvents
     }
+
     enum RetryAction {
-        case restoreSession
-        case signIn(appleIdentityToken: String, deviceID: String)
         case startGoogleOAuth(redirectURI: String)
         case completeGoogleOAuth(code: String?, state: String, error: String?, errorDescription: String?)
         case loadPreferences
@@ -26,6 +24,7 @@ final class AppModel: ObservableObject {
         case requestDeleteAll
         case loadAuditEvents(reset: Bool)
     }
+
     struct ErrorBanner {
         let message: String
         let retryAction: RetryAction?
@@ -35,9 +34,6 @@ final class AppModel: ObservableObject {
     @Published private(set) var isAuthenticated = false
     @Published private(set) var inFlightActions: Set<Action> = []
     @Published var errorBanner: ErrorBanner?
-
-    @Published var appleIdentityToken = ""
-    @Published var deviceID = UUID().uuidString
 
     @Published var redirectURI = "alfred://oauth/google/callback"
     @Published var googleAuthURL = ""
@@ -61,19 +57,17 @@ final class AppModel: ObservableObject {
 
     let apiBaseURL: URL
 
-    private let sessionManager: SessionManager
+    private let clerk: Clerk
     private let apiClient: AlfredAPIClient
+    private var authEventsTask: Task<Void, Never>?
 
-    init(apiBaseURL: URL? = nil) {
+    init(apiBaseURL: URL? = nil, clerk: Clerk? = nil) {
+        let clerk = clerk ?? Clerk.shared
         let resolvedAPIBaseURL = apiBaseURL ?? AppConfiguration.defaultAPIBaseURL
         self.apiBaseURL = resolvedAPIBaseURL
+        self.clerk = clerk
 
-        let tokenStore = KeychainSessionTokenStore()
-        let authClient = AlfredAPIClient(baseURL: resolvedAPIBaseURL)
-        let sessionManager = SessionManager(authClient: authClient, tokenStore: tokenStore)
-        let accessTokenProvider = SessionAccessTokenProvider(sessionManager: sessionManager)
-
-        self.sessionManager = sessionManager
+        let accessTokenProvider = ClerkAccessTokenProvider(tokenSource: clerk.auth)
         self.apiClient = AlfredAPIClient(
             baseURL: resolvedAPIBaseURL,
             tokenProvider: {
@@ -81,51 +75,30 @@ final class AppModel: ObservableObject {
             }
         )
 
-        Task {
-            await restoreSession()
-        }
+        startAuthEventObserver()
+    }
+
+    deinit {
+        authEventsTask?.cancel()
     }
 
     var canLoadMoreAuditEvents: Bool { nextAuditCursor != nil }
     func isLoading(_ action: Action) -> Bool { inFlightActions.contains(action) }
 
-    func restoreSession() async {
-        await run(action: .restoreSession, retryAction: .restoreSession) { [self] in
-            sessionManager.restoreSession()
-            isAuthenticated = sessionManager.isAuthenticated()
-        }
-    }
-
-    func signIn() async {
-        let token = appleIdentityToken.trimmingCharacters(in: .whitespacesAndNewlines)
-        let id = deviceID.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard !token.isEmpty else {
-            errorBanner = ErrorBanner(message: "Apple identity token is required.", retryAction: nil, sourceAction: nil)
-            return
-        }
-
-        let resolvedDeviceID = id.isEmpty ? UUID().uuidString : id
-
-        await run(action: .signIn, retryAction: .signIn(appleIdentityToken: token, deviceID: resolvedDeviceID)) { [self] in
-            try await sessionManager.createSession(appleIdentityToken: token, deviceID: resolvedDeviceID)
-            isAuthenticated = true
-            deviceID = resolvedDeviceID
-            appleIdentityToken = ""
-        }
-
-        if isAuthenticated {
-            await loadPreferences()
-            await loadAuditEvents(reset: true)
-        }
-    }
-
     func signOut() async {
-        sessionManager.clearSession()
+        do {
+            try await clerk.auth.signOut()
+        } catch {
+            errorBanner = ErrorBanner(
+                message: Self.errorMessage(from: error),
+                retryAction: nil,
+                sourceAction: nil
+            )
+        }
+
         resetAuthenticationState()
         resetGoogleOAuthState()
         resetRequestStatusState()
-        errorBanner = nil
     }
 
     func startGoogleOAuth() async {
@@ -258,10 +231,10 @@ final class AppModel: ObservableObject {
             }
         } catch {
             if case AlfredAPIClientError.unauthorized = error {
-                sessionManager.clearSession()
-                isAuthenticated = false
-                auditEvents = []
-                nextAuditCursor = nil
+                try? await clerk.auth.signOut()
+                resetAuthenticationState()
+                resetGoogleOAuthState()
+                resetRequestStatusState()
             }
 
             errorBanner = ErrorBanner(
@@ -272,11 +245,53 @@ final class AppModel: ObservableObject {
         }
     }
 
+    private func startAuthEventObserver() {
+        authEventsTask?.cancel()
+        authEventsTask = Task { [weak self] in
+            guard let self else { return }
+
+            await self.synchronizeAuthenticationState(shouldLoadData: false)
+            for await event in self.clerk.auth.events {
+                switch event {
+                case .signInCompleted, .signUpCompleted:
+                    await self.synchronizeAuthenticationState(shouldLoadData: true)
+                case .sessionChanged(_, let newSession):
+                    await self.synchronizeAuthenticationState(shouldLoadData: newSession != nil)
+                case .signedOut:
+                    self.resetAuthenticationState()
+                    self.resetGoogleOAuthState()
+                    self.resetRequestStatusState()
+                case .tokenRefreshed:
+                    break
+                }
+            }
+        }
+    }
+
+    private func synchronizeAuthenticationState(shouldLoadData: Bool) async {
+        let isCurrentlyAuthenticated = clerk.user != nil
+        let wasAuthenticated = isAuthenticated
+        isAuthenticated = isCurrentlyAuthenticated
+
+        guard isCurrentlyAuthenticated else {
+            if wasAuthenticated {
+                resetAuthenticationState()
+                resetGoogleOAuthState()
+                resetRequestStatusState()
+            }
+            return
+        }
+
+        if shouldLoadData || !wasAuthenticated {
+            await loadPreferences()
+            await loadAuditEvents(reset: true)
+        }
+    }
+
     private func resetAuthenticationState() {
         isAuthenticated = false
         auditEvents = []
         nextAuditCursor = nil
-        appleIdentityToken = ""
     }
 
     private func resetGoogleOAuthState() {
