@@ -59,9 +59,9 @@ Ship a private beta where iOS users can:
 | BE-002 | P0 | Add health/readiness endpoints | BE | 2026-02-20 | TODO | - | `/healthz` and `/readyz` live |
 | BE-003 | P0 | Add structured logging with request_id | BE | 2026-02-21 | TODO | BE-002 | Request logs include trace fields |
 | BE-004 | P0 | Standardize API error envelope/codes | BE | 2026-02-22 | TODO | BE-001 | All endpoints use common error format |
-| BE-005 | P0 | Implement `/v1/connectors/google/start` real OAuth URL + state | BE | 2026-03-01 | TODO | BE-004 | Endpoint returns valid provider URL/state |
-| BE-006 | P0 | Implement `/v1/connectors/google/callback` token exchange | BE | 2026-03-03 | TODO | BE-005 | Real token exchange succeeds |
-| BE-007 | P0 | Implement `/v1/connectors/{id}` revoke + provider-side revoke | BE | 2026-03-05 | TODO | BE-006 | Connector revoke fully works |
+| BE-005 | P0 | Implement `/v1/connectors/google/start` real OAuth URL + state | BE | 2026-03-01 | DONE | BE-004 | Endpoint returns valid provider URL/state |
+| BE-006 | P0 | Implement `/v1/connectors/google/callback` token exchange | BE | 2026-03-03 | DONE | BE-005 | Real token exchange succeeds |
+| BE-007 | P0 | Implement `/v1/connectors/{id}` revoke + provider-side revoke | BE | 2026-03-05 | DONE | BE-006 | Connector revoke fully works |
 | BE-008 | P0 | Implement `/v1/preferences` persistence | BE | 2026-03-06 | TODO | DB-001 | Read/write preferences backed by DB |
 | BE-009 | P0 | Implement `/v1/audit-events` pagination and filters | BE | 2026-03-10 | TODO | DB-004 | Cursor pagination works |
 | BE-010 | P0 | Implement `/v1/privacy/delete-all` async job trigger | BE | 2026-03-12 | TODO | DB-007 | Delete request queued and trackable |

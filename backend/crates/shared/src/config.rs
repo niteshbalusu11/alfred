@@ -17,6 +17,7 @@ pub struct ApiConfig {
     pub google_redirect_uri: String,
     pub google_auth_url: String,
     pub google_token_url: String,
+    pub google_revoke_url: String,
 }
 
 #[derive(Debug, Clone)]
@@ -56,6 +57,8 @@ impl ApiConfig {
                 .unwrap_or_else(|_| "https://accounts.google.com/o/oauth2/v2/auth".to_string()),
             google_token_url: env::var("GOOGLE_OAUTH_TOKEN_URL")
                 .unwrap_or_else(|_| "https://oauth2.googleapis.com/token".to_string()),
+            google_revoke_url: env::var("GOOGLE_OAUTH_REVOKE_URL")
+                .unwrap_or_else(|_| "https://oauth2.googleapis.com/revoke".to_string()),
         })
     }
 }
