@@ -227,6 +227,30 @@ paths:
                 $ref: "#/components/schemas/DeleteAllResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
+  /v1/privacy/delete-all/{request_id}:
+    get:
+      tags: [Privacy]
+      summary: Get delete-all request status
+      operationId: getDeleteAllStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: request_id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Delete request status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteAllStatusResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
 components:
   securitySchemes:
     bearerAuth:
@@ -429,6 +453,30 @@ components:
         status:
           type: string
           enum: [QUEUED]
+    DeleteAllStatusResponse:
+      type: object
+      required: [request_id, status, created_at]
+      properties:
+        request_id:
+          type: string
+        status:
+          type: string
+          enum: [QUEUED, RUNNING, COMPLETED, FAILED]
+        created_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        failed_at:
+          type: string
+          format: date-time
+          nullable: true
     OkResponse:
       type: object
       required: [ok]

@@ -74,6 +74,10 @@ pub fn build_router(app_state: AppState) -> Router {
         )
         .route("/v1/audit-events", get(audit::list_audit_events))
         .route("/v1/privacy/delete-all", post(privacy::delete_all))
+        .route(
+            "/v1/privacy/delete-all/{request_id}",
+            get(privacy::get_delete_all_status),
+        )
         .layer(middleware::from_fn_with_state(
             auth_layer_state,
             authn::auth_middleware,

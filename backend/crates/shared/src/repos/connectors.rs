@@ -1,9 +1,42 @@
 use sqlx::Row;
 use uuid::Uuid;
 
-use super::{ConnectorKeyMetadata, LEGACY_CONNECTOR_TOKEN_KEY_ID, Store, StoreError};
+use super::{
+    ActiveConnectorMetadata, ConnectorKeyMetadata, LEGACY_CONNECTOR_TOKEN_KEY_ID, Store, StoreError,
+};
 
 impl Store {
+    pub async fn list_active_connector_metadata(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<ActiveConnectorMetadata>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT id, provider, token_key_id, token_version
+             FROM connectors
+             WHERE user_id = $1
+               AND status = 'ACTIVE'
+             ORDER BY created_at ASC, id ASC",
+        )
+        .bind(user_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        rows.into_iter()
+            .map(|row| {
+                let connector_id: Uuid = row.try_get("id")?;
+                let provider: String = row.try_get("provider")?;
+                let token_key_id: String = row.try_get("token_key_id")?;
+                let token_version: i32 = row.try_get("token_version")?;
+                Ok(ActiveConnectorMetadata {
+                    connector_id,
+                    provider,
+                    token_key_id,
+                    token_version,
+                })
+            })
+            .collect()
+    }
+
     pub async fn upsert_google_connector(
         &self,
         user_id: Uuid,

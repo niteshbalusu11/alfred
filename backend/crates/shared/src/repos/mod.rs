@@ -87,6 +87,14 @@ pub struct ConnectorKeyMetadata {
 }
 
 #[derive(Debug, Clone)]
+pub struct ActiveConnectorMetadata {
+    pub connector_id: Uuid,
+    pub provider: String,
+    pub token_key_id: String,
+    pub token_version: i32,
+}
+
+#[derive(Debug, Clone)]
 pub struct ClaimedJob {
     pub id: Uuid,
     pub user_id: Uuid,
@@ -96,6 +104,54 @@ pub struct ClaimedJob {
     pub attempts: i32,
     pub max_attempts: i32,
     pub idempotency_key: String,
+}
+
+#[derive(Debug, Clone)]
+pub enum PrivacyDeleteStatus {
+    Queued,
+    Running,
+    Completed,
+    Failed,
+}
+
+impl PrivacyDeleteStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Queued => "QUEUED",
+            Self::Running => "RUNNING",
+            Self::Completed => "COMPLETED",
+            Self::Failed => "FAILED",
+        }
+    }
+
+    fn from_db(value: &str) -> Result<Self, StoreError> {
+        match value {
+            "QUEUED" => Ok(Self::Queued),
+            "RUNNING" => Ok(Self::Running),
+            "COMPLETED" => Ok(Self::Completed),
+            "FAILED" => Ok(Self::Failed),
+            _ => Err(StoreError::InvalidData(format!(
+                "unknown privacy delete status persisted: {value}"
+            ))),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ClaimedDeleteRequest {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone)]
+pub struct PrivacyDeleteRequestStatus {
+    pub id: Uuid,
+    pub status: PrivacyDeleteStatus,
+    pub created_at: DateTime<Utc>,
+    pub started_at: Option<DateTime<Utc>>,
+    pub completed_at: Option<DateTime<Utc>>,
+    pub failed_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone)]
