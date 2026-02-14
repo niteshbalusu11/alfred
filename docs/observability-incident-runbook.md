@@ -9,6 +9,9 @@ Use this runbook for API/worker/push reliability incidents in staging and produc
 - Push Delivery: [staging-push-overview](https://grafana.staging.alfred.internal/d/alfred-push-overview)
 - SLO Burn Rates: [staging-slo-burn](https://grafana.staging.alfred.internal/d/alfred-slo-burn)
 
+Dashboards and SLO panel contracts are defined in:
+- `docs/observability-stack-phase1.md`
+
 ## Triage Steps
 
 1. Open SLO burn dashboard first and identify the failing SLI.
@@ -53,3 +56,9 @@ Use this runbook for API/worker/push reliability incidents in staging and produc
 1. Alerts clear for at least 15 minutes.
 2. SLI recovers to within target thresholds.
 3. Incident note includes root cause and follow-up actions.
+
+## Reliability Readiness Checklist
+
+1. Dashboard links are reachable and panel data aligns with SLO contracts in `docs/observability-stack-phase1.md`.
+2. Alert drill evidence is current in `docs/observability-alert-drills.md`.
+3. Request/job/push correlation can be demonstrated using a shared `request_id` during incident response.

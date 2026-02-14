@@ -42,6 +42,24 @@ This document defines the baseline observability stack for API, worker, and push
 - Push Delivery: [staging-push-overview](https://grafana.staging.alfred.internal/d/alfred-push-overview)
 - SLO Burn Rates: [staging-slo-burn](https://grafana.staging.alfred.internal/d/alfred-slo-burn)
 
+## Dashboard Panel Contract
+
+This section maps each required SLI/SLO to the expected dashboard panel and metric source.
+
+| Dashboard | Panel | Metric contract | Target/threshold |
+|---|---|---|---|
+| API Overview | API success ratio | `metric_name=api_http_request` grouped by `status` class (`2xx/3xx` vs total) | >= 99.9% (7d) |
+| API Overview | API latency p95 | `api_http_request.latency_ms` p95 grouped by route | <= 500ms (1h) |
+| Worker Overview | Job success rate | `worker tick metrics.success_rate` | >= 99.0% (24h) |
+| Worker Overview | Queue lag | `worker tick metrics.average_lag_seconds` and `max_lag_seconds` | p95 <= 60s (1h), alert if `max_lag_seconds > 300` |
+| Push Delivery | Push success ratio | `worker tick metrics.push_delivered / push_attempts` | >= 98.5% (24h) |
+| SLO Burn Rates | Burn budget | Derived burn series for API availability, worker success rate, and push delivery success | Page on burn breach |
+
+Verification status:
+1. SLO definitions documented in this file.
+2. Dashboard URLs are documented under `Dashboard Links (Staging)`.
+3. Alert drill scenarios and route verification workflow live in `docs/observability-alert-drills.md`.
+
 ## Alert Rules
 
 | Alert | Condition | Duration | Severity | Route |
@@ -73,6 +91,9 @@ This document defines the baseline observability stack for API, worker, and push
    - PagerDuty `alfred-primary`
    - Slack `#alfred-incidents`
 6. Resolve incident simulation and confirm alert auto-recovers.
+
+Detailed drill matrix and evidence log:
+- `docs/observability-alert-drills.md`
 
 ## Runbook
 
