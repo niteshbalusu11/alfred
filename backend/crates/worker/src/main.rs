@@ -321,7 +321,7 @@ async fn execute_job(store: &Store, job: &ClaimedJob) -> Result<(), JobExecution
             .release_outbound_action_idempotency(job.user_id, &job.idempotency_key, job.id)
             .await
         {
-            return Err(JobExecutionError::transient(
+            return Err(JobExecutionError::permanent(
                 "IDEMPOTENCY_RELEASE_FAILED",
                 format!("failed to release idempotency reservation: {release_err}"),
             ));
