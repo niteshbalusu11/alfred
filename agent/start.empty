@@ -1,0 +1,20 @@
+# Alfred Agent Start (Minimal)
+
+Use this file when an agent starts with minimal context.
+
+## Must Read Next
+
+1. `agent/start.md`
+2. `docs/product-context.md`
+3. `docs/engineering-standards.md`
+
+## Auth Direction (Current)
+
+1. Phase I auth is migrating to Clerk (epic `#52`).
+2. New auth work should follow issues `#53`, `#54`, and `#56`.
+3. Breaking auth changes are acceptable at this phase.
+4. Remove or hard-disable legacy custom `/v1/auth/ios/session*` flow.
+
+## Execution Rule
+
+1. GitHub issues with `phase-1` are the execution source of truth (`P0` before `P1`).

@@ -6,9 +6,17 @@ This file is intentionally at repository root so coding agents can auto-discover
 
 1. Read `docs/product-context.md` first.
 2. Read `agent/start.md` before making changes.
-3. Read `docs/engineering-standards.md` for mandatory security/scalability rules.
-4. Use the `Justfile` at repo root for all common workflows.
-5. Work from GitHub issues first, then keep the Phase I board aligned.
+3. If running with minimal context, read `agent/start.empty` first and then `agent/start.md`.
+4. Read `docs/engineering-standards.md` for mandatory security/scalability rules.
+5. Use the `Justfile` at repo root for all common workflows.
+6. Work from GitHub issues first, then keep the Phase I board aligned.
+
+## Authentication Direction (Important)
+
+1. Auth direction is Clerk-based (migration epic: GitHub issue `#52`).
+2. New auth work must align with issues `#53`, `#54`, and `#56`.
+3. Breaking changes are acceptable for auth migration at this phase.
+4. Custom `/v1/auth/ios/session*` paths should be removed or hard-disabled once Clerk path is complete.
 
 ## Required Workflow
 

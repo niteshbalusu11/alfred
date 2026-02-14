@@ -63,7 +63,8 @@ The project intentionally avoids smart-home control in v1 to reduce reliability 
 1. Phase I auth direction is Clerk-based (epic `#52`).
 2. Use Clerk token verification/mapping path for new auth work (`#53`).
 3. Use Clerk iOS integration for app sign-in/token plumbing (`#54`).
-4. Custom `/v1/auth/ios/session*` flow is legacy compatibility and should not receive new product logic outside migration safety scope (`#55`, `#56`).
+4. Remove or hard-disable custom `/v1/auth/ios/session*` flow as part of Clerk completion (`#56`).
+5. Breaking auth changes are acceptable during this migration.
 
 ## GitHub Issue-Driven Execution
 
