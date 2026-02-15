@@ -13,6 +13,10 @@ Read mandatory security/scalability rules:
 
 `docs/engineering-standards.md`
 
+For iOS/front-end issues, read UI source of truth:
+
+`docs/ui-spec.md`
+
 Use this template for required AI review reporting before merge:
 
 `docs/ai-review-template.md`
@@ -48,6 +52,8 @@ The project intentionally avoids smart-home control in v1 to reduce reliability 
    1. `docs/product-context.md`
 9. Logging conventions:
    1. `docs/logging.md`
+10. UI/UX source of truth for iOS:
+   1. `docs/ui-spec.md`
 
 ## Runtime Components
 
@@ -233,6 +239,16 @@ Important:
 3. Minimum iOS completion check:
    1. `just ios-build`
 4. Run `just ios-test` when logic tests were added/changed or when explicitly requested.
+5. Follow `docs/ui-spec.md` for navigation, theme, state UX, and screen responsibilities.
+6. Keep SwiftUI files modular:
+   1. Target `<= 300` lines for handwritten files.
+   2. Hard ceiling `500` lines unless blocked and explicitly documented.
+7. Prefer reusable components and shared patterns over one-off large view files.
+8. Use SwiftUI skills when relevant:
+   1. `swiftui-ui-patterns`
+   2. `swiftui-view-refactor`
+   3. `swiftui-performance-audit`
+   4. `swift-concurrency-expert` for async/concurrency changes
 
 ## Standard Agent Workflow
 
