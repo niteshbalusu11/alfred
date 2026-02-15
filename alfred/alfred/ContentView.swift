@@ -49,6 +49,11 @@ struct ContentView: View {
         .sheet(isPresented: $authIsPresented) {
             AuthView()
         }
+        .onOpenURL { url in
+            Task {
+                await model.handleOAuthCallbackURL(url)
+            }
+        }
     }
 
     private var signedOutView: some View {
