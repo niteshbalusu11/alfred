@@ -1,9 +1,17 @@
+pub mod context;
 pub mod contracts;
 pub mod gateway;
 pub mod openrouter;
 pub mod prompts;
 pub mod validation;
 
+pub use context::{
+    CONTEXT_CONTRACT_VERSION_V1, GoogleCalendarMeetingSource, GoogleEmailCandidateSource,
+    MeetingContextEntry, MeetingsTodayContext, MorningBriefContext,
+    UrgentEmailCandidateContextEntry, UrgentEmailCandidatesContext,
+    assemble_meetings_today_context, assemble_morning_brief_context,
+    assemble_urgent_email_candidates_context,
+};
 pub use contracts::{
     AssistantCapability, AssistantOutputContract, ContractError, MeetingsSummaryContract,
     MorningBriefContract, UrgentEmailSummaryContract, output_schema,
