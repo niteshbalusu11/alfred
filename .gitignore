@@ -16,3 +16,4 @@ xcuserdata/
 .env
 .env.*
 !.env.example
+.ngrok-domain
