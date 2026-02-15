@@ -43,6 +43,44 @@ public struct SendTestNotificationResponse: Codable, Sendable {
     }
 }
 
+public struct AssistantQueryRequest: Codable, Sendable {
+    public let query: String
+
+    public init(query: String) {
+        self.query = query
+    }
+}
+
+public enum AssistantQueryCapability: String, Codable, Sendable {
+    case meetingsToday = "meetings_today"
+}
+
+public struct AssistantMeetingsTodayPayload: Codable, Sendable {
+    public let title: String
+    public let summary: String
+    public let keyPoints: [String]
+    public let followUps: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case title
+        case summary
+        case keyPoints = "key_points"
+        case followUps = "follow_ups"
+    }
+}
+
+public struct AssistantQueryResponse: Codable, Sendable {
+    public let capability: AssistantQueryCapability
+    public let displayText: String
+    public let payload: AssistantMeetingsTodayPayload
+
+    enum CodingKeys: String, CodingKey {
+        case capability
+        case displayText = "display_text"
+        case payload
+    }
+}
+
 public struct StartGoogleConnectRequest: Codable, Sendable {
     public let redirectURI: String
 

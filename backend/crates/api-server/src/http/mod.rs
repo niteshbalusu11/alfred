@@ -1,11 +1,13 @@
 use axum::routing::{delete, get, post};
 use axum::{Router, middleware};
+use shared::llm::OpenRouterGateway;
 use shared::repos::Store;
 use shared::security::SecretRuntime;
 use std::collections::HashSet;
 use std::net::IpAddr;
 use uuid::Uuid;
 
+mod assistant;
 mod audit;
 mod authn;
 mod clerk_identity;
@@ -37,6 +39,7 @@ pub struct AppState {
     pub store: Store,
     pub oauth: OAuthConfig,
     pub secret_runtime: SecretRuntime,
+    pub llm_gateway: OpenRouterGateway,
     pub rate_limiter: RateLimiter,
     pub trusted_proxy_ips: HashSet<IpAddr>,
     pub oauth_state_ttl_seconds: u64,
@@ -70,6 +73,13 @@ pub fn build_router(app_state: AppState) -> Router {
         .route(
             "/v1/devices/apns/test",
             post(devices::send_test_notification),
+        )
+        .route(
+            "/v1/assistant/query",
+            post(assistant::query_assistant).layer(middleware::from_fn_with_state(
+                protected_rate_limit_layer_state.clone(),
+                rate_limit::sensitive_rate_limit_middleware,
+            )),
         )
         .route(
             "/v1/connectors/google/start",

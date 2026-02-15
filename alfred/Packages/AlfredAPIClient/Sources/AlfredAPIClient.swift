@@ -59,6 +59,15 @@ public final class AlfredAPIClient: Sendable {
         )
     }
 
+    public func queryAssistant(_ request: AssistantQueryRequest) async throws -> AssistantQueryResponse {
+        try await send(
+            method: "POST",
+            path: "/v1/assistant/query",
+            body: request,
+            requiresAuth: true
+        )
+    }
+
     public func startGoogleOAuth(_ request: StartGoogleConnectRequest) async throws -> StartGoogleConnectResponse {
         try await send(
             method: "POST",

@@ -32,6 +32,32 @@ pub struct SendTestNotificationResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssistantQueryRequest {
+    pub query: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AssistantQueryCapability {
+    MeetingsToday,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssistantMeetingsTodayPayload {
+    pub title: String,
+    pub summary: String,
+    pub key_points: Vec<String>,
+    pub follow_ups: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssistantQueryResponse {
+    pub capability: AssistantQueryCapability,
+    pub display_text: String,
+    pub payload: AssistantMeetingsTodayPayload,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StartGoogleConnectRequest {
     pub redirect_uri: String,
 }

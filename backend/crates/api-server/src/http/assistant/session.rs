@@ -1,0 +1,138 @@
+use axum::response::Response;
+use shared::enclave::{
+    ConnectorSecretRequest, EnclaveRpcClient, EnclaveRpcError, GoogleEnclaveOauthConfig,
+};
+use shared::repos::LEGACY_CONNECTOR_TOKEN_KEY_ID;
+use uuid::Uuid;
+
+use super::super::AppState;
+use super::super::errors::{
+    bad_gateway_response, bad_request_response, security_error_response, store_error_response,
+};
+
+pub(super) struct GoogleSession {
+    pub(super) access_token: String,
+}
+
+pub(super) async fn build_google_session(
+    state: &AppState,
+    user_id: Uuid,
+) -> Result<GoogleSession, Response> {
+    let active_connector = load_active_google_connector(state, user_id).await?;
+    let enclave_client = build_enclave_client(state);
+
+    let token_response = match enclave_client
+        .exchange_google_access_token(ConnectorSecretRequest {
+            user_id,
+            connector_id: active_connector.connector_id,
+            token_key_id: active_connector.token_key_id,
+            token_version: active_connector.token_version,
+        })
+        .await
+    {
+        Ok(token_response) => token_response,
+        Err(err) => return Err(map_token_exchange_error(err)),
+    };
+
+    Ok(GoogleSession {
+        access_token: token_response.access_token,
+    })
+}
+
+#[derive(Clone)]
+struct ActiveGoogleConnector {
+    connector_id: Uuid,
+    token_key_id: String,
+    token_version: i32,
+}
+
+async fn load_active_google_connector(
+    state: &AppState,
+    user_id: Uuid,
+) -> Result<ActiveGoogleConnector, Response> {
+    let mut connector = match state.store.list_active_connector_metadata(user_id).await {
+        Ok(connectors) => connectors
+            .into_iter()
+            .find(|connector| connector.provider == "google"),
+        Err(err) => return Err(store_error_response(err)),
+    }
+    .ok_or_else(|| {
+        bad_request_response(
+            "google_connector_not_active",
+            "No active Google connector found for this user",
+        )
+    })?;
+
+    if connector.token_key_id == LEGACY_CONNECTOR_TOKEN_KEY_ID {
+        if let Err(err) = state
+            .store
+            .adopt_legacy_connector_token_key_id(
+                user_id,
+                connector.connector_id,
+                state.secret_runtime.kms_key_id(),
+                state.secret_runtime.kms_key_version(),
+            )
+            .await
+        {
+            return Err(store_error_response(err));
+        }
+
+        let refreshed_connector = match state
+            .store
+            .get_active_connector_key_metadata(user_id, connector.connector_id)
+            .await
+        {
+            Ok(Some(metadata)) => metadata,
+            Ok(None) => {
+                return Err(bad_request_response(
+                    "connector_token_unavailable",
+                    "Connector token metadata changed; retry the request",
+                ));
+            }
+            Err(err) => return Err(store_error_response(err)),
+        };
+
+        connector.token_key_id = refreshed_connector.token_key_id;
+        connector.token_version = refreshed_connector.token_version;
+    }
+
+    Ok(ActiveGoogleConnector {
+        connector_id: connector.connector_id,
+        token_key_id: connector.token_key_id,
+        token_version: connector.token_version,
+    })
+}
+
+fn build_enclave_client(state: &AppState) -> EnclaveRpcClient {
+    EnclaveRpcClient::new(
+        state.store.clone(),
+        state.secret_runtime.clone(),
+        state.http_client.clone(),
+        GoogleEnclaveOauthConfig {
+            client_id: state.oauth.client_id.clone(),
+            client_secret: state.oauth.client_secret.clone(),
+            token_url: state.oauth.token_url.clone(),
+            revoke_url: state.oauth.revoke_url.clone(),
+        },
+    )
+}
+
+fn map_token_exchange_error(err: EnclaveRpcError) -> Response {
+    match err {
+        EnclaveRpcError::DecryptNotAuthorized(err) => security_error_response(err),
+        EnclaveRpcError::ConnectorTokenDecryptFailed(err) => store_error_response(err),
+        EnclaveRpcError::ConnectorTokenUnavailable => bad_request_response(
+            "connector_token_unavailable",
+            "Connector token metadata changed; retry the request",
+        ),
+        EnclaveRpcError::ProviderRequestUnavailable { .. } => bad_gateway_response(
+            "google_token_refresh_unavailable",
+            "Unable to reach Google OAuth token endpoint",
+        ),
+        EnclaveRpcError::ProviderRequestFailed { .. }
+        | EnclaveRpcError::ProviderResponseInvalid { .. } => bad_gateway_response(
+            "google_token_refresh_failed",
+            "Google OAuth token refresh failed",
+        ),
+    }
+}
