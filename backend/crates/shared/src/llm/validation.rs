@@ -1,5 +1,6 @@
 use jsonschema::JSONSchema;
 use serde_json::Value;
+use std::sync::LazyLock;
 use thiserror::Error;
 
 use super::contracts::{
@@ -36,12 +37,7 @@ pub fn validate_output_value(
     capability: AssistantCapability,
     payload: &Value,
 ) -> Result<AssistantOutputContract, OutputValidationError> {
-    let schema = output_schema(capability);
-    let validator =
-        JSONSchema::compile(&schema).map_err(|err| OutputValidationError::SchemaCompile {
-            capability,
-            message: err.to_string(),
-        })?;
+    let validator = validator_for_capability(capability)?;
 
     if let Err(validation_errors) = validator.validate(payload) {
         let errors = validation_errors
@@ -51,6 +47,38 @@ pub fn validate_output_value(
     }
 
     parse_contract(capability, payload.clone()).map_err(OutputValidationError::from)
+}
+
+static MEETINGS_SUMMARY_VALIDATOR: LazyLock<Result<JSONSchema, String>> = LazyLock::new(|| {
+    JSONSchema::compile(&output_schema(AssistantCapability::MeetingsSummary))
+        .map_err(|err| err.to_string())
+});
+
+static MORNING_BRIEF_VALIDATOR: LazyLock<Result<JSONSchema, String>> = LazyLock::new(|| {
+    JSONSchema::compile(&output_schema(AssistantCapability::MorningBrief))
+        .map_err(|err| err.to_string())
+});
+
+static URGENT_EMAIL_SUMMARY_VALIDATOR: LazyLock<Result<JSONSchema, String>> = LazyLock::new(|| {
+    JSONSchema::compile(&output_schema(AssistantCapability::UrgentEmailSummary))
+        .map_err(|err| err.to_string())
+});
+
+fn validator_for_capability(
+    capability: AssistantCapability,
+) -> Result<&'static JSONSchema, OutputValidationError> {
+    let validator_result = match capability {
+        AssistantCapability::MeetingsSummary => &*MEETINGS_SUMMARY_VALIDATOR,
+        AssistantCapability::MorningBrief => &*MORNING_BRIEF_VALIDATOR,
+        AssistantCapability::UrgentEmailSummary => &*URGENT_EMAIL_SUMMARY_VALIDATOR,
+    };
+
+    validator_result
+        .as_ref()
+        .map_err(|message| OutputValidationError::SchemaCompile {
+            capability,
+            message: message.clone(),
+        })
 }
 
 #[cfg(test)]
