@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 use std::time::Duration;
 
 use shared::config::{ApiConfig, load_dotenv};
-use shared::llm::OpenRouterGatewayConfig;
+use shared::llm::{OpenRouterGateway, OpenRouterGatewayConfig};
 use shared::repos::Store;
 use shared::security::{KmsDecryptPolicy, SecretRuntime, TeeAttestationPolicy};
 use tracing::{error, info};
@@ -26,13 +26,16 @@ async fn main() {
         }
     };
 
-    if let Err(err) = OpenRouterGatewayConfig::from_env() {
-        error!(
-            error = %err,
-            "failed to read OpenRouter configuration required for LLM startup path"
-        );
-        std::process::exit(1);
-    }
+    let llm_gateway = match OpenRouterGatewayConfig::from_env().and_then(OpenRouterGateway::new) {
+        Ok(gateway) => gateway,
+        Err(err) => {
+            error!(
+                error = %err,
+                "failed to read OpenRouter configuration required for LLM startup path"
+            );
+            std::process::exit(1);
+        }
+    };
 
     let store = match Store::connect(
         &config.database_url,
@@ -95,6 +98,7 @@ async fn main() {
             config.tee_attestation_document,
             config.tee_attestation_document_path,
         ),
+        llm_gateway,
         rate_limiter,
         trusted_proxy_ips: config.trusted_proxy_ips.into_iter().collect(),
         oauth_state_ttl_seconds: config.oauth_state_ttl_seconds,

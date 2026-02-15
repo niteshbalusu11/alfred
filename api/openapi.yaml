@@ -7,6 +7,7 @@ servers:
   - url: https://api.alfredapp.com
 tags:
   - name: Devices
+  - name: Assistant
   - name: Connectors
   - name: Preferences
   - name: Audit
@@ -58,6 +59,34 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+  /v1/assistant/query:
+    post:
+      tags: [Assistant]
+      summary: Query assistant with natural language
+      operationId: queryAssistant
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssistantQueryRequest"
+      responses:
+        "200":
+          description: Assistant query response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssistantQueryResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "502":
+          $ref: "#/components/responses/BadGateway"
   /v1/connectors/google/start:
     post:
       tags: [Connectors]
@@ -315,6 +344,42 @@ components:
         status:
           type: string
           enum: [QUEUED]
+    AssistantQueryRequest:
+      type: object
+      required: [query]
+      properties:
+        query:
+          type: string
+          minLength: 1
+    AssistantQueryCapability:
+      type: string
+      enum: [meetings_today]
+    AssistantMeetingsTodayPayload:
+      type: object
+      required: [title, summary, key_points, follow_ups]
+      properties:
+        title:
+          type: string
+        summary:
+          type: string
+        key_points:
+          type: array
+          items:
+            type: string
+        follow_ups:
+          type: array
+          items:
+            type: string
+    AssistantQueryResponse:
+      type: object
+      required: [capability, display_text, payload]
+      properties:
+        capability:
+          $ref: "#/components/schemas/AssistantQueryCapability"
+        display_text:
+          type: string
+        payload:
+          $ref: "#/components/schemas/AssistantMeetingsTodayPayload"
     StartGoogleConnectRequest:
       type: object
       required: [redirect_uri]
