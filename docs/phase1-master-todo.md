@@ -209,7 +209,7 @@ Ship a private beta where iOS users can:
 |---|---|---|---|---|---|---|---|
 | AI-000 | P0 | Remove rule-based assistant logic and legacy backend paths (`#91`) | BE | 2026-03-29 | DONE | - | Rule-based assistant decision path removed from production |
 | AI-001 | P0 | Add LLM gateway abstraction + typed output contracts (`#92`) | BE | 2026-03-06 | DONE | - | Provider-agnostic contract merged with schema validation |
-| AI-002 | P0 | Implement OpenRouter adapter + routing/fallback controls (`#93`) | BE | 2026-03-08 | TODO | AI-001 | Backend can execute LLM requests via OpenRouter with retries |
+| AI-002 | P0 | Implement OpenRouter adapter + routing/fallback controls (`#93`) | BE | 2026-03-08 | DONE | AI-001 | Backend can execute LLM requests via OpenRouter with retries |
 | AI-003 | P0 | Build Google context assembler for LLM prompts (`#94`) | BE | 2026-03-10 | TODO | AI-001, AI-002 | Deterministic context payloads generated for assistant capabilities |
 | AI-004 | P0 | Add `/v1/assistant/query` endpoint for interactive questions (`#95`) | BE | 2026-03-12 | TODO | AI-002, AI-003 | Meetings query works end-to-end with typed assistant response |
 | AI-005 | P0 | Add LLM safety layer + deterministic fallback (`#96`) | SEC | 2026-03-14 | TODO | AI-001, AI-002 | Injection defenses and schema/policy guards enforced |

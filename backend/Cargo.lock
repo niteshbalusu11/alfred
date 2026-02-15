@@ -2152,6 +2152,7 @@ dependencies = [
 name = "shared"
 version = "0.1.0"
 dependencies = [
+ "axum",
  "base64",
  "chrono",
  "dotenvy",
@@ -2164,6 +2165,7 @@ dependencies = [
  "sha2",
  "sqlx",
  "thiserror",
+ "tokio",
  "uuid",
 ]
 

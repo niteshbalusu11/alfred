@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 use std::time::Duration;
 
 use shared::config::{ApiConfig, load_dotenv};
+use shared::llm::OpenRouterGatewayConfig;
 use shared::repos::Store;
 use shared::security::{KmsDecryptPolicy, SecretRuntime, TeeAttestationPolicy};
 use tracing::{error, info};
@@ -24,6 +25,14 @@ async fn main() {
             std::process::exit(1);
         }
     };
+
+    if let Err(err) = OpenRouterGatewayConfig::from_env() {
+        error!(
+            error = %err,
+            "failed to read OpenRouter configuration required for LLM startup path"
+        );
+        std::process::exit(1);
+    }
 
     let store = match Store::connect(
         &config.database_url,
