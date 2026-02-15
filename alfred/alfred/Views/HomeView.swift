@@ -76,7 +76,7 @@ struct HomeView: View {
             } else if !hasConnector {
                 HomeEmptyStateView(
                     title: "Connect Google to activate Alfred",
-                    subtitle: "Link your account to enable reminders, daily briefs, and urgent alerts.",
+                    subtitle: "Link your account to enable reminders and assistant signals.",
                     actionTitle: "Go to Connectors",
                     action: { model.selectedTab = .connectors }
                 )
@@ -101,7 +101,7 @@ struct HomeView: View {
 
     private var statusCardsSection: some View {
         VStack(alignment: .leading, spacing: AppTheme.Layout.sectionSpacing) {
-            AppSectionHeader("Today's Signals", subtitle: "Reminders, briefs, and urgent alerts")
+            AppSectionHeader("Today's Signals", subtitle: "Reminders and assistant signal status")
 
             if isHomeLoading {
                 HomeStatusCardPlaceholder()
@@ -127,21 +127,10 @@ struct HomeView: View {
                 )
 
                 HomeStatusCard(
-                    title: "Morning Brief",
-                    subtitle: "Daily summary delivery",
-                    status: ("Scheduled", .success),
-                    detail: "Arrives at \(model.morningBriefLocalTime) local time.",
-                    actionTitle: "Change Brief Time",
-                    action: { model.selectedTab = .profile }
-                )
-
-                HomeStatusCard(
-                    title: "Urgent Alerts",
-                    subtitle: "High-signal email detection",
-                    status: (model.highRiskRequiresConfirm ? "Confirming" : "Auto-send", .warning),
-                    detail: model.highRiskRequiresConfirm
-                        ? "High-risk alerts require confirmation."
-                        : "Urgent alerts send automatically.",
+                    title: "AI Assistant Signals",
+                    subtitle: "Brief and priority-email migration",
+                    status: ("Migrating", .warning),
+                    detail: "Legacy brief and urgent rule logic is removed while LLM orchestration is being rolled out.",
                     actionTitle: "Review Settings",
                     action: { model.selectedTab = .profile }
                 )

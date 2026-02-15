@@ -175,7 +175,7 @@ struct ConnectorsView: View {
                     .font(.footnote)
                     .foregroundStyle(AppTheme.Colors.textSecondary)
             } else if !hasConnector {
-                Text("No active Google connector yet. Connect to enable reminders, briefs, and urgent alerts.")
+                Text("No active Google connector yet. Connect to enable reminders and assistant signals.")
                     .font(.footnote)
                     .foregroundStyle(AppTheme.Colors.textSecondary)
             }
