@@ -212,7 +212,7 @@ Ship a private beta where iOS users can:
 | AI-002 | P0 | Implement OpenRouter adapter + routing/fallback controls (`#93`) | BE | 2026-03-08 | DONE | AI-001 | Backend can execute LLM requests via OpenRouter with retries |
 | AI-003 | P0 | Build Google context assembler for LLM prompts (`#94`) | BE | 2026-03-10 | DONE | AI-001, AI-002 | Deterministic context payloads generated for assistant capabilities |
 | AI-004 | P0 | Add `/v1/assistant/query` endpoint for interactive questions (`#95`) | BE | 2026-03-12 | DONE | AI-002, AI-003 | Meetings query works end-to-end with typed assistant response |
-| AI-005 | P0 | Add LLM safety layer + deterministic fallback (`#96`) | SEC | 2026-03-14 | TODO | AI-001, AI-002 | Injection defenses and schema/policy guards enforced |
+| AI-005 | P0 | Add LLM safety layer + deterministic fallback (`#96`) | SEC | 2026-03-14 | DONE | AI-001, AI-002 | Injection defenses and schema/policy guards enforced |
 | AI-006 | P0 | Migrate morning brief worker path to LLM orchestration (`#97`) | BE | 2026-03-16 | TODO | AI-003, AI-005 | Morning brief push content is LLM-generated and policy-safe |
 | AI-007 | P0 | Migrate urgent-email worker path to LLM prioritization (`#98`) | BE | 2026-03-18 | TODO | AI-003, AI-005 | Urgent-email decision path is LLM-based with safe fallback |
 | AI-008 | P0 | Add AI observability + redacted audit events (`#99`) | SRE | 2026-03-20 | TODO | AI-004, AI-006, AI-007 | Latency/usage/cost metrics and redacted audit events are live |
