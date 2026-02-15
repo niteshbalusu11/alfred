@@ -98,16 +98,21 @@ Phase I labels currently in use:
 
 ### Issue Execution Protocol
 
-1. Read issue acceptance criteria before coding.
-2. Create branch with prefix `codex/`:
+1. Sync current branch/worktree with remote before coding:
+   1. `git fetch origin`
+   2. `git pull --ff-only` (when current branch tracks a remote)
+2. Read issue acceptance criteria before coding.
+3. Create branch with prefix `codex/`:
    1. Example: `codex/issue-4-worker-leasing`
-3. Implement only acceptance-criteria scope.
-4. Run validation commands from `Justfile`.
-5. Update issue with:
+   2. Branch from latest `origin/master`:
+      1. `git checkout -b codex/issue-4-worker-leasing origin/master`
+4. Implement only acceptance-criteria scope.
+5. Run validation commands from `Justfile`.
+6. Update issue with:
    1. What changed
    2. Validation results
    3. Remaining follow-ups
-6. Use standard comment formats from:
+7. Use standard comment formats from:
    1. `docs/issue-update-template.md`
 
 ### PR Lifecycle Protocol

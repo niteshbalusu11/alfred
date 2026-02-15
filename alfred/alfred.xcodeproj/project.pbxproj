@@ -13,18 +13,18 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-			C3E6B8CC2F3FFFBD00C03FF0 /* PBXContainerItemProxy */ = {
-				isa = PBXContainerItemProxy;
-				containerPortal = C3E6B8B62F3FFFBC00C03FF0 /* Project object */;
-				proxyType = 1;
-				remoteGlobalIDString = C3E6B8BD2F3FFFBC00C03FF0;
-				remoteInfo = alfred;
-			};
+		C3E6B8CC2F3FFFBD00C03FF0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C3E6B8B62F3FFFBC00C03FF0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C3E6B8BD2F3FFFBC00C03FF0;
+			remoteInfo = alfred;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-			C3E6B8BE2F3FFFBC00C03FF0 /* alfred.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = alfred.app; sourceTree = BUILT_PRODUCTS_DIR; };
-			C3E6B8CB2F3FFFBD00C03FF0 /* alfredTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = alfredTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		C3E6B8BE2F3FFFBC00C03FF0 /* alfred.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = alfred.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C3E6B8CB2F3FFFBD00C03FF0 /* alfredTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = alfredTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -33,11 +33,11 @@
 			path = alfred;
 			sourceTree = "<group>";
 		};
-			C3E6B8CE2F3FFFBD00C03FF0 /* alfredTests */ = {
-				isa = PBXFileSystemSynchronizedRootGroup;
-				path = alfredTests;
-				sourceTree = "<group>";
-			};
+		C3E6B8CE2F3FFFBD00C03FF0 /* alfredTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = alfredTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -63,19 +63,19 @@
 /* Begin PBXGroup section */
 		C3E6B8B52F3FFFBC00C03FF0 = {
 			isa = PBXGroup;
-				children = (
-					C3E6B8C02F3FFFBC00C03FF0 /* alfred */,
-					C3E6B8CE2F3FFFBD00C03FF0 /* alfredTests */,
-					C3E6B8BF2F3FFFBC00C03FF0 /* Products */,
-				);
+			children = (
+				C3E6B8C02F3FFFBC00C03FF0 /* alfred */,
+				C3E6B8CE2F3FFFBD00C03FF0 /* alfredTests */,
+				C3E6B8BF2F3FFFBC00C03FF0 /* Products */,
+			);
 			sourceTree = "<group>";
 		};
 		C3E6B8BF2F3FFFBC00C03FF0 /* Products */ = {
 			isa = PBXGroup;
-				children = (
-					C3E6B8BE2F3FFFBC00C03FF0 /* alfred.app */,
-					C3E6B8CB2F3FFFBD00C03FF0 /* alfredTests.xctest */,
-				);
+			children = (
+				C3E6B8BE2F3FFFBC00C03FF0 /* alfred.app */,
+				C3E6B8CB2F3FFFBD00C03FF0 /* alfredTests.xctest */,
+			);
 			name = Products;
 			sourceTree = "<group>";
 		};
@@ -147,7 +147,7 @@
 						CreatedOnToolsVersion = 26.2;
 						TestTargetID = C3E6B8BD2F3FFFBC00C03FF0;
 					};
-					};
+				};
 			};
 			buildConfigurationList = C3E6B8B92F3FFFBC00C03FF0 /* Build configuration list for PBXProject "alfred" */;
 			developmentRegion = en;
@@ -166,10 +166,10 @@
 			productRefGroup = C3E6B8BF2F3FFFBC00C03FF0 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
-				targets = (
-					C3E6B8BD2F3FFFBC00C03FF0 /* alfred */,
-					C3E6B8CA2F3FFFBD00C03FF0 /* alfredTests */,
-				);
+			targets = (
+				C3E6B8BD2F3FFFBC00C03FF0 /* alfred */,
+				C3E6B8CA2F3FFFBD00C03FF0 /* alfredTests */,
+			);
 		};
 /* End PBXProject section */
 
