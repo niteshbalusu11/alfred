@@ -1,0 +1,38 @@
+{
+  "version": "2026-02-15",
+  "candidate_count": 3,
+  "candidates": [
+    {
+      "message_ref": "msg-1",
+      "from": "Ops",
+      "subject": "Server alert",
+      "snippet": "Latency high in us-east-1",
+      "received_at": "2026-02-15T19:00:00Z",
+      "labels": [
+        "ALERT",
+        "INBOX"
+      ],
+      "has_attachments": false
+    },
+    {
+      "message_ref": "msg-2",
+      "from": "CFO <cfo@example.com>",
+      "subject": "Budget variance follow-up",
+      "snippet": "Need approval today for vendor invoice.",
+      "received_at": "2026-02-15T18:00:00Z",
+      "labels": [
+        "IMPORTANT",
+        "INBOX"
+      ],
+      "has_attachments": true
+    },
+    {
+      "message_ref": "email-001",
+      "from": "unknown sender",
+      "subject": "(no subject)",
+      "snippet": "",
+      "labels": [],
+      "has_attachments": false
+    }
+  ]
+}
