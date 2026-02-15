@@ -25,11 +25,11 @@ pub(super) async fn resolve_job_action(
     job: &ClaimedJob,
     preferences: &Preferences,
 ) -> Result<JobActionResult, JobExecutionError> {
-    let session =
-        build_google_session(store, config, secret_runtime, oauth_client, job.user_id).await?;
-
     match job.job_type {
         JobType::MeetingReminder => {
+            let session =
+                build_google_session(store, config, secret_runtime, oauth_client, job.user_id)
+                    .await?;
             build_meeting_reminder(
                 oauth_client,
                 &session.access_token,
@@ -38,23 +38,8 @@ pub(super) async fn resolve_job_action(
             )
             .await
         }
-        JobType::MorningBrief => {
-            build_morning_brief(
-                oauth_client,
-                &session.access_token,
-                &session.attested_measurement,
-                preferences,
-            )
-            .await
-        }
-        JobType::UrgentEmailCheck => {
-            build_urgent_email_alert(
-                oauth_client,
-                &session.access_token,
-                &session.attested_measurement,
-            )
-            .await
-        }
+        JobType::MorningBrief => build_morning_brief(preferences).await,
+        JobType::UrgentEmailCheck => build_urgent_email_alert().await,
     }
 }
 
@@ -111,9 +96,6 @@ async fn build_meeting_reminder(
 }
 
 async fn build_morning_brief(
-    _oauth_client: &reqwest::Client,
-    _access_token: &str,
-    attested_measurement: &str,
     preferences: &Preferences,
 ) -> Result<JobActionResult, JobExecutionError> {
     let mut metadata = HashMap::new();
@@ -131,7 +113,7 @@ async fn build_morning_brief(
     );
     metadata.insert(
         "attested_measurement".to_string(),
-        attested_measurement.to_string(),
+        "not_requested_for_llm_pending_path".to_string(),
     );
 
     Ok(JobActionResult {
@@ -140,11 +122,7 @@ async fn build_morning_brief(
     })
 }
 
-async fn build_urgent_email_alert(
-    _oauth_client: &reqwest::Client,
-    _access_token: &str,
-    attested_measurement: &str,
-) -> Result<JobActionResult, JobExecutionError> {
+async fn build_urgent_email_alert() -> Result<JobActionResult, JobExecutionError> {
     let mut metadata = HashMap::new();
     metadata.insert(
         "action_source".to_string(),
@@ -156,7 +134,7 @@ async fn build_urgent_email_alert(
     );
     metadata.insert(
         "attested_measurement".to_string(),
-        attested_measurement.to_string(),
+        "not_requested_for_llm_pending_path".to_string(),
     );
 
     Ok(JobActionResult {
