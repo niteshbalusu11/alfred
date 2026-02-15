@@ -6,7 +6,7 @@ struct DashboardView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: AppTheme.Layout.sectionSpacing) {
+            LazyVStack(spacing: AppTheme.Layout.sectionSpacing) {
                 googleSection
                 preferencesSection
                 privacySection
@@ -217,11 +217,15 @@ struct DashboardView: View {
             return ("Connecting", .warning)
         }
 
-        if model.googleState.isEmpty {
-            return ("Not connected", .neutral)
+        if !model.connectorID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return ("Connected", .success)
         }
 
-        return ("Pending", .warning)
+        if !model.googleState.isEmpty {
+            return ("Pending", .warning)
+        }
+
+        return ("Not connected", .neutral)
     }
 
     private var preferencesStatus: (title: String, style: AppStatusBadge.Style) {
