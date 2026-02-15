@@ -145,9 +145,9 @@ Ship a private beta where iOS users can:
 | IOS-013 | P0 | Dark-mode theme tokens + shared UI primitives (FE01) | IOS | 2026-02-16 | DONE | - | App uses dark-only tokens and shared components |
 | IOS-014 | P0 | Build native tabbed app shell (FE02) | IOS | 2026-02-15 | DONE | IOS-013 | TabView + per-tab NavigationStack with centralized tab routing |
 | IOS-015 | P0 | Home screen v1 redesign (FE03) | IOS | 2026-02-15 | DONE | IOS-014 | Home screen shows summary, status cards, quick actions, and loading/empty/error states |
-| IOS-004 | P0 | Build preferences screen | IOS | 2026-03-08 | TODO | BE-008 | Preferences read/write works |
+| IOS-004 | P0 | Build preferences screen | IOS | 2026-03-08 | DONE | BE-008 | Preferences read/write works |
 | IOS-005 | P0 | Build activity log screen | IOS | 2026-03-12 | DONE | BE-009 | Audit entries visible in app |
-| IOS-006 | P0 | Build privacy controls (revoke + delete-all) | IOS | 2026-03-14 | TODO | BE-007, BE-010 | Revoke/delete flows complete |
+| IOS-006 | P0 | Build privacy controls (revoke + delete-all) | IOS | 2026-03-14 | DONE | BE-007, BE-010 | Revoke/delete flows complete |
 | IOS-007 | P1 | Add offline/error state UI patterns | IOS | 2026-03-16 | TODO | IOS-003 | UX handles API failures cleanly |
 | IOS-008 | P1 | Add analytics events (privacy-safe) | IOS | 2026-03-18 | TODO | PROD-003 | KPI events emitting |
 | IOS-009 | P1 | Add feature flags for staged rollout | IOS | 2026-03-20 | TODO | IOS-002 | Features can be toggled remotely |

@@ -46,6 +46,7 @@ final class AppModel: ObservableObject {
     @Published var connectorID = ""
     @Published var revokeStatus = ""
     @Published var deleteAllStatus = ""
+    @Published var preferencesStatus = ""
 
     @Published var meetingReminderMinutes = "15"
     @Published var morningBriefLocalTime = "08:00"
@@ -160,6 +161,7 @@ final class AppModel: ObservableObject {
             quietHoursStart = prefs.quietHoursStart
             quietHoursEnd = prefs.quietHoursEnd
             highRiskRequiresConfirm = prefs.highRiskRequiresConfirm
+            preferencesStatus = "Preferences synced."
         }
     }
 
@@ -183,6 +185,7 @@ final class AppModel: ObservableObject {
     func savePreferences(payload: Preferences) async {
         await run(action: .savePreferences, retryAction: .savePreferences(payload)) { [self] in
             _ = try await apiClient.updatePreferences(payload)
+            preferencesStatus = "Preferences saved."
         }
     }
 
@@ -334,5 +337,6 @@ final class AppModel: ObservableObject {
     private func resetRequestStatusState() {
         deleteAllStatus = ""
         revokeStatus = ""
+        preferencesStatus = ""
     }
 }
