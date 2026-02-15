@@ -6,10 +6,20 @@ extension AppModel {
         _ url: URL,
         completionForTesting: ((CompleteGoogleConnectRequest) async -> Void)? = nil
     ) async {
+        let normalizedRedirectURI = redirectURI.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedRedirectURI.isEmpty else {
+            errorBanner = ErrorBanner(
+                message: "Redirect URI is required.",
+                retryAction: nil,
+                sourceAction: .completeGoogleOAuth
+            )
+            return
+        }
+
         do {
             guard let payload = try GoogleOAuthCallbackParser.parse(
                 callbackURL: url,
-                redirectURI: redirectURI,
+                redirectURI: normalizedRedirectURI,
                 expectedState: trimmedOrNil(googleState)
             ) else {
                 return

@@ -37,6 +37,24 @@ struct GoogleOAuthCallbackFlowTests {
 
     @Test
     @MainActor
+    func callbackParsesWhenRedirectURIHasWhitespace() async throws {
+        let model = makeSignedOutModel()
+        model.redirectURI = "  alfred://oauth/google/callback  "
+        model.googleState = "state-123"
+        let callbackURL = try #require(URL(string: "alfred://oauth/google/callback?code=oauth-code&state=state-123"))
+
+        var completionCalled = false
+
+        await model.handleOAuthCallbackURL(callbackURL) { _ in
+            completionCalled = true
+        }
+
+        #expect(completionCalled == true)
+        #expect(model.errorBanner == nil)
+    }
+
+    @Test
+    @MainActor
     func callbackErrorTriggersCompletionPayload() async throws {
         let model = makeSignedOutModel()
         model.googleState = "state-123"
