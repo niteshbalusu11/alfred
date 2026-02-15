@@ -116,8 +116,9 @@ Phase I labels currently in use:
 2. Wait for CI checks:
    1. `.github/workflows/ci.yml` (`Backend Checks`, `iOS Build`)
 3. Complete AI review report (security + bug check + scalability/code quality) before merge handoff.
-4. Do not merge PRs automatically. The maintainer performs the merge manually after checks pass and AI review is documented.
-5. Once maintainer merge is complete:
+4. Default behavior: hand off to maintainer for manual merge after checks pass and AI review is documented.
+5. Exception: an agent may merge when explicitly instructed by the user/automation owner, all required checks are green, and AI review is documented.
+6. Once merge is complete:
    1. run `just sync-master`
    2. pick next highest-priority unblocked issue
 
@@ -280,7 +281,8 @@ Use this sequence for most engineering tasks:
 13. Before PR merge (mandatory for backend-impacting issues):
     1. Produce AI review report (security audit + bug check + scalability/cleanliness review)
     2. Use `docs/ai-review-template.md`
-    3. Do not merge automatically; hand off to maintainer for manual merge after report is documented in issue/PR
+    3. Default: hand off to maintainer for manual merge after report is documented in issue/PR
+    4. Exception: merge is allowed for agents only when explicitly requested by the user/automation owner and required checks are green
 
 ## Mandatory Scalability Boundaries
 

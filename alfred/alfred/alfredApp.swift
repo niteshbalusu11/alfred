@@ -26,6 +26,8 @@ struct alfredApp: App {
             ContentView(model: model)
                 .prefetchClerkImages()
                 .environment(clerk)
+                .preferredColorScheme(.dark)
+                .tint(AppTheme.Colors.accent)
         }
     }
 }

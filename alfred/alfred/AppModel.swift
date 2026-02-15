@@ -142,6 +142,9 @@ final class AppModel: ObservableObject {
 
             connectorID = response.connectorId
             revokeStatus = "Connector status: \(response.status.rawValue)."
+            // OAuth state/auth URL are one-time values; clear them once connect completes.
+            googleAuthURL = ""
+            googleState = ""
             googleCode = ""
             googleCallbackError = ""
             googleErrorDescription = ""

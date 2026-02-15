@@ -17,6 +17,8 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("Alfred")
+            .toolbarBackground(AppTheme.Colors.background, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     if clerk.user != nil {
@@ -54,22 +56,24 @@ struct ContentView: View {
                 await model.handleOAuthCallbackURL(url)
             }
         }
+        .appScreenBackground()
     }
 
     private var signedOutView: some View {
         VStack(spacing: 16) {
             Text("You are signed out")
-                .font(.headline)
+                .font(.title3)
+                .foregroundStyle(AppTheme.Colors.textPrimary)
 
             Text(model.apiBaseURL.absoluteString)
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(AppTheme.Colors.textSecondary)
                 .textSelection(.enabled)
 
             Button("Sign in") {
                 authIsPresented = true
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.appPrimary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .padding(.top, 40)
@@ -83,23 +87,29 @@ private struct ErrorBannerView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            AppStatusBadge(title: "Action needed", style: .danger)
+
             Text(message)
                 .font(.subheadline)
+                .foregroundStyle(AppTheme.Colors.textPrimary)
 
             HStack {
                 if let onRetry {
                     Button("Retry", action: onRetry)
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.appPrimary)
                 }
 
                 Button("Dismiss", action: onDismiss)
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.appSecondary)
             }
         }
         .padding()
-        .background(.thinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .shadow(radius: 4)
+        .background(AppTheme.Colors.surfaceElevated)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(AppTheme.Colors.danger, lineWidth: 1)
+        )
     }
 }
 

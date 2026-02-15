@@ -162,10 +162,11 @@ Code must remain modular by default. Do not keep adding logic to a single large 
    1. `Backend Checks`
    2. `iOS Build`
 3. Complete AI review report (security + bugs + scalability/cleanliness) before merge handoff.
-4. Do not merge PRs automatically. The maintainer performs the merge manually after required checks are green and AI review is documented.
-5. After maintainer merge, sync local environment:
+4. Default behavior: hand off to maintainer for manual merge after required checks are green and AI review is documented.
+5. Exception: an agent may merge when explicitly instructed by the user/automation owner, all required checks are green, and the AI review report is documented.
+6. After merge (maintainer or approved agent), sync local environment:
    1. `just sync-master`
-6. Start next task from updated `master`.
+7. Start next task from updated `master`.
 
 ## Key Paths
 
