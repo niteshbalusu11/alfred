@@ -8,7 +8,7 @@ use axum::{Json, Router};
 use serde_json::{Value, json};
 use shared::llm::{
     AssistantCapability, LlmGateway, LlmGatewayError, LlmGatewayRequest, OpenRouterGateway,
-    OpenRouterGatewayConfig, OpenRouterModelRoute, OpenRouterModelRouting, template_for_capability,
+    OpenRouterGatewayConfig, OpenRouterModelRoute, template_for_capability,
 };
 use tokio::net::TcpListener;
 use tokio::sync::{Mutex, oneshot};
@@ -216,19 +216,9 @@ fn config_for(
         timeout_ms: 5_000,
         max_retries,
         retry_base_backoff_ms,
-        model_routing: OpenRouterModelRouting {
-            meetings_summary: OpenRouterModelRoute {
-                primary_model: "primary-model".to_string(),
-                fallback_model: Some("fallback-model".to_string()),
-            },
-            morning_brief: OpenRouterModelRoute {
-                primary_model: "primary-model".to_string(),
-                fallback_model: Some("fallback-model".to_string()),
-            },
-            urgent_email_summary: OpenRouterModelRoute {
-                primary_model: "primary-model".to_string(),
-                fallback_model: Some("fallback-model".to_string()),
-            },
+        model_route: OpenRouterModelRoute {
+            primary_model: "primary-model".to_string(),
+            fallback_model: Some("fallback-model".to_string()),
         },
     }
 }

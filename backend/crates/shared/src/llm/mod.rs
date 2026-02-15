@@ -11,7 +11,6 @@ pub use contracts::{
 pub use gateway::{LlmGateway, LlmGatewayError, LlmGatewayRequest, LlmGatewayResponse};
 pub use openrouter::{
     OpenRouterConfigError, OpenRouterGateway, OpenRouterGatewayConfig, OpenRouterModelRoute,
-    OpenRouterModelRouting,
 };
 pub use prompts::{PromptTemplate, template_for_capability};
 pub use validation::{OutputValidationError, validate_output_json, validate_output_value};
