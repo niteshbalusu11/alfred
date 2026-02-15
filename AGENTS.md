@@ -8,8 +8,9 @@ This file is intentionally at repository root so coding agents can auto-discover
 2. Read `agent/start.md` before making changes.
 3. If running with minimal context, read `agent/start.empty` first and then `agent/start.md`.
 4. Read `docs/engineering-standards.md` for mandatory security/scalability rules.
-5. Use the `Justfile` at repo root for all common workflows.
-6. Work from GitHub issues first, then keep the Phase I board aligned.
+5. For iOS/front-end issues, read `docs/ui-spec.md` before making changes.
+6. Use the `Justfile` at repo root for all common workflows.
+7. Work from GitHub issues first, then keep the Phase I board aligned.
 
 ## Authentication Direction (Important)
 
@@ -107,6 +108,18 @@ Code must remain modular by default. Do not keep adding logic to a single large 
 1. Add/update Swift tests for core logic changes.
 2. UI tests are optional for now for UI-only changes.
 3. Always run `just ios-build`; run `just ios-test` for core logic test changes.
+
+## Frontend UI Rules (Non-Negotiable)
+
+1. `docs/ui-spec.md` is the front-end source of truth for Phase I UI/UX.
+2. SwiftUI must stay modular and reusable; avoid monolithic screens.
+3. Target `<= 300` lines for handwritten Swift files and treat `500` lines as hard ceiling unless blocked.
+4. If touching a large front-end file, extract components/helpers in the same issue when practical.
+5. For front-end implementation, use relevant SwiftUI skills when applicable:
+   1. `swiftui-ui-patterns`
+   2. `swiftui-view-refactor`
+   3. `swiftui-performance-audit`
+   4. `swift-concurrency-expert` when async behavior changes
 
 ## Planning and Issue Source of Truth
 

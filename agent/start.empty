@@ -7,6 +7,7 @@ Use this file when an agent starts with minimal context.
 1. `agent/start.md`
 2. `docs/product-context.md`
 3. `docs/engineering-standards.md`
+4. For iOS/front-end issues: `docs/ui-spec.md`
 
 ## Auth Direction (Current)
 
