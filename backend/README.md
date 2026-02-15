@@ -91,3 +91,22 @@ Optional worker vars for APNs delivery abstraction:
 3. `APNS_AUTH_TOKEN` (optional bearer token attached to push delivery requests)
 
 If no endpoint is configured for a device environment, worker delivery is simulated and still logged/audited for local development.
+
+## OpenRouter LLM Environment
+
+These vars are validated at API and worker startup for the LLM backend path:
+
+1. `OPENROUTER_API_KEY` (required)
+2. `OPENROUTER_CHAT_COMPLETIONS_URL` (default: `https://openrouter.ai/api/v1/chat/completions`)
+3. `OPENROUTER_TIMEOUT_MS` (default: `15000`)
+4. `OPENROUTER_MAX_RETRIES` (default: `2`)
+5. `OPENROUTER_RETRY_BASE_BACKOFF_MS` (default: `250`)
+6. `OPENROUTER_MODEL_MEETINGS_SUMMARY_PRIMARY`
+7. `OPENROUTER_MODEL_MEETINGS_SUMMARY_FALLBACK`
+8. `OPENROUTER_MODEL_MORNING_BRIEF_PRIMARY`
+9. `OPENROUTER_MODEL_MORNING_BRIEF_FALLBACK`
+10. `OPENROUTER_MODEL_URGENT_EMAIL_SUMMARY_PRIMARY`
+11. `OPENROUTER_MODEL_URGENT_EMAIL_SUMMARY_FALLBACK`
+
+If model vars are omitted, backend falls back to built-in defaults:
+`openai/gpt-4o-mini` (primary) and `anthropic/claude-3.5-haiku` (fallback).
