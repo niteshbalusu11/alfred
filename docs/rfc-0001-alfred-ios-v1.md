@@ -2,15 +2,15 @@
 
 - Status: Draft
 - Owner: Alfred Team
-- Last Updated: 2026-02-14
+- Last Updated: 2026-02-15
 
 ## 1. Summary
 
 Build Alfred v1 as an iOS-first personal assistant with three capabilities:
 
 1. Meeting reminders from Google Calendar.
-2. Daily morning brief.
-3. Urgent email alerts from Gmail.
+2. Daily morning brief with LLM-generated summary content.
+3. Urgent email alerts from Gmail using LLM prioritization/summarization.
 
 This RFC defines iOS app behavior, backend API contracts, security constraints, data schemas, and core execution flows.
 
@@ -43,6 +43,7 @@ This RFC defines iOS app behavior, backend API contracts, security constraints, 
 3. Per-user reminder preferences.
 4. Audit trail of Alfred access/actions.
 5. “Delete my data” workflow completed within SLA.
+6. Assistant query API for natural-language questions over connected Google data.
 
 ## 5. iOS App Architecture
 
@@ -76,11 +77,13 @@ This RFC defines iOS app behavior, backend API contracts, security constraints, 
 
 1. API Gateway + Auth service.
 2. OAuth Connector service (Google only in v1).
-3. Scheduler (EventBridge or Temporal).
-4. Confidential Worker pool (TEE-backed).
-5. Encrypted Postgres.
-6. Notification delivery service (APNs provider).
-7. Audit service.
+3. LLM orchestration service (typed contracts + safety validation).
+4. OpenRouter provider gateway (model routing/fallback).
+5. Scheduler (EventBridge or Temporal).
+6. Confidential Worker pool (TEE-backed).
+7. Encrypted Postgres.
+8. Notification delivery service (APNs provider).
+9. Audit service.
 
 ## 7. API Contract (v1)
 
@@ -244,6 +247,33 @@ Response:
 }
 ```
 
+### 7.6 Assistant Query
+
+`POST /v1/assistant/query`
+
+Request:
+
+```json
+{
+  "query": "What meetings do I have today?",
+  "session_id": "asst_sess_123"
+}
+```
+
+Response:
+
+```json
+{
+  "answer": "You have 3 meetings today. Next is Product Sync at 10:30 AM.",
+  "capability": "meetings_today",
+  "session_id": "asst_sess_123",
+  "metadata": {
+    "model": "openrouter/...",
+    "fallback_used": false
+  }
+}
+```
+
 ## 8. Data Schemas
 
 ### 8.1 Server DB Tables
@@ -385,6 +415,7 @@ sequenceDiagram
 2. Insider access to user data.
 3. Over-collection from Google APIs.
 4. Prompt injection via malicious email content.
+5. LLM provider outage/degradation causing assistant path failures.
 
 Mitigations:
 
@@ -392,6 +423,7 @@ Mitigations:
 2. Strict RBAC + break-glass logging.
 3. Fetch windows/scopes minimized.
 4. Safe-action policy: external actions require user confirmation in v1.
+5. Deterministic assistant fallback behavior + model routing controls.
 
 ### 10.1 Trust Boundaries
 
@@ -415,9 +447,12 @@ Mitigations:
    2. P95 reminder latency.
    3. OAuth token refresh failure rate.
    4. False positive urgent-email rate.
+   5. LLM request latency/failure rate.
+   6. LLM token usage and cost trend.
 2. Logs:
    1. Redacted only.
    2. No raw email/event payloads.
+   3. No raw prompt/completion payloads.
 
 ## 12. SLOs and SLAs
 
@@ -434,7 +469,7 @@ Mitigations:
 
 ## 14. Open Questions
 
-1. Urgent email logic in v1: rules-only vs LLM-assisted?
+1. Model routing policy by capability (latency/cost/quality thresholds) for OpenRouter.
 2. Timezone conflict behavior when calendar timezone differs from device timezone.
 3. Minimum retention period for redacted audit logs.
 4. Whether to support Google push notifications (Pub/Sub) in v1 or after beta.

@@ -1,6 +1,6 @@
 # Engineering Standards (Scalability + Security)
 
-- Last Updated: 2026-02-14
+- Last Updated: 2026-02-15
 - Priority: Mandatory for all issue execution
 
 ## 1) Post-Issue Deep Review (Required)
@@ -75,3 +75,23 @@ All new code should be designed for growth:
 2. No secret values in logs, traces, or errors.
 3. Keep least-privilege behavior by default.
 4. Fail closed for invalid auth or invalid security state.
+
+## 6) LLM Integration Standards (Required)
+
+All LLM-backed backend behavior must follow these controls:
+
+1. Provider isolation:
+   1. LLM provider code must stay behind a shared gateway abstraction.
+   2. HTTP handlers and worker actions must not call provider APIs directly.
+2. Output safety:
+   1. Enforce strict schema validation for every LLM response before use.
+   2. Reject non-conforming output and return deterministic fallback content.
+3. Prompt and context hygiene:
+   1. Treat connector content as untrusted input (prompt-injection aware).
+   2. Keep context minimal and redacted; do not include raw secrets/tokens.
+4. Reliability and cost controls:
+   1. Timeouts, retries, and fallback model routing must be explicit and tested.
+   2. Add rate limits/circuit-breaker behavior for provider degradation.
+5. Observability:
+   1. Emit model, latency, usage, and cost telemetry in redacted form.
+   2. Never persist or log sensitive raw prompt/completion payloads.
