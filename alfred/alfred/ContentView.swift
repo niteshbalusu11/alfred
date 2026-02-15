@@ -3,49 +3,33 @@ import ClerkKitUI
 import SwiftUI
 
 struct ContentView: View {
-    @Environment(Clerk.self) private var clerk
     @ObservedObject var model: AppModel
     @State private var authIsPresented = false
 
     var body: some View {
-        NavigationStack {
+        ZStack(alignment: .top) {
             Group {
                 if model.isAuthenticated {
-                    DashboardView(model: model)
+                    AppTabShellView(model: model)
                 } else {
                     signedOutView
                 }
             }
-            .navigationTitle("Alfred")
-            .toolbarBackground(AppTheme.Colors.background, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    if clerk.user != nil {
-                        UserButton()
-                            .frame(width: 36, height: 36)
-                    } else {
-                        Button("Sign in") {
-                            authIsPresented = true
+            .appScreenBackground()
+
+            if let banner = model.errorBanner {
+                ErrorBannerView(
+                    message: banner.message,
+                    onRetry: banner.retryAction == nil ? nil : {
+                        Task {
+                            await model.retryLastAction()
                         }
+                    },
+                    onDismiss: {
+                        model.dismissError()
                     }
-                }
-            }
-            .overlay(alignment: .top) {
-                if let banner = model.errorBanner {
-                    ErrorBannerView(
-                        message: banner.message,
-                        onRetry: banner.retryAction == nil ? nil : {
-                            Task {
-                                await model.retryLastAction()
-                            }
-                        },
-                        onDismiss: {
-                            model.dismissError()
-                        }
-                    )
-                    .padding()
-                }
+                )
+                .padding()
             }
         }
         .sheet(isPresented: $authIsPresented) {
@@ -56,7 +40,6 @@ struct ContentView: View {
                 await model.handleOAuthCallbackURL(url)
             }
         }
-        .appScreenBackground()
     }
 
     private var signedOutView: some View {

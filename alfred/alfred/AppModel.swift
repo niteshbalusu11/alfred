@@ -32,6 +32,7 @@ final class AppModel: ObservableObject {
     }
 
     @Published private(set) var isAuthenticated = false
+    @Published var selectedTab: AppTab = .home
     @Published private(set) var inFlightActions: Set<Action> = []
     @Published var errorBanner: ErrorBanner?
 
