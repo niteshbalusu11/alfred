@@ -313,9 +313,15 @@ private struct PrivacyActionRow: View {
                     .foregroundStyle(AppTheme.Colors.textSecondary)
             }
 
-            Button(buttonTitle, action: action)
-                .buttonStyle(isPrimary ? .appPrimary : .appSecondary)
-                .disabled(isDisabled)
+            if isPrimary {
+                Button(buttonTitle, action: action)
+                    .buttonStyle(.appPrimary)
+                    .disabled(isDisabled)
+            } else {
+                Button(buttonTitle, action: action)
+                    .buttonStyle(.appSecondary)
+                    .disabled(isDisabled)
+            }
         }
         .padding(12)
         .background(AppTheme.Colors.surfaceElevated)
