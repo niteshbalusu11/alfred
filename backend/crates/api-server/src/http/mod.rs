@@ -13,6 +13,7 @@ mod connectors;
 mod devices;
 mod errors;
 mod health;
+mod oauth_bridge;
 mod observability;
 mod preferences;
 mod privacy;
@@ -55,6 +56,10 @@ pub fn build_router(app_state: AppState) -> Router {
     let public_routes = Router::new()
         .route("/healthz", get(health::healthz))
         .route("/readyz", get(health::readyz))
+        .route(
+            "/oauth/google/callback",
+            get(oauth_bridge::redirect_google_oauth_callback),
+        )
         .with_state(app_state.clone());
 
     let auth_layer_state = app_state.clone();

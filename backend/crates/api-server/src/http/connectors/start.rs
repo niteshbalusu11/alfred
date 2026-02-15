@@ -13,12 +13,14 @@ use super::super::tokens::{generate_secure_token, hash_token};
 use super::super::{AppState, AuthUser};
 use super::helpers::build_google_auth_url;
 
+const IOS_OAUTH_CALLBACK_URI: &str = "alfred://oauth/google/callback";
+
 pub(crate) async fn start_google_connect(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
     Json(req): Json<StartGoogleConnectRequest>,
 ) -> Response {
-    if req.redirect_uri != state.oauth.redirect_uri {
+    if req.redirect_uri != state.oauth.redirect_uri && req.redirect_uri != IOS_OAUTH_CALLBACK_URI {
         return bad_request_response(
             "invalid_redirect_uri",
             "Provided redirect URI does not match configured redirect URI",
