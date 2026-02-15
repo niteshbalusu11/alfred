@@ -156,6 +156,7 @@ dev:
     @trap 'kill 0' INT TERM EXIT; \
       (cd {{ backend_dir }} && cargo run -p api-server) & \
       (cd {{ backend_dir }} && cargo run -p worker) & \
+      (just ngrok) & \
       wait
 
 # Show key project docs.
@@ -173,4 +174,8 @@ sync-master:
 
 # Start ngrok tunnel to localhost:8080
 ngrok:
-    ngrok http 8080 --domain $(cat .ngrok-domain)
+    @if [ -f .ngrok-domain ] && [ -n "$$(cat .ngrok-domain)" ]; then \
+      ngrok http 8080 --domain "$$(cat .ngrok-domain)"; \
+    else \
+      ngrok http 8080; \
+    fi
