@@ -143,6 +143,7 @@ Ship a private beta where iOS users can:
 | IOS-002 | P0 | Build onboarding + sign-in flow using Clerk | IOS | 2026-03-02 | TODO | IOS-001 | User signs in with Clerk and reaches connected home screen |
 | IOS-003 | P0 | Build Google connect UI flow | IOS | 2026-03-06 | DONE | BE-005 | Google connect completes in app |
 | IOS-013 | P0 | Dark-mode theme tokens + shared UI primitives (FE01) | IOS | 2026-02-16 | DONE | - | App uses dark-only tokens and shared components |
+| IOS-014 | P0 | Build native tabbed app shell (FE02) | IOS | 2026-02-15 | DONE | IOS-013 | TabView + per-tab NavigationStack with centralized tab routing |
 | IOS-004 | P0 | Build preferences screen | IOS | 2026-03-08 | TODO | BE-008 | Preferences read/write works |
 | IOS-005 | P0 | Build activity log screen | IOS | 2026-03-12 | TODO | BE-009 | Audit entries visible in app |
 | IOS-006 | P0 | Build privacy controls (revoke + delete-all) | IOS | 2026-03-14 | TODO | BE-007, BE-010 | Revoke/delete flows complete |
