@@ -46,6 +46,8 @@ The project intentionally avoids smart-home control in v1 to reduce reliability 
    1. `docs/phase1-master-todo.md`
 8. Product context (canonical):
    1. `docs/product-context.md`
+9. Logging conventions:
+   1. `docs/logging.md`
 
 ## Runtime Components
 

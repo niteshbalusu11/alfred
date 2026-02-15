@@ -89,6 +89,7 @@ final class AppModel: ObservableObject {
         do {
             try await clerk.auth.signOut()
         } catch {
+            AppLogger.error("Sign-out failed.", category: .auth)
             errorBanner = ErrorBanner(
                 message: Self.errorMessage(from: error),
                 retryAction: nil,
@@ -218,23 +219,35 @@ final class AppModel: ObservableObject {
 
     private func run(action: Action, retryAction: RetryAction?, operation: () async throws -> Void) async {
         guard !inFlightActions.contains(action) else {
+            AppLogger.debug("Skipped duplicate action \(String(describing: action)).", category: .app)
             return
         }
 
+        AppLogger.debug("Starting action \(String(describing: action)).", category: .app)
         inFlightActions.insert(action)
         defer { inFlightActions.remove(action) }
 
         do {
             try await operation()
+            AppLogger.debug("Completed action \(String(describing: action)).", category: .app)
             if errorBanner?.sourceAction == action {
                 errorBanner = nil
             }
         } catch {
             if case AlfredAPIClientError.unauthorized = error {
+                AppLogger.warning(
+                    "Unauthorized during action \(String(describing: action)). Resetting auth session.",
+                    category: .auth
+                )
                 try? await clerk.auth.signOut()
                 resetAuthenticationState()
                 resetGoogleOAuthState()
                 resetRequestStatusState()
+            } else {
+                AppLogger.error(
+                    "Action \(String(describing: action)) failed with \(String(describing: type(of: error))).",
+                    category: .network
+                )
             }
 
             errorBanner = ErrorBanner(
@@ -254,14 +267,21 @@ final class AppModel: ObservableObject {
             for await event in self.clerk.auth.events {
                 switch event {
                 case .signInCompleted, .signUpCompleted:
+                    AppLogger.info("Authentication completed.", category: .auth)
                     await self.synchronizeAuthenticationState(shouldLoadData: true)
                 case .sessionChanged(_, let newSession):
+                    AppLogger.debug(
+                        "Auth session changed. Active session: \(newSession != nil).",
+                        category: .auth
+                    )
                     await self.synchronizeAuthenticationState(shouldLoadData: newSession != nil)
                 case .signedOut:
+                    AppLogger.info("Signed out.", category: .auth)
                     self.resetAuthenticationState()
                     self.resetGoogleOAuthState()
                     self.resetRequestStatusState()
                 case .tokenRefreshed:
+                    AppLogger.debug("Auth token refreshed.", category: .auth)
                     break
                 }
             }

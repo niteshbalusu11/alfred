@@ -15,17 +15,12 @@ async fn main() {
         std::process::exit(1);
     }
 
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            std::env::var("RUST_LOG")
-                .unwrap_or_else(|_| "api_server=debug,axum=info,tower_http=info".to_string()),
-        )
-        .init();
+    init_tracing();
 
     let config = match ApiConfig::from_env() {
         Ok(cfg) => cfg,
         Err(err) => {
-            error!("failed to read config: {err}");
+            error!(error = %err, "failed to read config");
             std::process::exit(1);
         }
     };
@@ -39,7 +34,7 @@ async fn main() {
     {
         Ok(store) => store,
         Err(err) => {
-            error!("failed to connect to postgres: {err}");
+            error!(error = %err, "failed to connect to postgres");
             std::process::exit(1);
         }
     };
@@ -47,13 +42,13 @@ async fn main() {
     let migrator = match sqlx::migrate::Migrator::new(config.migrations_dir.clone()).await {
         Ok(migrator) => migrator,
         Err(err) => {
-            error!("failed to load migrations: {err}");
+            error!(error = %err, "failed to load migrations");
             std::process::exit(1);
         }
     };
 
     if let Err(err) = migrator.run(store.pool()).await {
-        error!("failed to run migrations: {err}");
+        error!(error = %err, "failed to run migrations");
         std::process::exit(1);
     }
 
@@ -110,14 +105,23 @@ async fn main() {
         .await
         .expect("bind should succeed");
 
-    info!(
-        "api server listening on {}",
-        listener.local_addr().unwrap_or(addr)
-    );
+    info!(bind_addr = %listener.local_addr().unwrap_or(addr), "api server listening");
     axum::serve(
         listener,
         app.into_make_service_with_connect_info::<SocketAddr>(),
     )
     .await
     .expect("server should run");
+}
+
+fn init_tracing() {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            std::env::var("RUST_LOG")
+                .unwrap_or_else(|_| "api_server=debug,axum=info,tower_http=info".to_string()),
+        )
+        .json()
+        .flatten_event(true)
+        .with_current_span(true)
+        .init();
 }
