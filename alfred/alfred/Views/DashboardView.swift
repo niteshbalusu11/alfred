@@ -37,24 +37,9 @@ struct DashboardView: View {
                     .textSelection(.enabled)
             }
 
-            TextField("OAuth code (optional)", text: $model.googleCode)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-
-            TextField("OAuth error (optional)", text: $model.googleCallbackError)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-
-            TextField("OAuth error description (optional)", text: $model.googleErrorDescription)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-
-            Button("Complete Google OAuth") {
-                Task {
-                    await model.completeGoogleOAuth()
-                }
-            }
-            .disabled(model.isLoading(.completeGoogleOAuth))
+            Text("After consent, Alfred completes OAuth automatically when you return to the app.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
 
             if model.isLoading(.startGoogleOAuth) || model.isLoading(.completeGoogleOAuth) {
                 ProgressView()
