@@ -7,7 +7,6 @@ use serde_json::{Value, json};
 use thiserror::Error;
 use tokio::time::sleep;
 
-use super::contracts::AssistantCapability;
 use super::gateway::{
     LlmGateway, LlmGatewayError, LlmGatewayFuture, LlmGatewayRequest, LlmGatewayResponse,
     LlmTokenUsage,
@@ -46,30 +45,13 @@ impl OpenRouterModelRoute {
 }
 
 #[derive(Debug, Clone)]
-pub struct OpenRouterModelRouting {
-    pub meetings_summary: OpenRouterModelRoute,
-    pub morning_brief: OpenRouterModelRoute,
-    pub urgent_email_summary: OpenRouterModelRoute,
-}
-
-impl OpenRouterModelRouting {
-    fn route_for_capability(&self, capability: AssistantCapability) -> &OpenRouterModelRoute {
-        match capability {
-            AssistantCapability::MeetingsSummary => &self.meetings_summary,
-            AssistantCapability::MorningBrief => &self.morning_brief,
-            AssistantCapability::UrgentEmailSummary => &self.urgent_email_summary,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
 pub struct OpenRouterGatewayConfig {
     pub chat_completions_url: String,
     pub api_key: String,
     pub timeout_ms: u64,
     pub max_retries: u32,
     pub retry_base_backoff_ms: u64,
-    pub model_routing: OpenRouterModelRouting,
+    pub model_route: OpenRouterModelRoute,
 }
 
 impl OpenRouterGatewayConfig {
@@ -94,11 +76,7 @@ impl OpenRouterGatewayConfig {
                 "OPENROUTER_RETRY_BASE_BACKOFF_MS",
                 DEFAULT_RETRY_BASE_BACKOFF_MS,
             )?,
-            model_routing: OpenRouterModelRouting {
-                meetings_summary: parse_model_route("MEETINGS_SUMMARY"),
-                morning_brief: parse_model_route("MORNING_BRIEF"),
-                urgent_email_summary: parse_model_route("URGENT_EMAIL_SUMMARY"),
-            },
+            model_route: parse_model_route(),
         })
     }
 }
@@ -286,11 +264,7 @@ impl OpenRouterGateway {
 impl LlmGateway for OpenRouterGateway {
     fn generate<'a>(&'a self, request: LlmGatewayRequest) -> LlmGatewayFuture<'a> {
         Box::pin(async move {
-            let route = self
-                .config
-                .model_routing
-                .route_for_capability(request.capability);
-            let candidate_models = route.candidate_models();
+            let candidate_models = self.config.model_route.candidate_models();
 
             for (index, model) in candidate_models.iter().enumerate() {
                 match self.generate_for_model(model, &request).await {
@@ -368,14 +342,11 @@ struct OpenRouterUsage {
     total_tokens: Option<u64>,
 }
 
-fn parse_model_route(capability_suffix: &str) -> OpenRouterModelRoute {
-    let primary_key = format!("OPENROUTER_MODEL_{capability_suffix}_PRIMARY");
-    let fallback_key = format!("OPENROUTER_MODEL_{capability_suffix}_FALLBACK");
-
+fn parse_model_route() -> OpenRouterModelRoute {
     OpenRouterModelRoute {
-        primary_model: optional_trimmed_env(&primary_key)
+        primary_model: optional_trimmed_env("OPENROUTER_MODEL_PRIMARY")
             .unwrap_or_else(|| DEFAULT_PRIMARY_MODEL.to_string()),
-        fallback_model: optional_trimmed_env(&fallback_key)
+        fallback_model: optional_trimmed_env("OPENROUTER_MODEL_FALLBACK")
             .or_else(|| Some(DEFAULT_FALLBACK_MODEL.to_string())),
     }
 }
