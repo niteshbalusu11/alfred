@@ -138,12 +138,15 @@ Code must remain modular by default. Do not keep adding logic to a single large 
    3. Within same priority, pick lowest issue number unless blocked by dependencies
 2. Before coding:
    1. Sync current branch/worktree with remote:
-      1. `git fetch origin && git pull --ff-only`
+      1. `git fetch origin`
+      2. `git pull --ff-only` (when current branch tracks a remote)
    2. Confirm issue acceptance criteria and dependencies
    3. Update issue comment/status to indicate active work
 3. Branching:
    1. Use branch name prefix `codex/`
    2. Recommended format: `codex/issue-<number>-<short-slug>`
+   3. Create the branch from latest `origin/master`:
+      1. `git checkout -b codex/issue-<number>-<short-slug> origin/master`
 4. During implementation:
    1. Keep scope strictly to issue acceptance criteria
    2. If scope must expand, document reason in issue comment first
