@@ -174,8 +174,8 @@ sync-master:
 
 # Start ngrok tunnel to localhost:8080
 ngrok:
-    @if [ -f .ngrok-domain ] && [ -n "$$(cat .ngrok-domain)" ]; then \
-      ngrok http 8080 --domain "$$(cat .ngrok-domain)"; \
+    @if [ -f .ngrok-domain ] && [ -n "$(cat .ngrok-domain)" ]; then \
+      ngrok http 8080 --domain "$(cat .ngrok-domain)"; \
     else \
       ngrok http 8080; \
     fi
