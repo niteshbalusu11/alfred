@@ -195,6 +195,11 @@ final class AppModel: ObservableObject {
 
         await run(action: .revokeConnector, retryAction: .revokeConnector(connectorID: id)) { [self] in
             let response = try await apiClient.revokeConnector(connectorID: id)
+            if response.status == .revoked {
+                connectorID = ""
+                googleAuthURL = ""
+                googleState = ""
+            }
             revokeStatus = "Connector status: \(response.status.rawValue)."
         }
     }

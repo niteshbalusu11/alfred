@@ -141,7 +141,7 @@ Ship a private beta where iOS users can:
 |---|---|---|---|---|---|---|---|
 | IOS-001 | P0 | Integrate Clerk iOS auth and API token provider wiring | IOS | 2026-02-27 | TODO | BE-001 | App obtains Clerk token and authenticated API calls succeed |
 | IOS-002 | P0 | Native bottom-tab app shell with per-tab navigation stacks (FE02) | IOS | 2026-02-16 | DONE | IOS-013 | Four-tab shell with independent NavigationStack + centralized tab routing |
-| IOS-003 | P0 | Build Google connect UI flow | IOS | 2026-03-06 | DONE | BE-005 | Google connect completes in app |
+| IOS-003 | P0 | Build Google connect UI flow + Connectors hub v1 (FE05) | IOS | 2026-03-06 | DONE | BE-005 | Connectors tab shows Google state/actions, error+retry UX, and extensible future-provider layout |
 | IOS-013 | P0 | Dark-mode theme tokens + shared UI primitives (FE01) | IOS | 2026-02-16 | DONE | - | App uses dark-only tokens and shared components |
 | IOS-014 | P0 | Build native tabbed app shell (FE02) | IOS | 2026-02-15 | DONE | IOS-013 | TabView + per-tab NavigationStack with centralized tab routing |
 | IOS-015 | P0 | Home screen v1 redesign (FE03) | IOS | 2026-02-15 | DONE | IOS-014 | Home screen shows summary, status cards, quick actions, and loading/empty/error states |
