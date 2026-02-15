@@ -4,8 +4,9 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use chrono::Utc;
 use shared::llm::{
-    AssistantCapability, AssistantOutputContract, LlmGateway, LlmGatewayError, LlmGatewayRequest,
-    assemble_meetings_today_context, template_for_capability, validate_output_value,
+    AssistantCapability, AssistantOutputContract, LlmGateway, LlmGatewayRequest, SafeOutputSource,
+    assemble_meetings_today_context, resolve_safe_output, sanitize_context_payload,
+    template_for_capability,
 };
 use shared::models::{
     AssistantMeetingsTodayPayload, AssistantQueryCapability, AssistantQueryRequest,
@@ -60,7 +61,7 @@ async fn handle_meetings_today_query(state: &AppState, user_id: uuid::Uuid) -> R
         };
 
     let context = assemble_meetings_today_context(calendar_day, &meetings);
-    let context_payload = match serde_json::to_value(&context) {
+    let raw_context_payload = match serde_json::to_value(&context) {
         Ok(value) => value,
         Err(_) => {
             return (
@@ -75,30 +76,34 @@ async fn handle_meetings_today_query(state: &AppState, user_id: uuid::Uuid) -> R
                 .into_response();
         }
     };
+    let context_payload = sanitize_context_payload(&raw_context_payload);
+    if context_payload != raw_context_payload {
+        warn!(user_id = %user_id, "assistant context payload sanitized by safety policy");
+    }
 
     let request = LlmGatewayRequest::from_template(
         template_for_capability(AssistantCapability::MeetingsSummary),
-        context_payload,
+        context_payload.clone(),
     );
 
-    let llm_response = match state.llm_gateway.generate(request).await {
-        Ok(response) => response,
-        Err(err) => return map_gateway_error(err),
+    let model_output = match state.llm_gateway.generate(request).await {
+        Ok(response) => Some(response.output),
+        Err(err) => {
+            warn!(user_id = %user_id, "assistant provider request failed: {err}");
+            None
+        }
     };
 
-    let contract =
-        match validate_output_value(AssistantCapability::MeetingsSummary, &llm_response.output) {
-            Ok(contract) => contract,
-            Err(err) => {
-                warn!("assistant output validation failed: {err}");
-                return bad_gateway_response(
-                    "assistant_invalid_output",
-                    "Assistant provider returned invalid output",
-                );
-            }
-        };
+    let resolved = resolve_safe_output(
+        AssistantCapability::MeetingsSummary,
+        model_output.as_ref(),
+        &context_payload,
+    );
+    if matches!(resolved.source, SafeOutputSource::DeterministicFallback) {
+        warn!(user_id = %user_id, "assistant returned deterministic fallback output");
+    }
 
-    let AssistantOutputContract::MeetingsSummary(contract) = contract else {
+    let AssistantOutputContract::MeetingsSummary(contract) = resolved.contract else {
         return bad_gateway_response(
             "assistant_invalid_output",
             "Assistant provider returned invalid output",
@@ -135,22 +140,6 @@ fn detect_query_capability(query: &str) -> Option<AssistantQueryCapability> {
     }
 
     None
-}
-
-fn map_gateway_error(err: LlmGatewayError) -> Response {
-    match err {
-        LlmGatewayError::Timeout => {
-            bad_gateway_response("assistant_provider_timeout", "Assistant provider timed out")
-        }
-        LlmGatewayError::ProviderFailure(_) => bad_gateway_response(
-            "assistant_provider_failed",
-            "Assistant provider request failed",
-        ),
-        LlmGatewayError::InvalidProviderPayload(_) => bad_gateway_response(
-            "assistant_provider_invalid",
-            "Assistant provider returned invalid payload",
-        ),
-    }
 }
 
 #[cfg(test)]

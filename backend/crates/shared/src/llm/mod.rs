@@ -3,6 +3,7 @@ pub mod contracts;
 pub mod gateway;
 pub mod openrouter;
 pub mod prompts;
+pub mod safety;
 pub mod validation;
 
 pub use context::{
@@ -21,4 +22,5 @@ pub use openrouter::{
     OpenRouterConfigError, OpenRouterGateway, OpenRouterGatewayConfig, OpenRouterModelRoute,
 };
 pub use prompts::{PromptTemplate, template_for_capability};
+pub use safety::{SafeOutputSource, resolve_safe_output, sanitize_context_payload};
 pub use validation::{OutputValidationError, validate_output_json, validate_output_value};
