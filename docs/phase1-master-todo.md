@@ -49,7 +49,7 @@ Ship a private beta where iOS users can:
 
 1. Phase I backend direction is now LLM-first for assistant summarization and question answering.
 2. OpenRouter is the default provider gateway with model routing/fallback handled in backend.
-3. Current rule-based urgent-email logic is treated as legacy baseline and is tracked for removal.
+3. Rule-based urgent-email logic has been removed from production worker paths (`#91`).
 4. Execution queue for this migration is GitHub issues `#91` through `#103` (`ai-backend` label).
 
 ## 5) Execution Board
@@ -124,8 +124,8 @@ Ship a private beta where iOS users can:
 | WRK-002 | P0 | Implement retry policy (transient/permanent) | BE | 2026-03-08 | DONE | WRK-001 | Retries respect policy |
 | WRK-003 | P1 | Implement dead-letter writes | BE | 2026-03-09 | DONE | DB-006, WRK-002 | Failed jobs land in DLQ table |
 | WRK-004 | P0 | Implement meeting reminder job | BE | 2026-03-12 | DONE | WRK-001, APNS-001 | Reminder push end-to-end works |
-| WRK-005 | P0 | Implement morning brief job (legacy baseline) | BE | 2026-03-15 | DONE | WRK-001, APNS-001 | Legacy brief push path works; superseded by AI-006 |
-| WRK-006 | P0 | Implement urgent-email scan job (legacy rule baseline) | BE | 2026-03-18 | DONE | BE-006, WRK-001 | Legacy alert path works; superseded by AI-007 |
+| WRK-005 | P0 | Implement morning brief job (legacy baseline) | BE | 2026-03-15 | DONE | WRK-001, APNS-001 | Legacy brief baseline delivered and retired by AI-000 cleanup |
+| WRK-006 | P0 | Implement urgent-email scan job (legacy rule baseline) | BE | 2026-03-18 | DONE | BE-006, WRK-001 | Legacy urgent baseline delivered and retired by AI-000 cleanup |
 | WRK-007 | P0 | Add idempotency keys for outbound actions | BE | 2026-03-14 | DONE | WRK-002 | Duplicate sends prevented |
 | WRK-008 | P1 | Add per-user concurrency limits | BE | 2026-03-19 | DONE | WRK-001 | Limits enforced in worker |
 | WRK-009 | P1 | Add worker lag metrics and alerts | SRE | 2026-03-20 | TODO | OBS-001 | Lag dashboard + alert live |
@@ -207,7 +207,7 @@ Ship a private beta where iOS users can:
 
 | ID | Pri | Task | Owner | ETA | Status | Depends On | Exit Criteria |
 |---|---|---|---|---|---|---|---|
-| AI-000 | P0 | Remove rule-based assistant logic and legacy backend paths (`#91`) | BE | 2026-03-29 | TODO | AI-001..AI-011 | Rule-based assistant decision path removed from production |
+| AI-000 | P0 | Remove rule-based assistant logic and legacy backend paths (`#91`) | BE | 2026-03-29 | DONE | - | Rule-based assistant decision path removed from production |
 | AI-001 | P0 | Add LLM gateway abstraction + typed output contracts (`#92`) | BE | 2026-03-06 | TODO | - | Provider-agnostic contract merged with schema validation |
 | AI-002 | P0 | Implement OpenRouter adapter + routing/fallback controls (`#93`) | BE | 2026-03-08 | TODO | AI-001 | Backend can execute LLM requests via OpenRouter with retries |
 | AI-003 | P0 | Build Google context assembler for LLM prompts (`#94`) | BE | 2026-03-10 | TODO | AI-001, AI-002 | Deterministic context payloads generated for assistant capabilities |
@@ -234,7 +234,7 @@ Ship a private beta where iOS users can:
 7. `IOS-001` through `IOS-006`
 8. `QA-002`, `QA-005`, `QA-008`
 9. `GOV-001`, `GOV-002`, `GOV-006`, `GOV-007`, `GOV-008`
-10. `AI-001` through `AI-011`, then `AI-000`
+10. `AI-000`, then `AI-001` through `AI-011`
 
 ## 7) Weekly Operating Cadence
 

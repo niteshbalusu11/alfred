@@ -63,7 +63,7 @@ struct ProfileView: View {
 
     private var preferencesSection: some View {
         AppCard {
-            AppSectionHeader("Preferences", subtitle: "Reminders, briefs, and quiet hours") {
+            AppSectionHeader("Preferences", subtitle: "Reminders, assistant schedule, and quiet hours") {
                 AppStatusBadge(title: model.preferencesStatusBadge.title, style: model.preferencesStatusBadge.style)
             }
 
@@ -198,7 +198,7 @@ struct ProfileView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This disconnects Google and stops reminders and briefs until you reconnect.")
+            Text("This disconnects Google and stops Alfred notifications until you reconnect.")
         }
         .confirmationDialog("Request delete-all?", isPresented: $showDeleteConfirmation) {
             Button("Delete all data", role: .destructive) {
