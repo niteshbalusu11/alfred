@@ -27,8 +27,9 @@ Alfred is a privacy-first iOS assistant product with a hosted backend.
 Current v1 scope:
 
 1. Google Calendar meeting reminders.
-2. Daily morning brief.
-3. Urgent Gmail alerting.
+2. Daily morning brief (LLM-generated summary path).
+3. Urgent Gmail alerting (LLM prioritization path).
+4. Natural-language assistant query endpoint (for example, \"What meetings do I have today?\").
 
 The project intentionally avoids smart-home control in v1 to reduce reliability and liability risk.
 
@@ -74,6 +75,19 @@ The project intentionally avoids smart-home control in v1 to reduce reliability 
 4. Remove or hard-disable custom `/v1/auth/ios/session*` flow as part of Clerk completion (`#56`).
 5. Breaking auth changes are acceptable during this migration.
 
+## LLM Backend Source Of Truth (2026-02-15)
+
+1. Backend assistant direction is LLM-first with OpenRouter provider routing.
+2. Execution queue for this migration is GitHub issues `#91` through `#103`.
+3. Use label `ai-backend` for all related backend issues.
+4. Rule-based assistant decision logic is legacy and tracked for removal in `#91`.
+5. Keep privacy and reliability infrastructure intact during migration:
+   1. OAuth/connector lifecycle
+   2. enclave/attestation token path
+   3. worker lease/retry/idempotency engine
+   4. push pipeline
+   5. audit/privacy controls
+
 ## GitHub Issue-Driven Execution
 
 Primary execution queue is GitHub issues in:
@@ -84,7 +98,7 @@ Phase I labels currently in use:
 
 1. Scope: `phase-1`
 2. Priority: `P0`, `P1`
-3. Domain tags: `backend`, `ios`, `security`, `database`, `oauth`, `tee`, `worker`, `notifications`, `privacy`, `observability`, `sre`, `qa`
+3. Domain tags: `backend`, `ios`, `security`, `database`, `oauth`, `tee`, `worker`, `notifications`, `privacy`, `observability`, `sre`, `qa`, `ai-backend`
 
 ### Issue Selection Algorithm (Required)
 
@@ -145,6 +159,8 @@ Agents must preserve these constraints while implementing features:
    1. `api/openapi.yaml`
 4. Schema changes must be migration-driven:
    1. Add/modify SQL files under `db/migrations`.
+5. LLM outputs must be schema-validated before UI/push emission.
+6. Prompt/context payloads and logs must remain redacted and privacy-safe.
 
 ## Justfile Command Reference
 
@@ -311,21 +327,19 @@ Avoid monolithic files. New work should keep files focused and easy to review.
    1. explicitly list newly extracted modules
    2. include follow-up issue references for any deferred decomposition
 
-## Current Known State (Scaffold Stage)
+## Current Known State (LLM Migration Stage)
 
-1. API server is wired to Postgres via `sqlx` with migration bootstrapping and persisted state for v1 endpoint surfaces.
-2. Worker loop is still placeholder execution and currently reports due-job counts only.
-3. iOS app currently compiles; full backend integration into app screens is still pending.
+1. API server and worker are live with OAuth, preferences, privacy, audit, and push job surfaces.
+2. Existing assistant behavior is currently rule-based baseline and is being migrated to LLM-first paths.
+3. LLM backend migration backlog is tracked in issues `#91` through `#103`.
+4. iOS app is integrated with core backend endpoints but assistant query UX is pending backend API completion.
 
 ## Immediate Next Engineering Targets
 
-1. Implement real Google OAuth exchange + encrypted token persistence.
-2. Add first end-to-end flow:
-   1. connect Google
-   2. persist connector
-   3. schedule reminder job
-   4. worker triggers notification event
-3. Integrate `AlfredAPIClient` into iOS app screens.
+1. Land shared LLM gateway contracts and OpenRouter adapter (`#92`, `#93`).
+2. Ship `/v1/assistant/query` backend path with safety guardrails (`#95`, `#96`).
+3. Migrate worker morning brief and urgent-email paths to LLM orchestration (`#97`, `#98`).
+4. Add AI observability/reliability/eval gates and remove legacy rule paths (`#99`..`#102`, `#91`).
 
 ## Agent Guardrails
 

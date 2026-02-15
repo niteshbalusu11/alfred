@@ -7,6 +7,7 @@ In Phase I, Alfred helps users by:
 1. Sending meeting reminders from Google Calendar.
 2. Sending a daily morning brief.
 3. Sending urgent Gmail alerts.
+4. Answering natural-language assistant questions using connected Google context.
 
 ## What This Project Is
 
@@ -20,14 +21,16 @@ This repository contains the iOS app, backend services, API contract, and securi
 
 ## Architecture Overview
 
-At a high level, Alfred has six core parts:
+At a high level, Alfred has eight core parts:
 
 1. iOS app (`SwiftUI`) for sign-in, settings, and notification UX.
 2. Rust API server (`axum`) for auth, connector, preferences, audit, and privacy APIs.
-3. Rust worker (`tokio`) for scheduled/proactive processing.
-4. Encrypted Postgres for operational state.
-5. TEE-backed path for sensitive decrypt + provider fetch work.
-6. APNs delivery pipeline for user notifications.
+3. LLM orchestration layer for assistant query and proactive summaries.
+4. OpenRouter provider gateway for model routing/fallback.
+5. Rust worker (`tokio`) for scheduled/proactive processing.
+6. Encrypted Postgres for operational state.
+7. TEE-backed path for sensitive decrypt + provider fetch work.
+8. APNs delivery pipeline for user notifications.
 
 ```mermaid
 flowchart LR
@@ -62,8 +65,8 @@ Alfred is intentionally opinionated about privacy:
 ## How Alfred Delivers Value (Phase I)
 
 1. User signs in and connects Google.
-2. Alfred schedules checks for upcoming meetings and urgent inbox signals.
-3. Worker evaluates events and creates actionable nudges.
+2. Alfred assembles normalized calendar/email context for assistant capabilities.
+3. API/worker call LLM workflows (via OpenRouter) to generate summaries/prioritized actions.
 4. APNs delivers timely notifications to iOS.
 5. User can inspect activity and revoke/delete at any time.
 

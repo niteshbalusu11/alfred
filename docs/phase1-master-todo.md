@@ -13,6 +13,7 @@ Ship a private beta where iOS users can:
 3. Receive daily morning brief.
 4. Receive urgent email alerts.
 5. View activity logs and revoke/delete data.
+6. Ask natural-language assistant questions about connected Google context (LLM-backed).
 
 ## 2) Status + Priority Legend
 
@@ -44,6 +45,13 @@ Ship a private beta where iOS users can:
 3. Breaking auth changes are acceptable at this phase to move faster.
 4. Custom `/v1/auth/ios/session*` implementation should be removed or hard-disabled after Clerk integration.
 
+## AI Backend Direction Update (2026-02-15)
+
+1. Phase I backend direction is now LLM-first for assistant summarization and question answering.
+2. OpenRouter is the default provider gateway with model routing/fallback handled in backend.
+3. Current rule-based urgent-email logic is treated as legacy baseline and is tracked for removal.
+4. Execution queue for this migration is GitHub issues `#91` through `#103` (`ai-backend` label).
+
 ## 5) Execution Board
 
 ### A) Product and Scope Control
@@ -53,7 +61,7 @@ Ship a private beta where iOS users can:
 | PROD-001 | P0 | Freeze Phase I scope doc | FOUNDER | 2026-02-16 | TODO | - | Signed scope in docs |
 | PROD-002 | P0 | Freeze out-of-scope list (no smart-home control) | FOUNDER | 2026-02-16 | TODO | PROD-001 | Out-of-scope list published |
 | PROD-003 | P0 | Define beta KPIs (activation, D7 retention, reminder success) | FOUNDER | 2026-02-18 | TODO | PROD-001 | KPI targets documented |
-| PROD-004 | P0 | Finalize urgent-email criteria (rules-first) | FOUNDER | 2026-02-18 | TODO | PROD-001 | Rules approved |
+| PROD-004 | P0 | Finalize urgent-email criteria (LLM-first with deterministic fallback) | FOUNDER | 2026-02-18 | TODO | PROD-001 | LLM policy + fallback policy approved |
 | PROD-005 | P1 | Finalize push copy/content policy | FOUNDER | 2026-02-19 | TODO | PROD-004 | Copy approved |
 | PROD-006 | P0 | Define launch/no-launch checklist | FOUNDER | 2026-02-20 | TODO | PROD-003 | Checklist version 1 approved |
 | PROD-007 | P1 | Define beta support SLAs and severity matrix | FOUNDER | 2026-02-21 | TODO | PROD-006 | Severity/SLA doc published |
@@ -116,8 +124,8 @@ Ship a private beta where iOS users can:
 | WRK-002 | P0 | Implement retry policy (transient/permanent) | BE | 2026-03-08 | DONE | WRK-001 | Retries respect policy |
 | WRK-003 | P1 | Implement dead-letter writes | BE | 2026-03-09 | DONE | DB-006, WRK-002 | Failed jobs land in DLQ table |
 | WRK-004 | P0 | Implement meeting reminder job | BE | 2026-03-12 | DONE | WRK-001, APNS-001 | Reminder push end-to-end works |
-| WRK-005 | P0 | Implement morning brief job | BE | 2026-03-15 | DONE | WRK-001, APNS-001 | Morning brief push works |
-| WRK-006 | P0 | Implement urgent-email scan job | BE | 2026-03-18 | DONE | BE-006, WRK-001 | Alerts generated via rule engine |
+| WRK-005 | P0 | Implement morning brief job (legacy baseline) | BE | 2026-03-15 | DONE | WRK-001, APNS-001 | Legacy brief push path works; superseded by AI-006 |
+| WRK-006 | P0 | Implement urgent-email scan job (legacy rule baseline) | BE | 2026-03-18 | DONE | BE-006, WRK-001 | Legacy alert path works; superseded by AI-007 |
 | WRK-007 | P0 | Add idempotency keys for outbound actions | BE | 2026-03-14 | DONE | WRK-002 | Duplicate sends prevented |
 | WRK-008 | P1 | Add per-user concurrency limits | BE | 2026-03-19 | DONE | WRK-001 | Limits enforced in worker |
 | WRK-009 | P1 | Add worker lag metrics and alerts | SRE | 2026-03-20 | TODO | OBS-001 | Lag dashboard + alert live |
@@ -195,6 +203,24 @@ Ship a private beta where iOS users can:
 | GOV-008 | P0 | Final go/no-go review meeting | FOUNDER | 2026-04-23 | TODO | All P0 done | Decision logged |
 | GOV-009 | P0 | Private beta launch | FOUNDER | 2026-04-24 | TODO | GOV-008 | First cohort onboarded |
 
+### K) AI Assistant and LLM Backend
+
+| ID | Pri | Task | Owner | ETA | Status | Depends On | Exit Criteria |
+|---|---|---|---|---|---|---|---|
+| AI-000 | P0 | Remove rule-based assistant logic and legacy backend paths (`#91`) | BE | 2026-03-29 | TODO | AI-001..AI-011 | Rule-based assistant decision path removed from production |
+| AI-001 | P0 | Add LLM gateway abstraction + typed output contracts (`#92`) | BE | 2026-03-06 | TODO | - | Provider-agnostic contract merged with schema validation |
+| AI-002 | P0 | Implement OpenRouter adapter + routing/fallback controls (`#93`) | BE | 2026-03-08 | TODO | AI-001 | Backend can execute LLM requests via OpenRouter with retries |
+| AI-003 | P0 | Build Google context assembler for LLM prompts (`#94`) | BE | 2026-03-10 | TODO | AI-001, AI-002 | Deterministic context payloads generated for assistant capabilities |
+| AI-004 | P0 | Add `/v1/assistant/query` endpoint for interactive questions (`#95`) | BE | 2026-03-12 | TODO | AI-002, AI-003 | Meetings query works end-to-end with typed assistant response |
+| AI-005 | P0 | Add LLM safety layer + deterministic fallback (`#96`) | SEC | 2026-03-14 | TODO | AI-001, AI-002 | Injection defenses and schema/policy guards enforced |
+| AI-006 | P0 | Migrate morning brief worker path to LLM orchestration (`#97`) | BE | 2026-03-16 | TODO | AI-003, AI-005 | Morning brief push content is LLM-generated and policy-safe |
+| AI-007 | P0 | Migrate urgent-email worker path to LLM prioritization (`#98`) | BE | 2026-03-18 | TODO | AI-003, AI-005 | Urgent-email decision path is LLM-based with safe fallback |
+| AI-008 | P0 | Add AI observability + redacted audit events (`#99`) | SRE | 2026-03-20 | TODO | AI-004, AI-006, AI-007 | Latency/usage/cost metrics and redacted audit events are live |
+| AI-009 | P0 | Add LLM reliability guardrails (`#100`) | BE | 2026-03-22 | TODO | AI-004 | Circuit breaker/rate limits/cache/budgets enforced |
+| AI-010 | P0 | Add assistant session memory for follow-up continuity (`#101`) | BE | 2026-03-24 | TODO | AI-004 | Session-context follow-up queries supported with retention controls |
+| AI-011 | P0 | Add LLM eval/regression harness in CI (`#102`) | QA | 2026-03-26 | TODO | AI-005, AI-006, AI-007 | Prompt/output regressions are detected by automated checks |
+| AI-012 | P0 | Maintain migration tracker + execution order (`#103`) | FOUNDER | 2026-03-05 | IN_PROGRESS | - | Tracker issue reflects live execution order and status |
+
 ---
 
 ## 6) Critical Path (Must Complete for Beta)
@@ -208,6 +234,7 @@ Ship a private beta where iOS users can:
 7. `IOS-001` through `IOS-006`
 8. `QA-002`, `QA-005`, `QA-008`
 9. `GOV-001`, `GOV-002`, `GOV-006`, `GOV-007`, `GOV-008`
+10. `AI-001` through `AI-011`, then `AI-000`
 
 ## 7) Weekly Operating Cadence
 

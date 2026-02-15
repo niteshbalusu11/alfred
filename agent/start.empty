@@ -16,6 +16,12 @@ Use this file when an agent starts with minimal context.
 3. Breaking auth changes are acceptable at this phase.
 4. Remove or hard-disable legacy custom `/v1/auth/ios/session*` flow.
 
+## LLM Backend Direction (Current)
+
+1. Backend assistant direction is LLM-first with OpenRouter provider routing.
+2. Migration execution queue is GitHub issues `#91` through `#103` (`ai-backend` label).
+3. Legacy rule-based assistant logic is deprecated and tracked for removal in issue `#91`.
+
 ## Execution Rule
 
 1. GitHub issues with `phase-1` are the execution source of truth (`P0` before `P1`).

@@ -1,8 +1,8 @@
 # Phase I STRIDE Threat Model
 
-- Last Updated: 2026-02-14
+- Last Updated: 2026-02-15
 - Reviewed For Issue: `#19`
-- Scope: iOS session auth, OAuth connector lifecycle, TEE decrypt path, worker processing, privacy delete flow
+- Scope: iOS session auth, OAuth connector lifecycle, TEE decrypt path, worker processing, LLM/OpenRouter orchestration, privacy delete flow
 
 ## 1) System Boundaries
 
@@ -19,6 +19,7 @@
 3. User PII and preferences persisted in backend tables.
 4. Audit event stream proving security-sensitive actions.
 5. Attestation documents, allowed measurements, and KMS key policy bindings.
+6. LLM provider credentials, model-routing policy, and assistant output safety controls.
 
 ## 3) STRIDE Analysis
 
@@ -28,7 +29,7 @@
 | Tampering | DB row mutation of connector key metadata or status | Incorrect decrypt policy path, revoke bypass | Strict key-id/key-version checks, ACTIVE status checks, migration-backed schema | Medium: requires tight DB IAM + change auditing |
 | Repudiation | Actor denies issuing revoke/delete-all/security-sensitive actions | Weak incident forensics and support evidence | Audit events for session/connect/revoke/delete lifecycle; deterministic API outcomes | Low: enrich actor metadata over time |
 | Information Disclosure | Token/plaintext leakage via logs/errors or host decrypt path | Credential compromise and privacy breach | Redacted errors, no plaintext token logs, enclave RPC-only decrypt/refresh/revoke path, attestation/KMS gating | Low-Medium: guardrails must remain tested in CI |
-| Denial of Service | Endpoint abuse (auth/connect/delete) and retry storms | Service instability or user lockouts | Endpoint rate limiting for sensitive routes; deterministic 429 + Retry-After; worker lease/retry controls | Medium: distributed abuse needs upstream WAF controls too |
+| Denial of Service | Endpoint abuse (auth/connect/delete) and retry storms; LLM provider degradation | Service instability or user lockouts | Endpoint rate limiting for sensitive routes; deterministic 429 + Retry-After; worker lease/retry controls; provider fallback + deterministic assistant fallback | Medium: distributed abuse needs upstream WAF controls too |
 | Elevation of Privilege | Host process or compromised runtime bypasses enclave constraints | Decrypt outside trusted boundary | Compile-time host decrypt removal, enclave RPC contract, attestation verification + measurement allow-lists + KMS-bound policy; fail-closed checks | Medium: depends on secure key and attestation ops |
 
 ## 4) Threat-Specific Controls Added in This Pass

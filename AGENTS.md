@@ -19,6 +19,18 @@ This file is intentionally at repository root so coding agents can auto-discover
 3. Breaking changes are acceptable for auth migration at this phase.
 4. Custom `/v1/auth/ios/session*` paths should be removed or hard-disabled once Clerk path is complete.
 
+## LLM Backend Direction (Important)
+
+1. Backend assistant direction is LLM-first with OpenRouter provider routing (GitHub issues `#91` through `#103`).
+2. New AI backend work must use label `ai-backend` and align to the execution tracker issue `#103`.
+3. Existing rule-based assistant logic is deprecated and tracked for removal in issue `#91`.
+4. Do not remove core infrastructure required by LLM workflows:
+   1. OAuth/connector lifecycle
+   2. enclave/attestation token path
+   3. worker lease/retry/idempotency engine
+   4. push pipeline
+   5. privacy + audit controls
+
 ## Required Workflow
 
 1. Run `just check-tools`.
@@ -126,6 +138,7 @@ Code must remain modular by default. Do not keep adding logic to a single large 
 1. Execution queue: GitHub issues in `niteshbalusu11/alfred` with labels:
    1. `phase-1`
    2. `P0` or `P1`
+   3. `ai-backend` for LLM backend migration work
 2. Planning board: `docs/phase1-master-todo.md`
 3. Rule:
    1. If a GitHub issue and board item conflict, treat GitHub issue as immediate execution source and update docs in the same change.
@@ -189,3 +202,4 @@ Code must remain modular by default. Do not keep adding logic to a single large 
 2. Use migrations for any schema changes.
 3. Do not weaken privacy constraints (token/data handling) without explicit approval.
 4. Do not implement work outside an active GitHub issue unless explicitly requested.
+5. For LLM features, enforce schema-validated outputs and deterministic safety fallback behavior.
