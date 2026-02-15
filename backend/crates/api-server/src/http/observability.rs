@@ -4,7 +4,7 @@ use axum::middleware::Next;
 use axum::response::Response;
 use serde_json::{Map, Value, json};
 use std::time::Instant;
-use tracing::{info, warn};
+use tracing::{Instrument, debug, error, warn};
 use uuid::Uuid;
 
 const REQUEST_ID_HEADER: &str = "x-request-id";
@@ -21,15 +21,23 @@ pub(super) async fn request_observability_middleware(mut req: Request, next: Nex
         request_id: request_id.clone(),
     });
 
-    let method = req.method().clone();
+    let method = req.method().as_str().to_owned();
     let route = req
         .extensions()
         .get::<MatchedPath>()
         .map(|matched| matched.as_str().to_string())
         .unwrap_or_else(|| "<unmatched>".to_string());
+    let path = req.uri().path().to_string();
     let started_at = Instant::now();
+    let request_span = tracing::info_span!(
+        "http_request",
+        request_id = %request_id,
+        method = %method,
+        route = %route,
+        path = %path,
+    );
 
-    let mut response = next.run(req).await;
+    let mut response = next.run(req).instrument(request_span).await;
     if let Ok(header_value) = HeaderValue::from_str(&request_id) {
         response.headers_mut().insert(
             header::HeaderName::from_static(REQUEST_ID_HEADER),
@@ -39,25 +47,49 @@ pub(super) async fn request_observability_middleware(mut req: Request, next: Nex
 
     let status = response.status().as_u16();
     let latency_ms = started_at.elapsed().as_millis() as u64;
+    let outcome = if status >= 500 {
+        "server_error"
+    } else if status >= 400 {
+        "client_error"
+    } else {
+        "success"
+    };
+
     if status >= 500 {
-        warn!(
+        error!(
+            event = "http_request_completed",
             request_id = %request_id,
             method = %method,
             route = %route,
+            path = %path,
             status,
             latency_ms,
-            metric_name = "api_http_request",
-            "api request completed with server error"
+            outcome,
+            "http request completed"
+        );
+    } else if status >= 400 {
+        warn!(
+            event = "http_request_completed",
+            request_id = %request_id,
+            method = %method,
+            route = %route,
+            path = %path,
+            status,
+            latency_ms,
+            outcome,
+            "http request completed"
         );
     } else {
-        info!(
+        debug!(
+            event = "http_request_completed",
             request_id = %request_id,
             method = %method,
             route = %route,
+            path = %path,
             status,
             latency_ms,
-            metric_name = "api_http_request",
-            "api request metrics"
+            outcome,
+            "http request completed"
         );
     }
 
