@@ -218,7 +218,7 @@ struct ProfileView: View {
         let username = clerk.user?.username?.trimmingCharacters(in: .whitespacesAndNewlines)
 
         if let firstName, let lastName, !firstName.isEmpty, !lastName.isEmpty {
-            return \"\\(firstName) \\(lastName)\"
+            return "\(firstName) \(lastName)"
         }
         if let firstName, !firstName.isEmpty {
             return firstName
