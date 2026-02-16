@@ -60,6 +60,7 @@ Safety flags:
 
 1. `--dry-run` prints all commands without execution.
 2. `--evidence-dir <path>` stores execution logs for audit evidence.
+3. `--show-commands` prints full command text in dry-run logs (default behavior hides command text to reduce accidental secret exposure).
 
 ## Standard Procedure
 

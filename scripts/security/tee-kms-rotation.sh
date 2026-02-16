@@ -8,6 +8,7 @@ Usage:
 
 Options:
   --dry-run                 Print actions without executing remote/operator commands.
+  --show-commands           Print full command text in dry-run logs (default: hidden).
   --evidence-dir <path>     Directory for execution evidence logs (default: artifacts/security/rotation).
   --confirm-production      Required when --env production is used.
   -h, --help                Show this help text.
@@ -51,6 +52,7 @@ shift
 
 TARGET_ENV=""
 DRY_RUN=false
+SHOW_COMMANDS=false
 EVIDENCE_DIR="artifacts/security/rotation"
 CONFIRM_PRODUCTION=false
 
@@ -62,6 +64,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --dry-run)
       DRY_RUN=true
+      shift
+      ;;
+    --show-commands)
+      SHOW_COMMANDS=true
       shift
       ;;
     --evidence-dir)
@@ -142,7 +148,11 @@ run_command() {
   fi
 
   if [[ "$DRY_RUN" == true ]]; then
-    log "DRY-RUN $label -> $cmd"
+    if [[ "$SHOW_COMMANDS" == true ]]; then
+      log "DRY-RUN $label -> $cmd"
+    else
+      log "DRY-RUN $label (command hidden; use --show-commands to print)"
+    fi
     return
   fi
 
@@ -237,7 +247,7 @@ require_env_var KMS_KEY_ID
 require_env_var KMS_KEY_VERSION
 require_env_var KMS_ALLOWED_MEASUREMENTS
 
-log "Starting action=$ACTION env=$TARGET_ENV dry_run=$DRY_RUN evidence_file=$EVIDENCE_FILE"
+log "Starting action=$ACTION env=$TARGET_ENV dry_run=$DRY_RUN show_commands=$SHOW_COMMANDS evidence_file=$EVIDENCE_FILE"
 
 case "$ACTION" in
   preflight)
