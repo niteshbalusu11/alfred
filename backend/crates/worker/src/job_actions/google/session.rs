@@ -1,6 +1,6 @@
 use shared::config::WorkerConfig;
 use shared::enclave::{ConnectorSecretRequest, EnclaveRpcAuthConfig, EnclaveRpcClient};
-use shared::repos::{LEGACY_CONNECTOR_TOKEN_KEY_ID, Store};
+use shared::repos::Store;
 use shared::security::SecretRuntime;
 
 use crate::JobExecutionError;
@@ -36,7 +36,7 @@ async fn load_active_google_connector(
     config: &WorkerConfig,
     user_id: uuid::Uuid,
 ) -> Result<ActiveGoogleConnector, JobExecutionError> {
-    let mut connector = store
+    let connector = store
         .list_active_connector_metadata(user_id)
         .await
         .map_err(|err| {
@@ -54,40 +54,32 @@ async fn load_active_google_connector(
             )
         })?;
 
-    if connector.token_key_id == LEGACY_CONNECTOR_TOKEN_KEY_ID {
-        store
-            .adopt_legacy_connector_token_key_id(
+    if connector.token_key_id != config.kms_key_id
+        || connector.token_version != config.kms_key_version
+    {
+        match store
+            .ensure_active_connector_key_metadata(
                 user_id,
                 connector.connector_id,
                 &config.kms_key_id,
                 config.kms_key_version,
             )
             .await
-            .map_err(|err| {
-                JobExecutionError::transient(
-                    "CONNECTOR_KEY_METADATA_UPDATE_FAILED",
-                    format!("failed to adopt connector key metadata: {err}"),
-                )
-            })?;
-
-        let refreshed = store
-            .get_active_connector_key_metadata(user_id, connector.connector_id)
-            .await
-            .map_err(|err| {
-                JobExecutionError::transient(
-                    "CONNECTOR_KEY_METADATA_READ_FAILED",
-                    format!("failed to read connector key metadata: {err}"),
-                )
-            })?
-            .ok_or_else(|| {
-                JobExecutionError::permanent(
+        {
+            Ok(Some(_)) => {}
+            Ok(None) => {
+                return Err(JobExecutionError::permanent(
                     "CONNECTOR_KEY_METADATA_MISSING",
                     "connector key metadata changed; retry the job",
-                )
-            })?;
-
-        connector.token_key_id = refreshed.token_key_id;
-        connector.token_version = refreshed.token_version;
+                ));
+            }
+            Err(err) => {
+                return Err(JobExecutionError::transient(
+                    "CONNECTOR_KEY_METADATA_UPDATE_FAILED",
+                    format!("failed to rotate connector key metadata: {err}"),
+                ));
+            }
+        }
     }
 
     Ok(ActiveGoogleConnector {

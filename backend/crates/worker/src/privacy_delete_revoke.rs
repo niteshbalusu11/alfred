@@ -1,6 +1,6 @@
 use shared::config::WorkerConfig;
 use shared::enclave::{ConnectorSecretRequest, EnclaveRpcClient, EnclaveRpcError};
-use shared::repos::{ActiveConnectorMetadata, LEGACY_CONNECTOR_TOKEN_KEY_ID, Store};
+use shared::repos::{ActiveConnectorMetadata, Store};
 use shared::security::SecretRuntime;
 use tracing::info;
 use uuid::Uuid;
@@ -85,47 +85,33 @@ async fn normalize_connector_metadata(
     store: &Store,
     config: &WorkerConfig,
     user_id: Uuid,
-    mut connector: ActiveConnectorMetadata,
+    connector: ActiveConnectorMetadata,
 ) -> Result<ActiveConnectorMetadata, DeleteRequestError> {
-    if connector.token_key_id != LEGACY_CONNECTOR_TOKEN_KEY_ID {
+    if connector.token_key_id == config.kms_key_id
+        && connector.token_version == config.kms_key_version
+    {
         return Ok(connector);
     }
 
-    store
-        .adopt_legacy_connector_token_key_id(
+    match store
+        .ensure_active_connector_key_metadata(
             user_id,
             connector.connector_id,
             &config.kms_key_id,
             config.kms_key_version,
         )
         .await
-        .map_err(|err| {
-            DeleteRequestError::new(
-                "CONNECTOR_KEY_METADATA_UPDATE_FAILED",
-                format!("failed to adopt connector key metadata: {err}"),
-            )
-        })?;
-
-    let refreshed = store
-        .get_active_connector_key_metadata(user_id, connector.connector_id)
-        .await
-        .map_err(|err| {
-            DeleteRequestError::new(
-                "CONNECTOR_KEY_METADATA_READ_FAILED",
-                format!("failed to read connector key metadata: {err}"),
-            )
-        })?
-        .ok_or_else(|| {
-            DeleteRequestError::new(
-                "CONNECTOR_KEY_METADATA_MISSING",
-                "connector key metadata changed during delete workflow",
-            )
-        })?;
-
-    connector.token_key_id = refreshed.token_key_id;
-    connector.token_version = refreshed.token_version;
-
-    Ok(connector)
+    {
+        Ok(Some(_)) => Ok(connector),
+        Ok(None) => Err(DeleteRequestError::new(
+            "CONNECTOR_KEY_METADATA_MISSING",
+            "connector key metadata changed during delete workflow",
+        )),
+        Err(err) => Err(DeleteRequestError::new(
+            "CONNECTOR_KEY_METADATA_UPDATE_FAILED",
+            format!("failed to rotate connector key metadata: {err}"),
+        )),
+    }
 }
 
 fn build_enclave_client(config: &WorkerConfig, oauth_client: &reqwest::Client) -> EnclaveRpcClient {

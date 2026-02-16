@@ -6,7 +6,7 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use shared::enclave::ConnectorSecretRequest;
 use shared::models::{ConnectorStatus, ErrorBody, ErrorResponse, RevokeConnectorResponse};
-use shared::repos::{AuditResult, LEGACY_CONNECTOR_TOKEN_KEY_ID};
+use shared::repos::AuditResult;
 use uuid::Uuid;
 
 use super::super::errors::{bad_request_response, store_error_response};
@@ -62,18 +62,34 @@ pub(crate) async fn revoke_connector(
         );
     }
 
-    if connector_metadata.token_key_id == LEGACY_CONNECTOR_TOKEN_KEY_ID
-        && let Err(err) = state
+    if connector_metadata.token_key_id != state.secret_runtime.kms_key_id()
+        || connector_metadata.token_version != state.secret_runtime.kms_key_version()
+    {
+        match state
             .store
-            .adopt_legacy_connector_token_key_id(
+            .ensure_active_connector_key_metadata(
                 user.user_id,
                 connector_id,
                 state.secret_runtime.kms_key_id(),
                 state.secret_runtime.kms_key_version(),
             )
             .await
-    {
-        return store_error_response(err);
+        {
+            Ok(Some(_)) => {}
+            Ok(None) => {
+                return (
+                    StatusCode::NOT_FOUND,
+                    Json(ErrorResponse {
+                        error: ErrorBody {
+                            code: "not_found".to_string(),
+                            message: "Connector not found".to_string(),
+                        },
+                    }),
+                )
+                    .into_response();
+            }
+            Err(err) => return store_error_response(err),
+        }
     }
 
     let enclave_client = build_enclave_client(&state);

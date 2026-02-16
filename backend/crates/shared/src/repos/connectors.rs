@@ -5,6 +5,35 @@ use super::{
     ActiveConnectorMetadata, ConnectorKeyMetadata, LEGACY_CONNECTOR_TOKEN_KEY_ID, Store, StoreError,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ConnectorKeyRotationOutcome {
+    Rotated,
+    AlreadyCurrent,
+    Missing,
+    RetryRequired,
+}
+
+fn classify_connector_key_rotation_outcome(
+    rows_affected: u64,
+    refreshed: Option<&ConnectorKeyMetadata>,
+    target_key_id: &str,
+    target_version: i32,
+) -> ConnectorKeyRotationOutcome {
+    if rows_affected > 0 {
+        return ConnectorKeyRotationOutcome::Rotated;
+    }
+
+    let Some(refreshed) = refreshed else {
+        return ConnectorKeyRotationOutcome::Missing;
+    };
+
+    if refreshed.token_key_id == target_key_id && refreshed.token_version == target_version {
+        return ConnectorKeyRotationOutcome::AlreadyCurrent;
+    }
+
+    ConnectorKeyRotationOutcome::RetryRequired
+}
+
 impl Store {
     pub async fn list_active_connector_metadata(
         &self,
@@ -135,6 +164,65 @@ impl Store {
         .transpose()
     }
 
+    pub async fn ensure_active_connector_key_metadata(
+        &self,
+        user_id: Uuid,
+        connector_id: Uuid,
+        target_key_id: &str,
+        target_version: i32,
+    ) -> Result<Option<ConnectorKeyMetadata>, StoreError> {
+        let Some(current) = self
+            .get_active_connector_key_metadata(user_id, connector_id)
+            .await?
+        else {
+            return Ok(None);
+        };
+
+        if current.token_key_id == target_key_id && current.token_version == target_version {
+            return Ok(Some(current));
+        }
+
+        let rows_affected = sqlx::query(
+            "UPDATE connectors
+             SET token_key_id = $3,
+                 token_version = $4,
+                 token_rotated_at = NOW()
+             WHERE id = $1
+               AND user_id = $2
+               AND status = 'ACTIVE'
+               AND token_key_id = $5
+               AND token_version = $6",
+        )
+        .bind(connector_id)
+        .bind(user_id)
+        .bind(target_key_id)
+        .bind(target_version)
+        .bind(&current.token_key_id)
+        .bind(current.token_version)
+        .execute(&self.pool)
+        .await?
+        .rows_affected();
+
+        let refreshed = self
+            .get_active_connector_key_metadata(user_id, connector_id)
+            .await?;
+
+        match classify_connector_key_rotation_outcome(
+            rows_affected,
+            refreshed.as_ref(),
+            target_key_id,
+            target_version,
+        ) {
+            ConnectorKeyRotationOutcome::Rotated | ConnectorKeyRotationOutcome::AlreadyCurrent => {
+                Ok(refreshed)
+            }
+            ConnectorKeyRotationOutcome::Missing => Ok(None),
+            ConnectorKeyRotationOutcome::RetryRequired => Err(StoreError::InvalidData(format!(
+                "connector key metadata rotation conflict for connector_id={connector_id}: expected target key_id={target_key_id}, version={target_version}"
+            ))),
+        }
+    }
+
     pub(crate) async fn decrypt_active_connector_refresh_token(
         &self,
         user_id: Uuid,
@@ -189,5 +277,58 @@ impl Store {
         .await?;
 
         Ok(result.rows_affected() > 0)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ConnectorKeyRotationOutcome, classify_connector_key_rotation_outcome};
+    use crate::repos::ConnectorKeyMetadata;
+
+    fn metadata(token_key_id: &str, token_version: i32) -> ConnectorKeyMetadata {
+        ConnectorKeyMetadata {
+            provider: "google".to_string(),
+            token_key_id: token_key_id.to_string(),
+            token_version,
+        }
+    }
+
+    #[test]
+    fn classify_rotation_success_when_update_applied() {
+        let outcome = classify_connector_key_rotation_outcome(
+            1,
+            Some(&metadata("kms/alfred/token", 2)),
+            "kms/alfred/token",
+            2,
+        );
+        assert_eq!(outcome, ConnectorKeyRotationOutcome::Rotated);
+    }
+
+    #[test]
+    fn classify_rotation_retry_safe_when_concurrent_writer_already_rotated() {
+        let outcome = classify_connector_key_rotation_outcome(
+            0,
+            Some(&metadata("kms/alfred/token", 2)),
+            "kms/alfred/token",
+            2,
+        );
+        assert_eq!(outcome, ConnectorKeyRotationOutcome::AlreadyCurrent);
+    }
+
+    #[test]
+    fn classify_rotation_partial_failure_requires_retry() {
+        let outcome = classify_connector_key_rotation_outcome(
+            0,
+            Some(&metadata("__legacy__", 1)),
+            "kms/alfred/token",
+            2,
+        );
+        assert_eq!(outcome, ConnectorKeyRotationOutcome::RetryRequired);
+    }
+
+    #[test]
+    fn classify_rotation_missing_row_is_deterministic_noop() {
+        let outcome = classify_connector_key_rotation_outcome(0, None, "kms/alfred/token", 2);
+        assert_eq!(outcome, ConnectorKeyRotationOutcome::Missing);
     }
 }
