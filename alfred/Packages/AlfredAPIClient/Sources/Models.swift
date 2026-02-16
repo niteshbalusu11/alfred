@@ -45,9 +45,16 @@ public struct SendTestNotificationResponse: Codable, Sendable {
 
 public struct AssistantQueryRequest: Codable, Sendable {
     public let query: String
+    public let sessionId: UUID?
 
-    public init(query: String) {
+    enum CodingKeys: String, CodingKey {
+        case query
+        case sessionId = "session_id"
+    }
+
+    public init(query: String, sessionId: UUID? = nil) {
         self.query = query
+        self.sessionId = sessionId
     }
 }
 
@@ -70,11 +77,13 @@ public struct AssistantMeetingsTodayPayload: Codable, Sendable {
 }
 
 public struct AssistantQueryResponse: Codable, Sendable {
+    public let sessionId: UUID
     public let capability: AssistantQueryCapability
     public let displayText: String
     public let payload: AssistantMeetingsTodayPayload
 
     enum CodingKeys: String, CodingKey {
+        case sessionId = "session_id"
         case capability
         case displayText = "display_text"
         case payload

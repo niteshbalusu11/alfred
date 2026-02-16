@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -34,6 +35,8 @@ pub struct SendTestNotificationResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AssistantQueryRequest {
     pub query: String,
+    #[serde(default)]
+    pub session_id: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -52,6 +55,7 @@ pub struct AssistantMeetingsTodayPayload {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AssistantQueryResponse {
+    pub session_id: Uuid,
     pub capability: AssistantQueryCapability,
     pub display_text: String,
     pub payload: AssistantMeetingsTodayPayload,

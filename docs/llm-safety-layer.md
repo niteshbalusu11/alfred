@@ -27,6 +27,24 @@ Define baseline runtime safeguards for all LLM-backed backend capabilities.
    1. `backend/crates/api-server/src/http/assistant/query.rs`
 3. Prompt templates include explicit instruction to treat context as untrusted:
    1. `backend/crates/shared/src/llm/prompts.rs`
+4. Assistant session follow-up memory path:
+   1. `backend/crates/shared/src/repos/assistant_sessions.rs`
+   2. `backend/crates/api-server/src/http/assistant/query.rs`
+   3. `db/migrations/0009_assistant_sessions.sql`
+
+## Assistant Session Memory Controls (Issue #101)
+
+1. Session continuity uses `session_id` on `POST /v1/assistant/query`.
+2. Stored memory is bounded and encrypted:
+   1. Sliding TTL: 6 hours.
+   2. Max recent turns: 6.
+   3. Per-turn snippets are sanitized/truncated before persistence.
+3. Persisted payload is minimal redacted memory only:
+   1. User query snippet.
+   2. Assistant summary snippet.
+   3. Capability + timestamp.
+4. Raw connector payloads and raw LLM prompt/context payloads are not persisted as memory.
+5. Privacy delete purges assistant session rows in `purge_user_operational_data`.
 
 ## Tests
 
@@ -37,3 +55,9 @@ Define baseline runtime safeguards for all LLM-backed backend capabilities.
    2. Valid output passthrough.
    3. Invalid output fallback.
    4. Unsafe actionable urgent-email output fallback.
+3. Session memory tests live in:
+   1. `backend/crates/api-server/src/http/assistant/memory.rs` (`#[cfg(test)]` module)
+4. Covered session-memory scenarios:
+   1. Ambiguous follow-up capability reuse from prior session capability.
+   2. Bounded turn window and truncation/redaction behavior.
+   3. Empty-memory omission from model context.

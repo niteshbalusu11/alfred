@@ -351,6 +351,9 @@ components:
         query:
           type: string
           minLength: 1
+        session_id:
+          type: string
+          format: uuid
     AssistantQueryCapability:
       type: string
       enum: [meetings_today]
@@ -372,8 +375,11 @@ components:
             type: string
     AssistantQueryResponse:
       type: object
-      required: [capability, display_text, payload]
+      required: [session_id, capability, display_text, payload]
       properties:
+        session_id:
+          type: string
+          format: uuid
         capability:
           $ref: "#/components/schemas/AssistantQueryCapability"
         display_text:

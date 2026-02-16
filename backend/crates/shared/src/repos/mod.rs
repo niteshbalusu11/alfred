@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use crate::models::ApnsEnvironment;
 
+mod assistant_sessions;
 mod audit;
 mod auth;
 mod connectors;
@@ -13,6 +14,11 @@ mod jobs;
 mod preferences;
 mod privacy;
 mod users;
+
+pub use assistant_sessions::{
+    ASSISTANT_SESSION_MEMORY_VERSION_V1, AssistantSessionMemory, AssistantSessionRecord,
+    AssistantSessionTurn,
+};
 
 const DEFAULT_MEETING_REMINDER_MINUTES: i32 = 15;
 const DEFAULT_MORNING_BRIEF_LOCAL_TIME: &str = "08:00";
