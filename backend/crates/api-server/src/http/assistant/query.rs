@@ -4,9 +4,9 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use chrono::Utc;
 use shared::llm::{
-    AssistantCapability, AssistantOutputContract, LlmGateway, LlmGatewayRequest, SafeOutputSource,
-    assemble_meetings_today_context, resolve_safe_output, sanitize_context_payload,
-    template_for_capability,
+    AssistantCapability, AssistantOutputContract, LlmExecutionSource, LlmGatewayRequest,
+    SafeOutputSource, assemble_meetings_today_context, generate_with_telemetry,
+    resolve_safe_output, sanitize_context_payload, template_for_capability,
 };
 use shared::models::{
     AssistantMeetingsTodayPayload, AssistantQueryCapability, AssistantQueryRequest,
@@ -16,13 +16,18 @@ use shared::timezone::user_local_date;
 use tracing::warn;
 
 use super::super::errors::{bad_gateway_response, bad_request_response, store_error_response};
+use super::super::observability::RequestContext;
 use super::super::{AppState, AuthUser};
+use super::ai_observability::{
+    append_llm_telemetry_metadata, log_llm_telemetry, record_ai_audit_event,
+};
 use super::fetch::fetch_meetings_for_day;
 use super::session::build_google_session;
 
 pub(crate) async fn query_assistant(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
+    Extension(request_context): Extension<RequestContext>,
     Json(req): Json<AssistantQueryRequest>,
 ) -> Response {
     let trimmed_query = req.query.trim();
@@ -42,12 +47,16 @@ pub(crate) async fn query_assistant(
 
     match capability {
         AssistantQueryCapability::MeetingsToday => {
-            handle_meetings_today_query(&state, user.user_id).await
+            handle_meetings_today_query(&state, user.user_id, &request_context.request_id).await
         }
     }
 }
 
-async fn handle_meetings_today_query(state: &AppState, user_id: uuid::Uuid) -> Response {
+async fn handle_meetings_today_query(
+    state: &AppState,
+    user_id: uuid::Uuid,
+    request_id: &str,
+) -> Response {
     let session = match build_google_session(state, user_id).await {
         Ok(session) => session,
         Err(response) => return response,
@@ -97,10 +106,27 @@ async fn handle_meetings_today_query(state: &AppState, user_id: uuid::Uuid) -> R
         context_payload.clone(),
     );
 
-    let model_output = match state.llm_gateway.generate(request).await {
+    let (llm_result, telemetry) = generate_with_telemetry(
+        &state.llm_gateway,
+        LlmExecutionSource::ApiAssistantQuery,
+        request,
+    )
+    .await;
+    log_llm_telemetry(user_id, request_id, &telemetry);
+
+    let mut audit_metadata = std::collections::HashMap::new();
+    audit_metadata.insert(
+        "action_source".to_string(),
+        "assistant_query_llm_orchestrator".to_string(),
+    );
+    audit_metadata.insert("request_id".to_string(), request_id.to_string());
+    append_llm_telemetry_metadata(&mut audit_metadata, &telemetry);
+
+    let model_output = match llm_result {
         Ok(response) => Some(response.output),
         Err(err) => {
             warn!(user_id = %user_id, "assistant provider request failed: {err}");
+            audit_metadata.insert("llm_error".to_string(), err.to_string());
             None
         }
     };
@@ -110,9 +136,21 @@ async fn handle_meetings_today_query(state: &AppState, user_id: uuid::Uuid) -> R
         model_output.as_ref(),
         &context_payload,
     );
-    if matches!(resolved.source, SafeOutputSource::DeterministicFallback) {
-        warn!(user_id = %user_id, "assistant returned deterministic fallback output");
-    }
+    let output_source = match resolved.source {
+        SafeOutputSource::ModelOutput => "model_output",
+        SafeOutputSource::DeterministicFallback => {
+            warn!(user_id = %user_id, "assistant returned deterministic fallback output");
+            "deterministic_fallback"
+        }
+    };
+    audit_metadata.insert("llm_output_source".to_string(), output_source.to_string());
+
+    let audit_result = if telemetry.outcome == "success" && output_source == "model_output" {
+        shared::repos::AuditResult::Success
+    } else {
+        shared::repos::AuditResult::Failure
+    };
+    record_ai_audit_event(state, user_id, request_id, audit_result, &audit_metadata).await;
 
     let AssistantOutputContract::MeetingsSummary(contract) = resolved.contract else {
         return bad_gateway_response(

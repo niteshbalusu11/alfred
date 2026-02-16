@@ -4,17 +4,21 @@ use chrono::{DateTime, Utc};
 use shared::config::WorkerConfig;
 use shared::llm::contracts::MorningBriefOutput;
 use shared::llm::{
-    AssistantCapability, AssistantOutputContract, GoogleCalendarMeetingSource, LlmGateway,
-    LlmGatewayRequest, SafeOutputSource, assemble_morning_brief_context, resolve_safe_output,
-    sanitize_context_payload, template_for_capability,
+    AssistantCapability, AssistantOutputContract, GoogleCalendarMeetingSource, LlmExecutionSource,
+    LlmGateway, LlmGatewayRequest, SafeOutputSource, assemble_morning_brief_context,
+    generate_with_telemetry, resolve_safe_output, sanitize_context_payload,
+    template_for_capability,
 };
 use shared::models::Preferences;
-use shared::repos::Store;
+use shared::repos::{AuditResult, Store};
 use shared::security::SecretRuntime;
 use shared::timezone::{local_day_bounds_utc, user_local_date};
 use tracing::warn;
 
 use super::super::JobActionResult;
+use super::ai_observability::{
+    append_llm_telemetry_metadata, log_llm_telemetry, record_ai_audit_event,
+};
 use super::fetch::{GoogleCalendarEvent, fetch_calendar_events};
 use super::session::build_google_session;
 use super::util::truncate_for_notification;
@@ -109,25 +113,17 @@ pub(super) async fn build_morning_brief(
         session.attested_measurement,
     );
 
-    let model_output = match llm_gateway.generate(request).await {
+    let (llm_result, telemetry) =
+        generate_with_telemetry(llm_gateway, LlmExecutionSource::WorkerMorningBrief, request).await;
+    log_llm_telemetry(user_id, &telemetry);
+    append_llm_telemetry_metadata(&mut metadata, &telemetry);
+
+    let mut llm_request_succeeded = false;
+    let model_output = match llm_result {
         Ok(response) => {
-            metadata.insert("llm_model".to_string(), response.model);
+            llm_request_succeeded = true;
             if let Some(provider_request_id) = response.provider_request_id {
                 metadata.insert("llm_provider_request_id".to_string(), provider_request_id);
-            }
-            if let Some(usage) = response.usage {
-                metadata.insert(
-                    "llm_prompt_tokens".to_string(),
-                    usage.prompt_tokens.to_string(),
-                );
-                metadata.insert(
-                    "llm_completion_tokens".to_string(),
-                    usage.completion_tokens.to_string(),
-                );
-                metadata.insert(
-                    "llm_total_tokens".to_string(),
-                    usage.total_tokens.to_string(),
-                );
             }
             Some(response.output)
         }
@@ -151,6 +147,20 @@ pub(super) async fn build_morning_brief(
         }
     };
     metadata.insert("llm_output_source".to_string(), output_source.to_string());
+
+    let audit_result = if llm_request_succeeded && output_source == "model_output" {
+        AuditResult::Success
+    } else {
+        AuditResult::Failure
+    };
+    record_ai_audit_event(
+        store,
+        user_id,
+        "AI_WORKER_MORNING_BRIEF_OUTPUT",
+        audit_result,
+        &metadata,
+    )
+    .await;
 
     let AssistantOutputContract::MorningBrief(contract) = resolved.contract else {
         return Err(JobExecutionError::permanent(
