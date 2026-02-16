@@ -68,7 +68,13 @@ pub(super) fn too_many_requests_response(retry_after_seconds: u64) -> Response {
 
 pub(super) fn security_error_response(err: SecurityError) -> Response {
     match err {
-        SecurityError::InvalidAttestationDocument(_) => {
+        SecurityError::InvalidAttestationDocument(_)
+        | SecurityError::MissingAttestationPublicKey
+        | SecurityError::InvalidAttestationPublicKey
+        | SecurityError::MissingAttestationSignature
+        | SecurityError::AttestationChallengeRequestFailed { .. }
+        | SecurityError::AttestationChallengeRejected { .. }
+        | SecurityError::ReplayGuardUnavailable => {
             error!("security runtime misconfigured: {err}");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,

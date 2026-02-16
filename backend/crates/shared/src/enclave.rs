@@ -197,6 +197,7 @@ impl EnclaveRpcClient {
                 key_id: request.token_key_id.clone(),
                 key_version: request.token_version,
             })
+            .await
             .map_err(EnclaveRpcError::DecryptNotAuthorized)?;
 
         let refresh_token = self

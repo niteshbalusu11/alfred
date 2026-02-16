@@ -66,29 +66,30 @@ These vars control TEE/KMS-bound decrypt policy for connector refresh tokens:
 1. `TEE_ATTESTATION_REQUIRED` (default: `true`)
 2. `TEE_EXPECTED_RUNTIME` (default: `nitro`)
 3. `TEE_ALLOWED_MEASUREMENTS` (CSV, default: `dev-local-enclave`)
-4. `TEE_ATTESTATION_DOCUMENT_PATH` (path to attestation JSON refreshed by trusted runtime)
-5. `TEE_ATTESTATION_DOCUMENT` (inline JSON fallback for local/dev only)
-6. `TEE_ATTESTATION_PUBLIC_KEY` (base64 Ed25519 public key used for signature verification)
-7. `TEE_ATTESTATION_MAX_AGE_SECONDS` (default: `300`)
-8. `TEE_ALLOW_INSECURE_DEV_ATTESTATION` (default: `false`; only for local dev without signatures)
-9. Secure mode (`TEE_ATTESTATION_REQUIRED=true` and insecure mode disabled) requires `TEE_ATTESTATION_DOCUMENT_PATH`.
-10. `KMS_KEY_ID` (default: `kms/local/alfred-refresh-token`)
-11. `KMS_KEY_VERSION` (default: `1`)
-12. `KMS_ALLOWED_MEASUREMENTS` (CSV; defaults to `TEE_ALLOWED_MEASUREMENTS`)
-13. `TRUSTED_PROXY_IPS` (CSV of proxy/LB source IPs; only these peers are allowed to supply forwarded client IP headers for unauthenticated rate limiting)
-14. `ALFRED_ENV` (`local`, `staging`, `production`; default: `local`)
-15. `ENCLAVE_RUNTIME_MODE` (`dev-shim`, `remote`, `disabled`; non-local requires `remote`)
-16. `ENCLAVE_RUNTIME_BASE_URL` (default: `http://127.0.0.1:8181`)
-17. `ENCLAVE_RUNTIME_PROBE_TIMEOUT_MS` (default: `2000`)
-18. `ENCLAVE_RUNTIME_BIND_ADDR` (enclave runtime process bind address; default: `127.0.0.1:8181`)
-19. `ENCLAVE_RUNTIME_MEASUREMENT` (dev-shim measurement identifier; default: `dev-local-enclave`)
+4. `TEE_ATTESTATION_PUBLIC_KEY` (base64 Ed25519 public key used for challenge response signature verification)
+5. `TEE_ATTESTATION_MAX_AGE_SECONDS` (default: `300`)
+6. `TEE_ATTESTATION_CHALLENGE_TIMEOUT_MS` (default: `2000`)
+7. `TEE_ALLOW_INSECURE_DEV_ATTESTATION` (default: `false`; only for local dev without signatures)
+8. `KMS_KEY_ID` (default: `kms/local/alfred-refresh-token`)
+9. `KMS_KEY_VERSION` (default: `1`)
+10. `KMS_ALLOWED_MEASUREMENTS` (CSV; defaults to `TEE_ALLOWED_MEASUREMENTS`)
+11. `TRUSTED_PROXY_IPS` (CSV of proxy/LB source IPs; only these peers are allowed to supply forwarded client IP headers for unauthenticated rate limiting)
+12. `ALFRED_ENV` (`local`, `staging`, `production`; default: `local`)
+13. `ENCLAVE_RUNTIME_MODE` (`dev-shim`, `remote`, `disabled`; non-local requires `remote`)
+14. `ENCLAVE_RUNTIME_BASE_URL` (default: `http://127.0.0.1:8181`)
+15. `ENCLAVE_RUNTIME_PROBE_TIMEOUT_MS` (default: `2000`)
+16. `ENCLAVE_RUNTIME_BIND_ADDR` (enclave runtime process bind address; default: `127.0.0.1:8181`)
+17. `ENCLAVE_RUNTIME_MEASUREMENT` (dev-shim measurement identifier; default: `dev-local-enclave`)
+18. `TEE_ATTESTATION_SIGNING_PRIVATE_KEY` (base64 Ed25519 private key used by enclave runtime to sign challenge-bound attestation evidence)
+19. `TEE_ATTESTATION_DOCUMENT_PATH` (remote-mode enclave runtime attestation identity source)
+20. `TEE_ATTESTATION_DOCUMENT` (inline remote-mode attestation identity source for local smoke setups)
 
 Connector token usage boundary:
 
 1. API/worker handler modules do not call connector decrypt repository APIs directly.
 2. Sensitive Google token refresh/revoke flows execute through the enclave RPC contract in `shared::enclave`.
-3. Decrypt authorization fails closed when attestation/KMS policy checks fail or connector key metadata drifts.
-4. API/worker startup now performs fail-closed connectivity checks against enclave runtime `GET /healthz` and `GET /v1/attestation/document`.
+3. Decrypt authorization fails closed when challenge-bound attestation verification/KMS policy checks fail or connector key metadata drifts.
+4. API/worker startup now performs fail-closed connectivity checks against enclave runtime `GET /healthz`, `GET /v1/attestation/document`, and `POST /v1/attestation/challenge`.
 
 Enclave runtime commands:
 

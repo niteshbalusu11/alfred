@@ -36,10 +36,9 @@ pub struct ApiConfig {
     pub tee_attestation_required: bool,
     pub tee_expected_runtime: String,
     pub tee_allowed_measurements: Vec<String>,
-    pub tee_attestation_document: Option<String>,
-    pub tee_attestation_document_path: Option<PathBuf>,
     pub tee_attestation_public_key: Option<String>,
     pub tee_attestation_max_age_seconds: u64,
+    pub tee_attestation_challenge_timeout_ms: u64,
     pub tee_allow_insecure_dev_attestation: bool,
     pub kms_key_id: String,
     pub kms_key_version: i32,
@@ -70,10 +69,9 @@ pub struct WorkerConfig {
     pub tee_attestation_required: bool,
     pub tee_expected_runtime: String,
     pub tee_allowed_measurements: Vec<String>,
-    pub tee_attestation_document: Option<String>,
-    pub tee_attestation_document_path: Option<PathBuf>,
     pub tee_attestation_public_key: Option<String>,
     pub tee_attestation_max_age_seconds: u64,
+    pub tee_attestation_challenge_timeout_ms: u64,
     pub tee_allow_insecure_dev_attestation: bool,
     pub kms_key_id: String,
     pub kms_key_version: i32,
@@ -117,25 +115,11 @@ impl ApiConfig {
         let tee_attestation_required = parse_bool_env("TEE_ATTESTATION_REQUIRED", true)?;
         let tee_allow_insecure_dev_attestation =
             parse_bool_env("TEE_ALLOW_INSECURE_DEV_ATTESTATION", false)?;
-        let tee_attestation_document = env::var("TEE_ATTESTATION_DOCUMENT").ok();
-        let tee_attestation_document_path = env::var("TEE_ATTESTATION_DOCUMENT_PATH")
-            .ok()
-            .map(PathBuf::from);
-
-        if tee_attestation_required
-            && !tee_allow_insecure_dev_attestation
-            && tee_attestation_document_path.is_none()
-        {
+        let tee_attestation_challenge_timeout_ms =
+            parse_u64_env("TEE_ATTESTATION_CHALLENGE_TIMEOUT_MS", 2000)?;
+        if tee_attestation_challenge_timeout_ms == 0 {
             return Err(ConfigError::InvalidConfiguration(
-                "TEE_ATTESTATION_DOCUMENT_PATH is required when secure attestation mode is enabled"
-                    .to_string(),
-            ));
-        }
-
-        if tee_attestation_document_path.is_none() && tee_attestation_document.is_none() {
-            return Err(ConfigError::InvalidConfiguration(
-                "either TEE_ATTESTATION_DOCUMENT_PATH or TEE_ATTESTATION_DOCUMENT must be set"
-                    .to_string(),
+                "TEE_ATTESTATION_CHALLENGE_TIMEOUT_MS must be greater than 0".to_string(),
             ));
         }
         let enclave_runtime_mode =
@@ -230,10 +214,9 @@ impl ApiConfig {
             tee_expected_runtime: env::var("TEE_EXPECTED_RUNTIME")
                 .unwrap_or_else(|_| "nitro".to_string()),
             tee_allowed_measurements: tee_allowed_measurements.clone(),
-            tee_attestation_document,
-            tee_attestation_document_path,
             tee_attestation_public_key: env::var("TEE_ATTESTATION_PUBLIC_KEY").ok(),
             tee_attestation_max_age_seconds: parse_u64_env("TEE_ATTESTATION_MAX_AGE_SECONDS", 300)?,
+            tee_attestation_challenge_timeout_ms,
             tee_allow_insecure_dev_attestation,
             kms_key_id: env::var("KMS_KEY_ID")
                 .unwrap_or_else(|_| "kms/local/alfred-refresh-token".to_string()),
@@ -316,10 +299,13 @@ impl WorkerConfig {
         let tee_attestation_required = parse_bool_env("TEE_ATTESTATION_REQUIRED", true)?;
         let tee_allow_insecure_dev_attestation =
             parse_bool_env("TEE_ALLOW_INSECURE_DEV_ATTESTATION", false)?;
-        let tee_attestation_document = env::var("TEE_ATTESTATION_DOCUMENT").ok();
-        let tee_attestation_document_path = env::var("TEE_ATTESTATION_DOCUMENT_PATH")
-            .ok()
-            .map(PathBuf::from);
+        let tee_attestation_challenge_timeout_ms =
+            parse_u64_env("TEE_ATTESTATION_CHALLENGE_TIMEOUT_MS", 2000)?;
+        if tee_attestation_challenge_timeout_ms == 0 {
+            return Err(ConfigError::InvalidConfiguration(
+                "TEE_ATTESTATION_CHALLENGE_TIMEOUT_MS must be greater than 0".to_string(),
+            ));
+        }
         let enclave_runtime_mode =
             parse_enclave_runtime_mode("ENCLAVE_RUNTIME_MODE", alfred_environment)?;
         validate_enclave_runtime_guards(
@@ -359,10 +345,9 @@ impl WorkerConfig {
             tee_expected_runtime: env::var("TEE_EXPECTED_RUNTIME")
                 .unwrap_or_else(|_| "nitro".to_string()),
             tee_allowed_measurements: tee_allowed_measurements.clone(),
-            tee_attestation_document,
-            tee_attestation_document_path,
             tee_attestation_public_key: env::var("TEE_ATTESTATION_PUBLIC_KEY").ok(),
             tee_attestation_max_age_seconds: parse_u64_env("TEE_ATTESTATION_MAX_AGE_SECONDS", 300)?,
+            tee_attestation_challenge_timeout_ms,
             tee_allow_insecure_dev_attestation,
             kms_key_id: env::var("KMS_KEY_ID")
                 .unwrap_or_else(|_| "kms/local/alfred-refresh-token".to_string()),

@@ -1,9 +1,15 @@
 use std::env;
 use std::path::PathBuf;
 
+use base64::Engine as _;
 use chrono::Utc;
+use ed25519_dalek::{Signer, SigningKey};
+use serde::Deserialize;
 use serde_json::{Value, json};
-use shared::enclave_runtime::{AlfredEnvironment, EnclaveRuntimeMode};
+use shared::enclave_runtime::{
+    AlfredEnvironment, AttestationChallengeRequest, AttestationChallengeResponse,
+    EnclaveRuntimeMode, attestation_signing_payload,
+};
 
 #[derive(Debug, Clone)]
 pub(crate) struct RuntimeConfig {
@@ -13,6 +19,7 @@ pub(crate) struct RuntimeConfig {
     pub(crate) runtime_id: String,
     pub(crate) measurement: String,
     attestation_source: AttestationSource,
+    attestation_signing_private_key: [u8; 32],
 }
 
 #[derive(Debug, Clone)]
@@ -20,6 +27,12 @@ enum AttestationSource {
     Inline(String),
     FilePath(PathBuf),
     Missing,
+}
+
+#[derive(Debug, Deserialize)]
+struct AttestationIdentityDocument {
+    runtime: String,
+    measurement: String,
 }
 
 impl RuntimeConfig {
@@ -46,6 +59,19 @@ impl RuntimeConfig {
             AttestationSource::Inline(document)
         } else {
             AttestationSource::Missing
+        };
+
+        let attestation_signing_private_key = if let Ok(encoded_key) =
+            env::var("TEE_ATTESTATION_SIGNING_PRIVATE_KEY")
+        {
+            decode_signing_key_bytes(encoded_key.as_str())?
+        } else if matches!(mode, EnclaveRuntimeMode::DevShim) {
+            [7_u8; 32]
+        } else {
+            return Err(
+                "remote mode requires TEE_ATTESTATION_SIGNING_PRIVATE_KEY (base64 32-byte Ed25519 key)"
+                    .to_string(),
+            );
         };
 
         if matches!(mode, EnclaveRuntimeMode::Disabled) {
@@ -79,6 +105,7 @@ impl RuntimeConfig {
             runtime_id,
             measurement,
             attestation_source,
+            attestation_signing_private_key,
         })
     }
 
@@ -107,11 +134,90 @@ impl RuntimeConfig {
         serde_json::from_str::<Value>(&raw)
             .map_err(|err| format!("failed to parse attestation document: {err}"))
     }
+
+    pub(crate) fn attestation_challenge_response(
+        &self,
+        challenge: AttestationChallengeRequest,
+    ) -> Result<AttestationChallengeResponse, String> {
+        if challenge.challenge_nonce.trim().is_empty() {
+            return Err("invalid challenge: challenge_nonce is required".to_string());
+        }
+        if challenge.request_id.trim().is_empty() {
+            return Err("invalid challenge: request_id is required".to_string());
+        }
+        if challenge.operation_purpose.trim().is_empty() {
+            return Err("invalid challenge: operation_purpose is required".to_string());
+        }
+        if challenge.expires_at <= challenge.issued_at {
+            return Err("invalid challenge: expires_at must be greater than issued_at".to_string());
+        }
+
+        let now = Utc::now().timestamp();
+        if now > challenge.expires_at {
+            return Err("invalid challenge: challenge has expired".to_string());
+        }
+
+        let (runtime, measurement) = self.attestation_identity()?;
+        let evidence_issued_at = now;
+
+        let mut response = AttestationChallengeResponse {
+            runtime,
+            measurement,
+            challenge_nonce: challenge.challenge_nonce,
+            issued_at: challenge.issued_at,
+            expires_at: challenge.expires_at,
+            operation_purpose: challenge.operation_purpose,
+            request_id: challenge.request_id,
+            evidence_issued_at,
+            signature: None,
+        };
+
+        let payload = attestation_signing_payload(&response);
+        let signing_key = SigningKey::from_bytes(&self.attestation_signing_private_key);
+        let signature = signing_key.sign(payload.as_bytes());
+        response.signature =
+            Some(base64::engine::general_purpose::STANDARD.encode(signature.to_bytes().as_ref()));
+
+        Ok(response)
+    }
+
+    fn attestation_identity(&self) -> Result<(String, String), String> {
+        if matches!(self.mode, EnclaveRuntimeMode::DevShim) {
+            return Ok((self.runtime_id.clone(), self.measurement.clone()));
+        }
+
+        let document = self.attestation_document()?;
+        let parsed: AttestationIdentityDocument = serde_json::from_value(document)
+            .map_err(|err| format!("failed to parse attestation identity document: {err}"))?;
+
+        if parsed.runtime.trim().is_empty() || parsed.measurement.trim().is_empty() {
+            return Err(
+                "attestation identity document requires runtime and measurement".to_string(),
+            );
+        }
+
+        Ok((parsed.runtime, parsed.measurement))
+    }
+}
+
+fn decode_signing_key_bytes(encoded_key: &str) -> Result<[u8; 32], String> {
+    let key_bytes = base64::engine::general_purpose::STANDARD
+        .decode(encoded_key.as_bytes())
+        .map_err(|_| {
+            "TEE_ATTESTATION_SIGNING_PRIVATE_KEY must be valid base64 for a 32-byte Ed25519 key"
+                .to_string()
+        })?;
+
+    key_bytes.try_into().map_err(|_| {
+        "TEE_ATTESTATION_SIGNING_PRIVATE_KEY must decode to exactly 32 bytes".to_string()
+    })
 }
 
 #[cfg(test)]
 mod tests {
-    use shared::enclave_runtime::{AlfredEnvironment, EnclaveRuntimeMode};
+    use shared::enclave_runtime::{
+        AlfredEnvironment, AttestationChallengeRequest, EnclaveRuntimeMode,
+    };
 
     use super::{AttestationSource, RuntimeConfig};
 
@@ -124,6 +230,7 @@ mod tests {
             runtime_id: "nitro".to_string(),
             measurement: "dev-local-enclave".to_string(),
             attestation_source: AttestationSource::Missing,
+            attestation_signing_private_key: [7_u8; 32],
         };
 
         let document = config
@@ -143,6 +250,7 @@ mod tests {
             runtime_id: "nitro".to_string(),
             measurement: "mr_enclave_1".to_string(),
             attestation_source: AttestationSource::Missing,
+            attestation_signing_private_key: [7_u8; 32],
         };
 
         let err = config
@@ -152,5 +260,35 @@ mod tests {
             err.contains("attestation document is missing"),
             "unexpected error message: {err}"
         );
+    }
+
+    #[test]
+    fn challenge_response_is_signed_and_echoes_challenge_fields() {
+        let config = RuntimeConfig {
+            bind_addr: "127.0.0.1:8181".to_string(),
+            environment: AlfredEnvironment::Local,
+            mode: EnclaveRuntimeMode::DevShim,
+            runtime_id: "nitro".to_string(),
+            measurement: "dev-local-enclave".to_string(),
+            attestation_source: AttestationSource::Missing,
+            attestation_signing_private_key: [7_u8; 32],
+        };
+
+        let challenge = AttestationChallengeRequest {
+            challenge_nonce: "nonce-1".to_string(),
+            issued_at: chrono::Utc::now().timestamp() - 2,
+            expires_at: chrono::Utc::now().timestamp() + 30,
+            operation_purpose: "decrypt".to_string(),
+            request_id: "req-1".to_string(),
+        };
+
+        let response = config
+            .attestation_challenge_response(challenge)
+            .expect("challenge should succeed");
+
+        assert_eq!(response.challenge_nonce, "nonce-1");
+        assert_eq!(response.operation_purpose, "decrypt");
+        assert_eq!(response.request_id, "req-1");
+        assert!(response.signature.is_some());
     }
 }
