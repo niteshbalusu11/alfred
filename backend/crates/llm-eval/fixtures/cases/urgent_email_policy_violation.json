@@ -1,0 +1,43 @@
+{
+  "case_id": "urgent_email_policy_violation",
+  "description": "Policy-invalid urgent email notify decision falls back deterministically.",
+  "capability": "urgent_email_summary",
+  "include_in_live_smoke": false,
+  "context_payload": {
+    "version": "2026-02-15",
+    "candidate_count": 1,
+    "candidates": [
+      {
+        "message_ref": "msg-1",
+        "from": "Ops",
+        "subject": "Server alert",
+        "snippet": "Latency high in us-east-1",
+        "received_at": "2026-02-15T19:00:00Z",
+        "labels": [
+          "ALERT",
+          "INBOX"
+        ],
+        "has_attachments": false
+      }
+    ]
+  },
+  "mocked_model_output": {
+    "version": "2026-02-15",
+    "output": {
+      "should_notify": true,
+      "urgency": "low",
+      "summary": "Potentially urgent alert detected.",
+      "reason": "single operational alert",
+      "suggested_actions": [
+        "Look at the alert dashboard"
+      ]
+    }
+  },
+  "expectations": {
+    "schema_valid": true,
+    "safe_output_source": "deterministic_fallback",
+    "quality": {
+      "min_suggested_actions": 1
+    }
+  }
+}

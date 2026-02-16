@@ -133,3 +133,34 @@ Behavior notes:
 4. Successful responses are cached in Redis for short-lived duplicate prompts, surviving process restarts.
 5. When budget window spend reaches threshold, requests route to `LLM_BUDGET_MODEL` until the window resets.
 6. API/worker startup fails fast if Redis reliability state cannot initialize.
+
+## LLM Eval Harness
+
+Deterministic eval/regression checks for assistant quality and safety are provided by
+`llm-eval` (`backend/crates/llm-eval`).
+
+Local commands from repo root:
+
+1. `just backend-eval`
+   1. Runs mocked deterministic evals with fixture-driven assertions and golden snapshot checks.
+2. `just backend-eval-update`
+   1. Intentionally rewrites mocked-mode goldens when prompt/schema/safety changes are expected.
+3. `just backend-eval-live`
+   1. Optional live OpenRouter smoke mode (requires `OPENROUTER_*` env vars).
+
+Interpretation:
+
+1. `schema_validity` failures indicate output contract/schema regressions.
+2. `safe_output_source` failures indicate policy violations that triggered deterministic fallback.
+3. `quality` failures indicate content quality regressions (for example empty summaries/actions).
+4. `golden_snapshot` failures indicate deterministic prompt/output drift and require intentional review.
+
+Fixture layout:
+
+1. Case fixtures: `backend/crates/llm-eval/fixtures/cases`
+2. Goldens: `backend/crates/llm-eval/fixtures/goldens`
+
+CI behavior:
+
+1. `.github/workflows/ci.yml` runs mocked mode as part of backend checks.
+2. Live mode remains opt-in for local/provider smoke testing.

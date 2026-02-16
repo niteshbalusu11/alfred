@@ -70,6 +70,18 @@ backend-build:
 backend-test:
     cd {{ backend_dir }} && cargo test
 
+# Run deterministic LLM eval/regression checks with mocked outputs.
+backend-eval:
+    cd {{ backend_dir }} && cargo run -p llm-eval -- --mode mocked
+
+# Intentionally refresh deterministic mocked-mode eval goldens.
+backend-eval-update:
+    cd {{ backend_dir }} && cargo run -p llm-eval -- --mode mocked --update-goldens
+
+# Optional live-provider smoke checks for LLM eval harness.
+backend-eval-live:
+    cd {{ backend_dir }} && cargo run -p llm-eval -- --mode live
+
 # Install sqlx-cli locally when missing.
 install-sqlx-cli:
     @command -v sqlx >/dev/null || cargo install sqlx-cli --no-default-features --features rustls,postgres

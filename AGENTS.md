@@ -40,7 +40,8 @@ This file is intentionally at repository root so coding agents can auto-discover
 5. Re-run relevant checks before finishing:
    1. `just ios-build`
    2. `just backend-verify` when backend behavior changes
-   3. `just ios-test` when iOS core logic changed
+   3. `just backend-eval` when AI backend prompt/contract/safety behavior changes
+   4. `just ios-test` when iOS core logic changed
 
 ## Local Infrastructure (Postgres for Backend Work)
 
