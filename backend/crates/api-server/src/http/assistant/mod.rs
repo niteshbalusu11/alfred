@@ -1,5 +1,6 @@
 mod ai_observability;
 mod fetch;
+mod memory;
 mod query;
 mod session;
 
