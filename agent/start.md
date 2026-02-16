@@ -147,6 +147,8 @@ Phase I labels currently in use:
 2. `docs/phase1-master-todo.md` is the planning/control board.
 3. If either side changes, keep them aligned in the same work cycle.
 4. Do not start untracked work; create/obtain an issue first.
+5. When an execution plan changes issue status, sequencing, dependencies, or scope, update the issue first and keep the board aligned in the same work cycle.
+6. Update `AGENTS.md` and this file only when workflow/policy changes (not for normal issue progress).
 
 ## Security and Privacy Constraints
 
