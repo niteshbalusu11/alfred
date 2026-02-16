@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use reqwest::StatusCode;
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::{Number, Value, json};
 use thiserror::Error;
 use tokio::time::sleep;
 
@@ -50,6 +50,8 @@ impl OpenRouterModelRoute {
 pub struct OpenRouterGatewayConfig {
     pub chat_completions_url: String,
     pub api_key: String,
+    pub app_http_referer: Option<String>,
+    pub app_title: Option<String>,
     pub timeout_ms: u64,
     pub max_retries: u32,
     pub retry_base_backoff_ms: u64,
@@ -79,6 +81,8 @@ impl OpenRouterGatewayConfig {
         Ok(Self {
             chat_completions_url,
             api_key,
+            app_http_referer: optional_trimmed_env("OPENROUTER_HTTP_REFERER"),
+            app_title: optional_trimmed_env("OPENROUTER_APP_TITLE"),
             timeout_ms: parse_u64_env("OPENROUTER_TIMEOUT_MS", DEFAULT_TIMEOUT_MS)?,
             max_retries: parse_u32_env("OPENROUTER_MAX_RETRIES", DEFAULT_MAX_RETRIES)?,
             retry_base_backoff_ms: parse_u64_env(
@@ -179,11 +183,17 @@ impl OpenRouterGateway {
             "temperature": 0,
             "max_tokens": self.config.max_output_tokens
         });
-
-        let response = self
+        let mut request_builder = self
             .client
             .post(&self.config.chat_completions_url)
-            .bearer_auth(&self.config.api_key)
+            .bearer_auth(&self.config.api_key);
+        if let Some(http_referer) = self.config.app_http_referer.as_deref() {
+            request_builder = request_builder.header("HTTP-Referer", http_referer);
+        }
+        if let Some(app_title) = self.config.app_title.as_deref() {
+            request_builder = request_builder.header("X-Title", app_title);
+        }
+        let response = request_builder
             .json(&request_body)
             .send()
             .await
@@ -268,9 +278,9 @@ impl OpenRouterGateway {
             provider_request_id: header_request_id.or(parsed.id),
             output,
             usage: parsed.usage.map(|usage| LlmTokenUsage {
-                prompt_tokens: clamp_u64_to_u32(usage.prompt_tokens.unwrap_or(0)),
-                completion_tokens: clamp_u64_to_u32(usage.completion_tokens.unwrap_or(0)),
-                total_tokens: clamp_u64_to_u32(usage.total_tokens.unwrap_or(0)),
+                prompt_tokens: parse_token_count(usage.prompt_tokens),
+                completion_tokens: parse_token_count(usage.completion_tokens),
+                total_tokens: parse_token_count(usage.total_tokens),
             }),
         })
     }
@@ -352,9 +362,9 @@ struct OpenRouterMessage {
 
 #[derive(Debug, Deserialize)]
 struct OpenRouterUsage {
-    prompt_tokens: Option<u64>,
-    completion_tokens: Option<u64>,
-    total_tokens: Option<u64>,
+    prompt_tokens: Option<Number>,
+    completion_tokens: Option<Number>,
+    total_tokens: Option<Number>,
 }
 
 fn parse_model_route() -> OpenRouterModelRoute {
@@ -424,6 +434,7 @@ fn optional_trimmed_env(key: &str) -> Option<String> {
 }
 
 fn is_retryable_status(status: StatusCode) -> bool {
+    let code = status.as_u16();
     matches!(
         status,
         StatusCode::REQUEST_TIMEOUT
@@ -432,7 +443,8 @@ fn is_retryable_status(status: StatusCode) -> bool {
             | StatusCode::BAD_GATEWAY
             | StatusCode::SERVICE_UNAVAILABLE
             | StatusCode::GATEWAY_TIMEOUT
-    )
+    ) || code == 524
+        || code == 529
 }
 
 fn header_request_id(headers: &reqwest::header::HeaderMap) -> Option<String> {
@@ -470,4 +482,18 @@ fn parse_provider_error_code(body: &str) -> String {
 
 fn clamp_u64_to_u32(value: u64) -> u32 {
     value.min(u32::MAX as u64) as u32
+}
+
+fn parse_token_count(value: Option<Number>) -> u32 {
+    let Some(value) = value else { return 0 };
+    if let Some(integer) = value.as_u64() {
+        return clamp_u64_to_u32(integer);
+    }
+    let Some(number) = value.as_f64() else {
+        return 0;
+    };
+    if !number.is_finite() || number <= 0.0 {
+        return 0;
+    }
+    clamp_u64_to_u32(number.floor().min(u64::MAX as f64) as u64)
 }
