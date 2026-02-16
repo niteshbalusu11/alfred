@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use chrono::{Duration as ChronoDuration, Utc};
 use shared::config::WorkerConfig;
-use shared::llm::LlmGateway;
 use shared::models::Preferences;
 use shared::repos::{ClaimedJob, JobType, Store};
 use shared::security::SecretRuntime;
@@ -26,7 +25,6 @@ pub(super) async fn resolve_job_action(
     config: &WorkerConfig,
     secret_runtime: &SecretRuntime,
     oauth_client: &reqwest::Client,
-    llm_gateway: &dyn LlmGateway,
     job: &ClaimedJob,
     preferences: &Preferences,
 ) -> Result<JobActionResult, JobExecutionError> {
@@ -49,7 +47,6 @@ pub(super) async fn resolve_job_action(
                 config,
                 secret_runtime,
                 oauth_client,
-                llm_gateway,
                 job.user_id,
                 preferences,
             )
@@ -61,7 +58,6 @@ pub(super) async fn resolve_job_action(
                 config,
                 secret_runtime,
                 oauth_client,
-                llm_gateway,
                 job.user_id,
             )
             .await

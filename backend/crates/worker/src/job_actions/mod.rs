@@ -58,7 +58,6 @@ pub(super) async fn dispatch_job_action(
             context.config,
             context.secret_runtime,
             context.oauth_client,
-            context.llm_gateway,
             job,
             &preferences,
         )

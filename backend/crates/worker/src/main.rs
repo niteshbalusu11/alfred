@@ -1,6 +1,5 @@
 use shared::config::{WorkerConfig, load_dotenv};
 use shared::enclave_runtime::{EnclaveRuntimeEndpointConfig, verify_connectivity};
-use shared::llm::{LlmReliabilityConfig, OpenRouterGatewayConfig, ReliableOpenRouterGateway};
 use shared::repos::Store;
 use shared::security::{KmsDecryptPolicy, SecretRuntime, TeeAttestationPolicy};
 use tokio::signal;
@@ -38,34 +37,6 @@ async fn main() {
         Ok(cfg) => cfg,
         Err(err) => {
             error!("failed to read worker config: {err}");
-            std::process::exit(1);
-        }
-    };
-
-    let openrouter_config = match OpenRouterGatewayConfig::from_env() {
-        Ok(cfg) => cfg,
-        Err(err) => {
-            error!("failed to read OpenRouter configuration required for LLM startup path: {err}");
-            std::process::exit(1);
-        }
-    };
-    let llm_reliability_config = match LlmReliabilityConfig::from_env() {
-        Ok(cfg) => cfg,
-        Err(err) => {
-            error!("failed to read LLM reliability configuration: {err}");
-            std::process::exit(1);
-        }
-    };
-    let llm_gateway = match ReliableOpenRouterGateway::from_openrouter_config_with_redis(
-        openrouter_config,
-        llm_reliability_config,
-        &config.redis_url,
-    )
-    .await
-    {
-        Ok(gateway) => gateway,
-        Err(err) => {
-            error!("failed to initialize LLM gateway: {err}");
             std::process::exit(1);
         }
     };
@@ -165,7 +136,6 @@ async fn main() {
                     &config,
                     &secret_runtime,
                     &oauth_client,
-                    &llm_gateway,
                     &push_sender,
                     worker_id,
                 )

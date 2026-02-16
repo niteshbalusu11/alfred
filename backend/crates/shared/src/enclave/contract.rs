@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 pub const ENCLAVE_RPC_CONTRACT_VERSION: &str = "v1";
@@ -8,6 +10,8 @@ pub const ENCLAVE_RPC_PATH_FETCH_GOOGLE_URGENT_EMAIL_CANDIDATES: &str =
     "/v1/rpc/google/gmail/urgent-candidates";
 pub const ENCLAVE_RPC_PATH_FETCH_ASSISTANT_ATTESTED_KEY: &str = "/v1/rpc/assistant/attested-key";
 pub const ENCLAVE_RPC_PATH_PROCESS_ASSISTANT_QUERY: &str = "/v1/rpc/assistant/query";
+pub const ENCLAVE_RPC_PATH_GENERATE_MORNING_BRIEF: &str = "/v1/rpc/assistant/morning-brief";
+pub const ENCLAVE_RPC_PATH_GENERATE_URGENT_EMAIL_SUMMARY: &str = "/v1/rpc/assistant/urgent-email";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttestedIdentityPayload {
@@ -145,6 +149,51 @@ pub struct EnclaveRpcProcessAssistantQueryResponse {
     pub envelope: crate::models::AssistantEncryptedResponseEnvelope,
     #[serde(default)]
     pub session_state: Option<crate::models::AssistantSessionStateEnvelope>,
+    pub attested_identity: AttestedIdentityPayload,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnclaveRpcGenerateMorningBriefRequest {
+    pub contract_version: String,
+    pub request_id: String,
+    pub user_id: uuid::Uuid,
+    pub connector: super::ConnectorSecretRequest,
+    pub time_zone: String,
+    pub morning_brief_local_time: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnclaveGeneratedNotificationPayload {
+    pub title: String,
+    pub body: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnclaveRpcGenerateMorningBriefResponse {
+    pub contract_version: String,
+    pub request_id: String,
+    pub notification: EnclaveGeneratedNotificationPayload,
+    pub metadata: HashMap<String, String>,
+    pub attested_identity: AttestedIdentityPayload,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnclaveRpcGenerateUrgentEmailSummaryRequest {
+    pub contract_version: String,
+    pub request_id: String,
+    pub user_id: uuid::Uuid,
+    pub connector: super::ConnectorSecretRequest,
+    pub max_results: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnclaveRpcGenerateUrgentEmailSummaryResponse {
+    pub contract_version: String,
+    pub request_id: String,
+    pub should_notify: bool,
+    #[serde(default)]
+    pub notification: Option<EnclaveGeneratedNotificationPayload>,
+    pub metadata: HashMap<String, String>,
     pub attested_identity: AttestedIdentityPayload,
 }
 
