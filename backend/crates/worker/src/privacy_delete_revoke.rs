@@ -127,21 +127,21 @@ fn build_enclave_client(config: &WorkerConfig, oauth_client: &reqwest::Client) -
 
 fn map_revoke_enclave_error(err: EnclaveRpcError) -> DeleteRequestError {
     match err {
-        EnclaveRpcError::DecryptNotAuthorized { message } => DeleteRequestError::new(
+        EnclaveRpcError::DecryptNotAuthorized { .. } => DeleteRequestError::new(
             "CONNECTOR_DECRYPT_NOT_AUTHORIZED",
-            format!("decrypt authorization failed: {message}"),
+            "decrypt authorization failed",
         ),
-        EnclaveRpcError::ConnectorTokenDecryptFailed { message } => DeleteRequestError::new(
+        EnclaveRpcError::ConnectorTokenDecryptFailed { .. } => DeleteRequestError::new(
             "CONNECTOR_TOKEN_DECRYPT_FAILED",
-            format!("failed to decrypt refresh token: {message}"),
+            "failed to decrypt connector token",
         ),
         EnclaveRpcError::ConnectorTokenUnavailable => DeleteRequestError::new(
             "CONNECTOR_TOKEN_MISSING",
             "refresh token was unavailable for active connector",
         ),
-        EnclaveRpcError::ProviderRequestUnavailable { message, .. } => DeleteRequestError::new(
+        EnclaveRpcError::ProviderRequestUnavailable { .. } => DeleteRequestError::new(
             "GOOGLE_REVOKE_UNAVAILABLE",
-            format!("failed to call Google revoke endpoint: {message}"),
+            "failed to call Google revoke endpoint",
         ),
         EnclaveRpcError::ProviderRequestFailed { status, .. } => DeleteRequestError::new(
             "GOOGLE_REVOKE_FAILED",
@@ -156,10 +156,37 @@ fn map_revoke_enclave_error(err: EnclaveRpcError) -> DeleteRequestError {
             "ENCLAVE_RPC_REJECTED",
             format!("secure enclave rpc request rejected: {code}"),
         ),
-        EnclaveRpcError::RpcTransportUnavailable { message }
-        | EnclaveRpcError::RpcResponseInvalid { message } => DeleteRequestError::new(
-            "ENCLAVE_RPC_UNAVAILABLE",
-            format!("secure enclave rpc unavailable: {message}"),
-        ),
+        EnclaveRpcError::RpcTransportUnavailable { .. }
+        | EnclaveRpcError::RpcResponseInvalid { .. } => {
+            DeleteRequestError::new("ENCLAVE_RPC_UNAVAILABLE", "secure enclave rpc unavailable")
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use shared::enclave::ProviderOperation;
+
+    use super::*;
+
+    #[test]
+    fn provider_unavailable_error_message_is_sanitized() {
+        let err = map_revoke_enclave_error(EnclaveRpcError::ProviderRequestUnavailable {
+            operation: ProviderOperation::TokenRevoke,
+            message: "timeout with refresh_token=abcd".to_string(),
+        });
+
+        assert_eq!(err.code, "GOOGLE_REVOKE_UNAVAILABLE");
+        assert_eq!(err.message, "failed to call Google revoke endpoint");
+    }
+
+    #[test]
+    fn rpc_unavailable_error_message_is_sanitized() {
+        let err = map_revoke_enclave_error(EnclaveRpcError::RpcTransportUnavailable {
+            message: "authorization header leak".to_string(),
+        });
+
+        assert_eq!(err.code, "ENCLAVE_RPC_UNAVAILABLE");
+        assert_eq!(err.message, "secure enclave rpc unavailable");
     }
 }

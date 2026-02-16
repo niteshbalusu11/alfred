@@ -20,6 +20,17 @@ Rules:
   - `outcome`
 - Never log secrets, OAuth tokens, or raw sensitive payloads.
 
+Sensitive field policy:
+- Forbidden in tracing fields and messages: `refresh_token`, `access_token`, `client_secret`, `apns_token`, `authorization_header`, `oauth_code`, `id_token`, `identity_token`, `bearer_token`.
+- When mapping provider/enclave/database errors in sensitive token paths, use deterministic sanitized messages and error codes.
+- Do not append upstream error text (`{err}`, `{error}`, `{message}`) to user-visible API errors, persisted worker failure reasons, or sensitive audit metadata.
+
+Backend examples:
+- Do: `warn!(user_id = %user_id, error_code = "GOOGLE_REVOKE_FAILED", "google revoke failed")`
+- Don’t: `warn!(refresh_token = %token, "revoke failed")`
+- Don’t: `JobExecutionError::transient("GOOGLE_UNAVAILABLE", format!("provider failed: {message}"))`
+- Do: `JobExecutionError::transient("GOOGLE_UNAVAILABLE", "provider request failed")`
+
 ## iOS app
 
 Location:
