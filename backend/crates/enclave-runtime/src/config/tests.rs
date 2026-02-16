@@ -1,6 +1,9 @@
 use shared::enclave_runtime::{AlfredEnvironment, AttestationChallengeRequest, EnclaveRuntimeMode};
 
-use super::{AttestationSource, RuntimeConfig};
+use super::{
+    AttestationSource, RuntimeConfig, validate_non_local_runtime_base_url,
+    validate_non_local_security_posture,
+};
 
 fn build_config(mode: EnclaveRuntimeMode) -> RuntimeConfig {
     RuntimeConfig {
@@ -83,4 +86,42 @@ fn challenge_response_is_signed_and_echoes_challenge_fields() {
     assert_eq!(response.operation_purpose, "decrypt");
     assert_eq!(response.request_id, "req-1");
     assert!(response.signature.is_some());
+}
+
+#[test]
+fn non_local_security_posture_rejects_insecure_attestation_flags() {
+    let err = validate_non_local_security_posture(
+        AlfredEnvironment::Production,
+        false,
+        true,
+        &["mr-enclave-prod-a".to_string()],
+        &["mr-enclave-prod-a".to_string()],
+        "https://enclave.internal:8181",
+    )
+    .expect_err("insecure non-local posture should fail");
+
+    assert!(err.contains("TEE_ATTESTATION_REQUIRED") || err.contains("TEE_ALLOW_INSECURE"));
+}
+
+#[test]
+fn non_local_security_posture_rejects_dev_measurement() {
+    let err = validate_non_local_security_posture(
+        AlfredEnvironment::Staging,
+        true,
+        false,
+        &["dev-local-enclave".to_string()],
+        &["mr-enclave-stage-a".to_string()],
+        "https://enclave.internal:8181",
+    )
+    .expect_err("dev measurement should fail outside local");
+
+    assert!(err.contains("TEE_ALLOWED_MEASUREMENTS"));
+}
+
+#[test]
+fn non_local_runtime_base_url_allows_https_or_loopback_http() {
+    validate_non_local_runtime_base_url("https://enclave.internal:8181")
+        .expect("https URL should pass");
+    validate_non_local_runtime_base_url("http://127.0.0.1:8181")
+        .expect("loopback http URL should pass");
 }

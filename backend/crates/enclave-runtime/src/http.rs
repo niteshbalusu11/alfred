@@ -19,6 +19,9 @@ use shared::enclave_runtime::{AttestationChallengeRequest, AttestationChallengeR
 
 use crate::RuntimeState;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Debug, Serialize)]
 pub(crate) struct HealthResponse<'a> {
     status: &'a str,
@@ -190,7 +193,13 @@ fn validate_request<Request>(
 where
     Request: serde::de::DeserializeOwned + RpcEnvelope,
 {
-    authorize_request(state, headers, path, body)?;
+    authorize_request(
+        &state.config.enclave_rpc_auth,
+        &state.rpc_replay_guard,
+        headers,
+        path,
+        body,
+    )?;
 
     let request = serde_json::from_slice::<Request>(body).map_err(|_| {
         reject(
@@ -232,7 +241,8 @@ where
 }
 
 fn authorize_request(
-    state: &RuntimeState,
+    auth: &shared::enclave::EnclaveRpcAuthConfig,
+    replay_guard: &std::sync::Mutex<std::collections::HashMap<String, i64>>,
     headers: &HeaderMap,
     path: &str,
     body: &[u8],
@@ -279,7 +289,7 @@ fn authorize_request(
 
     let signature = require_header(headers, ENCLAVE_RPC_AUTH_SIGNATURE_HEADER)?;
     let now = Utc::now().timestamp();
-    let max_skew = state.config.enclave_rpc_auth.max_clock_skew_seconds as i64;
+    let max_skew = auth.max_clock_skew_seconds as i64;
     if (now - timestamp).abs() > max_skew {
         return Err(reject(
             StatusCode::UNAUTHORIZED,
@@ -292,14 +302,8 @@ fn authorize_request(
         ));
     }
 
-    let expected_signature = sign_rpc_request(
-        &state.config.enclave_rpc_auth.shared_secret,
-        "POST",
-        path,
-        timestamp,
-        &nonce,
-        body,
-    );
+    let expected_signature =
+        sign_rpc_request(&auth.shared_secret, "POST", path, timestamp, &nonce, body);
     if !constant_time_eq(&expected_signature, &signature) {
         return Err(reject(
             StatusCode::UNAUTHORIZED,
@@ -324,7 +328,7 @@ fn authorize_request(
         )
     })?;
 
-    let mut replay_guard = state.rpc_replay_guard.lock().map_err(|_| {
+    let mut replay_guard = replay_guard.lock().map_err(|_| {
         reject(
             StatusCode::INTERNAL_SERVER_ERROR,
             EnclaveRpcErrorEnvelope::new(

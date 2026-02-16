@@ -1,5 +1,6 @@
 pub mod config;
 mod config_enclave_runtime;
+mod config_env;
 pub mod enclave;
 pub mod enclave_runtime;
 pub mod llm;
