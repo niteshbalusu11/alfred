@@ -88,44 +88,37 @@ fn map_enclave_fetch_error(
     provider_parse_code: &str,
 ) -> JobExecutionError {
     match err {
-        EnclaveRpcError::DecryptNotAuthorized { message } => JobExecutionError::permanent(
+        EnclaveRpcError::DecryptNotAuthorized { .. } => JobExecutionError::permanent(
             "CONNECTOR_DECRYPT_NOT_AUTHORIZED",
-            format!("decrypt authorization failed: {message}"),
+            "connector decrypt authorization failed",
         ),
-        EnclaveRpcError::ConnectorTokenDecryptFailed { message } => JobExecutionError::transient(
+        EnclaveRpcError::ConnectorTokenDecryptFailed { .. } => JobExecutionError::transient(
             "CONNECTOR_TOKEN_DECRYPT_FAILED",
-            format!("failed to decrypt refresh token: {message}"),
+            "failed to decrypt connector token in enclave",
         ),
         EnclaveRpcError::ConnectorTokenUnavailable => JobExecutionError::permanent(
             "CONNECTOR_TOKEN_MISSING",
             "refresh token was unavailable for active connector",
         ),
-        EnclaveRpcError::ProviderRequestUnavailable { operation, message } => match operation {
+        EnclaveRpcError::ProviderRequestUnavailable { operation, .. } => match operation {
             ProviderOperation::TokenRefresh => JobExecutionError::transient(
                 "GOOGLE_TOKEN_REFRESH_UNAVAILABLE",
-                format!("google token refresh request failed: {message}"),
+                "google token refresh request failed",
             ),
             ProviderOperation::CalendarFetch | ProviderOperation::GmailFetch => {
-                JobExecutionError::transient(
-                    provider_unavailable_code,
-                    format!("provider request failed: {message}"),
-                )
+                JobExecutionError::transient(provider_unavailable_code, "provider request failed")
             }
-            ProviderOperation::TokenRevoke => JobExecutionError::transient(
-                provider_unavailable_code,
-                format!("provider request failed: {message}"),
-            ),
+            ProviderOperation::TokenRevoke => {
+                JobExecutionError::transient(provider_unavailable_code, "provider request failed")
+            }
         },
         EnclaveRpcError::ProviderRequestFailed {
             operation,
             status,
-            oauth_error,
+            oauth_error: _,
         } => {
             let status = StatusCode::from_u16(status).unwrap_or(StatusCode::BAD_GATEWAY);
-            let message = match oauth_error {
-                Some(error) => format!("provider request rejected: {error}"),
-                None => format!("provider request failed with HTTP {}", status.as_u16()),
-            };
+            let message = format!("provider request failed with HTTP {}", status.as_u16());
 
             match operation {
                 ProviderOperation::TokenRefresh => {
@@ -138,27 +131,26 @@ fn map_enclave_fetch_error(
                 }
             }
         }
-        EnclaveRpcError::ProviderResponseInvalid { operation, message } => match operation {
+        EnclaveRpcError::ProviderResponseInvalid { operation, .. } => match operation {
             ProviderOperation::TokenRefresh => JobExecutionError::transient(
                 "GOOGLE_TOKEN_REFRESH_PARSE_FAILED",
-                format!("google token refresh response was invalid: {message}"),
+                "google token refresh response was invalid",
             ),
             ProviderOperation::CalendarFetch
             | ProviderOperation::GmailFetch
-            | ProviderOperation::TokenRevoke => JobExecutionError::transient(
-                provider_parse_code,
-                format!("provider response was invalid: {message}"),
-            ),
+            | ProviderOperation::TokenRevoke => {
+                JobExecutionError::transient(provider_parse_code, "provider response was invalid")
+            }
         },
         EnclaveRpcError::RpcUnauthorized { code }
         | EnclaveRpcError::RpcContractRejected { code } => JobExecutionError::permanent(
             "ENCLAVE_RPC_REJECTED",
             format!("secure enclave rpc request rejected: {code}"),
         ),
-        EnclaveRpcError::RpcTransportUnavailable { message }
-        | EnclaveRpcError::RpcResponseInvalid { message } => JobExecutionError::transient(
+        EnclaveRpcError::RpcTransportUnavailable { .. }
+        | EnclaveRpcError::RpcResponseInvalid { .. } => JobExecutionError::transient(
             "ENCLAVE_RPC_UNAVAILABLE",
-            format!("secure enclave rpc unavailable: {message}"),
+            "secure enclave rpc unavailable",
         ),
     }
 }
@@ -244,4 +236,58 @@ fn parse_rfc3339_utc(value: &str) -> Option<DateTime<Utc>> {
     DateTime::parse_from_rfc3339(value)
         .ok()
         .map(|parsed| parsed.with_timezone(&Utc))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn provider_unavailable_message_does_not_include_upstream_content() {
+        let err = map_enclave_fetch_error(
+            EnclaveRpcError::ProviderRequestUnavailable {
+                operation: ProviderOperation::CalendarFetch,
+                message: "upstream timeout with refresh_token=abcd".to_string(),
+            },
+            "GOOGLE_CALENDAR_UNAVAILABLE",
+            "GOOGLE_CALENDAR_FAILED",
+            "GOOGLE_CALENDAR_PARSE_FAILED",
+        );
+
+        assert_eq!(err.code, "GOOGLE_CALENDAR_UNAVAILABLE");
+        assert_eq!(err.message, "provider request failed");
+    }
+
+    #[test]
+    fn provider_failed_message_does_not_include_oauth_error_text() {
+        let err = map_enclave_fetch_error(
+            EnclaveRpcError::ProviderRequestFailed {
+                operation: ProviderOperation::TokenRefresh,
+                status: 400,
+                oauth_error: Some("invalid_grant: refresh_token leaked".to_string()),
+            },
+            "GOOGLE_CALENDAR_UNAVAILABLE",
+            "GOOGLE_CALENDAR_FAILED",
+            "GOOGLE_CALENDAR_PARSE_FAILED",
+        );
+
+        assert_eq!(err.code, "GOOGLE_TOKEN_REFRESH_FAILED");
+        assert_eq!(err.message, "provider request failed with HTTP 400");
+        assert!(!err.message.contains("refresh_token"));
+    }
+
+    #[test]
+    fn rpc_transport_message_does_not_include_upstream_content() {
+        let err = map_enclave_fetch_error(
+            EnclaveRpcError::RpcTransportUnavailable {
+                message: "dial failed; authorization=Bearer leaked".to_string(),
+            },
+            "GOOGLE_CALENDAR_UNAVAILABLE",
+            "GOOGLE_CALENDAR_FAILED",
+            "GOOGLE_CALENDAR_PARSE_FAILED",
+        );
+
+        assert_eq!(err.code, "ENCLAVE_RPC_UNAVAILABLE");
+        assert_eq!(err.message, "secure enclave rpc unavailable");
+    }
 }
