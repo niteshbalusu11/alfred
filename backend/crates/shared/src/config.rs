@@ -5,6 +5,11 @@ use std::path::PathBuf;
 
 use thiserror::Error;
 
+use crate::config_enclave_runtime::{
+    parse_alfred_environment, parse_enclave_runtime_mode, validate_enclave_runtime_guards,
+};
+use crate::enclave_runtime::EnclaveRuntimeMode;
+
 #[derive(Debug, Clone)]
 pub struct ApiConfig {
     pub bind_addr: String,
@@ -39,6 +44,9 @@ pub struct ApiConfig {
     pub kms_key_id: String,
     pub kms_key_version: i32,
     pub kms_allowed_measurements: Vec<String>,
+    pub enclave_runtime_mode: EnclaveRuntimeMode,
+    pub enclave_runtime_base_url: String,
+    pub enclave_runtime_probe_timeout_ms: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -70,6 +78,9 @@ pub struct WorkerConfig {
     pub kms_key_id: String,
     pub kms_key_version: i32,
     pub kms_allowed_measurements: Vec<String>,
+    pub enclave_runtime_mode: EnclaveRuntimeMode,
+    pub enclave_runtime_base_url: String,
+    pub enclave_runtime_probe_timeout_ms: u64,
     pub database_url: String,
     pub database_max_connections: u32,
     pub data_encryption_key: String,
@@ -100,6 +111,7 @@ pub fn load_dotenv() -> Result<(), ConfigError> {
 
 impl ApiConfig {
     pub fn from_env() -> Result<Self, ConfigError> {
+        let alfred_environment = parse_alfred_environment()?;
         let tee_allowed_measurements =
             parse_list_env("TEE_ALLOWED_MEASUREMENTS", &["dev-local-enclave"]);
         let tee_attestation_required = parse_bool_env("TEE_ATTESTATION_REQUIRED", true)?;
@@ -124,6 +136,21 @@ impl ApiConfig {
             return Err(ConfigError::InvalidConfiguration(
                 "either TEE_ATTESTATION_DOCUMENT_PATH or TEE_ATTESTATION_DOCUMENT must be set"
                     .to_string(),
+            ));
+        }
+        let enclave_runtime_mode =
+            parse_enclave_runtime_mode("ENCLAVE_RUNTIME_MODE", alfred_environment)?;
+        validate_enclave_runtime_guards(
+            alfred_environment,
+            enclave_runtime_mode,
+            tee_attestation_required,
+            tee_allow_insecure_dev_attestation,
+        )?;
+        let enclave_runtime_probe_timeout_ms =
+            parse_u64_env("ENCLAVE_RUNTIME_PROBE_TIMEOUT_MS", 2000)?;
+        if enclave_runtime_probe_timeout_ms == 0 {
+            return Err(ConfigError::InvalidConfiguration(
+                "ENCLAVE_RUNTIME_PROBE_TIMEOUT_MS must be greater than 0".to_string(),
             ));
         }
 
@@ -215,12 +242,17 @@ impl ApiConfig {
                 "KMS_ALLOWED_MEASUREMENTS",
                 &tee_allowed_measurements,
             ),
+            enclave_runtime_mode,
+            enclave_runtime_base_url: env::var("ENCLAVE_RUNTIME_BASE_URL")
+                .unwrap_or_else(|_| "http://127.0.0.1:8181".to_string()),
+            enclave_runtime_probe_timeout_ms,
         })
     }
 }
 
 impl WorkerConfig {
     pub fn from_env() -> Result<Self, ConfigError> {
+        let alfred_environment = parse_alfred_environment()?;
         let tee_allowed_measurements =
             parse_list_env("TEE_ALLOWED_MEASUREMENTS", &["dev-local-enclave"]);
         let tick_seconds = match env::var("WORKER_TICK_SECONDS") {
@@ -288,6 +320,21 @@ impl WorkerConfig {
         let tee_attestation_document_path = env::var("TEE_ATTESTATION_DOCUMENT_PATH")
             .ok()
             .map(PathBuf::from);
+        let enclave_runtime_mode =
+            parse_enclave_runtime_mode("ENCLAVE_RUNTIME_MODE", alfred_environment)?;
+        validate_enclave_runtime_guards(
+            alfred_environment,
+            enclave_runtime_mode,
+            tee_attestation_required,
+            tee_allow_insecure_dev_attestation,
+        )?;
+        let enclave_runtime_probe_timeout_ms =
+            parse_u64_env("ENCLAVE_RUNTIME_PROBE_TIMEOUT_MS", 2000)?;
+        if enclave_runtime_probe_timeout_ms == 0 {
+            return Err(ConfigError::InvalidConfiguration(
+                "ENCLAVE_RUNTIME_PROBE_TIMEOUT_MS must be greater than 0".to_string(),
+            ));
+        }
 
         Ok(Self {
             tick_seconds,
@@ -324,6 +371,10 @@ impl WorkerConfig {
                 "KMS_ALLOWED_MEASUREMENTS",
                 &tee_allowed_measurements,
             ),
+            enclave_runtime_mode,
+            enclave_runtime_base_url: env::var("ENCLAVE_RUNTIME_BASE_URL")
+                .unwrap_or_else(|_| "http://127.0.0.1:8181".to_string()),
+            enclave_runtime_probe_timeout_ms,
             database_url: require_env("DATABASE_URL")?,
             database_max_connections: parse_u32_env("DATABASE_MAX_CONNECTIONS", 5)?,
             data_encryption_key: require_env("DATA_ENCRYPTION_KEY")?,

@@ -168,10 +168,18 @@ backend-worker:
 # Run API and worker together in one terminal session.
 dev:
     @trap 'kill 0' INT TERM EXIT; \
+      (cd {{ backend_dir }} && cargo run -p enclave-runtime) & \
       (cd {{ backend_dir }} && cargo run -p api-server) & \
       (cd {{ backend_dir }} && cargo run -p worker) & \
       (just ngrok) & \
       wait
+
+# Run enclave runtime baseline service.
+enclave-runtime: backend-enclave-runtime
+
+# Run enclave runtime baseline service.
+backend-enclave-runtime:
+    cd {{ backend_dir }} && cargo run -p enclave-runtime
 
 # Show key project docs.
 docs:

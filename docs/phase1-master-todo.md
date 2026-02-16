@@ -104,7 +104,7 @@ Ship a private beta where iOS users can:
 | ID | Pri | Task | Owner | ETA | Status | Depends On | Exit Criteria |
 |---|---|---|---|---|---|---|---|
 | SEC-001 | P0 | Pick TEE provider/architecture decision record | SEC | 2026-02-21 | DONE | - | ADR approved |
-| SEC-002 | P0 | Build enclave image baseline | SEC | 2026-02-28 | TODO | SEC-001 | Image boot + smoke pass |
+| SEC-002 | P0 | Build enclave image baseline | SEC | 2026-02-28 | DONE | SEC-001 | Image boot + smoke pass |
 | SEC-003 | P0 | Implement enclave attestation validation | SEC | 2026-03-04 | IN_PROGRESS | SEC-002 | Attestation verified end-to-end |
 | SEC-004 | P0 | Bind KMS decrypt access to enclave measurements | SEC | 2026-03-06 | IN_PROGRESS | SEC-003 | Decrypt denied outside attested enclave |
 | SEC-005 | P0 | Implement secure host<->enclave RPC contract | SEC | 2026-03-08 | IN_PROGRESS | SEC-002 | RPC path stable and tested |
