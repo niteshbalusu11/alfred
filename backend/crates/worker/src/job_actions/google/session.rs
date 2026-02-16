@@ -39,10 +39,10 @@ async fn load_active_google_connector(
     let connector = store
         .list_active_connector_metadata(user_id)
         .await
-        .map_err(|err| {
+        .map_err(|_err| {
             JobExecutionError::transient(
                 "CONNECTOR_METADATA_READ_FAILED",
-                format!("failed to read connector metadata: {err}"),
+                "failed to read connector metadata",
             )
         })?
         .into_iter()
@@ -73,10 +73,10 @@ async fn load_active_google_connector(
                     "connector key metadata changed; retry the job",
                 ));
             }
-            Err(err) => {
+            Err(_err) => {
                 return Err(JobExecutionError::transient(
                     "CONNECTOR_KEY_METADATA_UPDATE_FAILED",
-                    format!("failed to rotate connector key metadata: {err}"),
+                    "failed to rotate connector key metadata",
                 ));
             }
         }

@@ -192,11 +192,8 @@ async fn execute_delete_request(
     let active_connectors = store
         .list_active_connector_metadata(request.user_id)
         .await
-        .map_err(|err| {
-            DeleteRequestError::new(
-                "CONNECTOR_LOOKUP_FAILED",
-                format!("failed to load connectors: {err}"),
-            )
+        .map_err(|_err| {
+            DeleteRequestError::new("CONNECTOR_LOOKUP_FAILED", "failed to load connectors")
         })?;
 
     let revoked_connectors = revoke_active_connectors(
@@ -212,11 +209,8 @@ async fn execute_delete_request(
     store
         .purge_user_operational_data(request.user_id)
         .await
-        .map_err(|err| {
-            DeleteRequestError::new(
-                "PURGE_FAILED",
-                format!("failed to purge user operational data: {err}"),
-            )
+        .map_err(|_err| {
+            DeleteRequestError::new("PURGE_FAILED", "failed to purge user operational data")
         })?;
 
     Ok(revoked_connectors)

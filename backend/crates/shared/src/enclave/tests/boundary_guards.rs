@@ -1,5 +1,6 @@
+use std::collections::BTreeSet;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[test]
 fn sensitive_host_paths_do_not_log_secret_token_fields() {
@@ -38,18 +39,10 @@ fn host_paths_do_not_perform_google_bearer_fetches_outside_enclave() {
 
 #[test]
 fn sensitive_error_mapping_does_not_embed_upstream_messages() {
-    const FORBIDDEN_PATTERNS: [&str; 3] = ["{message})", "{err})", "{error})"];
-
     for file in sensitive_error_message_guard_files() {
         let content = fs::read_to_string(&file)
             .expect("failed to read source file for error message guard test");
-        for pattern in FORBIDDEN_PATTERNS {
-            assert!(
-                !content.contains(pattern),
-                "{} contains upstream error interpolation pattern `{pattern}` in sensitive error mapping",
-                file.display()
-            );
-        }
+        assert_no_error_interpolation(file.display().to_string().as_str(), &content);
     }
 }
 
@@ -89,50 +82,82 @@ fn assert_no_sensitive_tracing_args(path: &str, content: &str) {
     }
 }
 
-fn guard_paths(files: &[&str]) -> Vec<PathBuf> {
+fn assert_no_error_interpolation(path: &str, content: &str) {
+    const FORBIDDEN_INTERPOLATIONS: [&str; 3] = ["{err}", "{error}", "{message}"];
+
+    let lowered = content.to_ascii_lowercase();
+    for token in FORBIDDEN_INTERPOLATIONS {
+        let mut from = 0;
+        while let Some(found) = lowered[from..].find(token) {
+            let token_start = from + found;
+            let window_start = token_start.saturating_sub(220);
+            let context = &lowered[window_start..token_start];
+
+            assert!(
+                !context.contains("format!("),
+                "{path} contains upstream error interpolation token `{token}` in format! macro"
+            );
+
+            from = token_start + token.len();
+        }
+    }
+}
+
+fn collect_rust_guard_files(paths: &[&str]) -> Vec<PathBuf> {
     let shared_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    files.iter().map(|path| shared_root.join(path)).collect()
+    let mut files = BTreeSet::new();
+
+    for relative in paths {
+        let absolute = shared_root.join(relative);
+        collect_rust_files_recursive(&absolute, &mut files);
+    }
+
+    files.into_iter().collect()
+}
+
+fn collect_rust_files_recursive(path: &Path, files: &mut BTreeSet<PathBuf>) {
+    if path.is_file() {
+        if path.extension().and_then(|ext| ext.to_str()) == Some("rs") {
+            files.insert(path.to_path_buf());
+        }
+        return;
+    }
+
+    if !path.is_dir() {
+        return;
+    }
+
+    for entry in fs::read_dir(path).expect("failed to read source directory for guard test") {
+        let entry = entry.expect("failed to read source directory entry for guard test");
+        collect_rust_files_recursive(&entry.path(), files);
+    }
 }
 
 fn sensitive_tracing_guard_files() -> Vec<PathBuf> {
-    guard_paths(&[
-        "../api-server/src/http/authn.rs",
-        "../api-server/src/http/assistant/session.rs",
-        "../api-server/src/http/assistant/query.rs",
-        "../api-server/src/http/connectors/revoke.rs",
-        "../api-server/src/http/connectors/helpers.rs",
-        "../worker/src/job_actions/google/session.rs",
-        "../worker/src/job_actions/google/fetch.rs",
-        "../worker/src/job_actions/google/morning_brief.rs",
-        "../worker/src/job_actions/google/urgent_email.rs",
-        "../worker/src/privacy_delete_revoke.rs",
-        "../worker/src/privacy_delete.rs",
+    collect_rust_guard_files(&[
+        "../api-server/src/http",
+        "../worker/src",
+        "../enclave-runtime/src",
     ])
 }
 
 fn decrypt_boundary_guard_files() -> Vec<PathBuf> {
-    guard_paths(&[
-        "../api-server/src/http/assistant/session.rs",
-        "../api-server/src/http/connectors/revoke.rs",
-        "../worker/src/job_actions/google/session.rs",
-        "../worker/src/privacy_delete_revoke.rs",
-    ])
+    collect_rust_guard_files(&["../api-server/src", "../worker/src"])
 }
 
 fn bearer_fetch_guard_files() -> Vec<PathBuf> {
-    guard_paths(&[
-        "../api-server/src/http/assistant/query.rs",
-        "../api-server/src/http/assistant/fetch.rs",
-        "../worker/src/job_actions/google/mod.rs",
-        "../worker/src/job_actions/google/morning_brief.rs",
-        "../worker/src/job_actions/google/urgent_email.rs",
-        "../worker/src/job_actions/google/fetch.rs",
+    collect_rust_guard_files(&[
+        "../api-server/src/http/assistant",
+        "../worker/src/job_actions/google",
     ])
 }
 
 fn sensitive_error_message_guard_files() -> Vec<PathBuf> {
-    guard_paths(&[
-        "../worker/src/job_actions/google/fetch.rs",
+    collect_rust_guard_files(&[
+        "../api-server/src/http/assistant",
+        "../api-server/src/http/connectors",
+        "../worker/src/job_actions/google",
+        "../worker/src/privacy_delete.rs",
         "../worker/src/privacy_delete_revoke.rs",
     ])
 }

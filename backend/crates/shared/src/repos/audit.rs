@@ -142,12 +142,32 @@ fn is_sensitive_metadata_key(key: &str) -> bool {
         || key.contains("code")
 }
 
+fn is_sensitive_metadata_value(value: &str) -> bool {
+    let value = value.to_ascii_lowercase();
+    const SENSITIVE_MARKERS: [&str; 10] = [
+        "refresh_token",
+        "access_token",
+        "client_secret",
+        "apns_token",
+        "authorization=",
+        "authorization:",
+        "bearer ",
+        "oauth_code",
+        "identity_token",
+        "id_token",
+    ];
+
+    SENSITIVE_MARKERS
+        .iter()
+        .any(|marker| value.contains(marker))
+}
+
 fn redact_sensitive_metadata(metadata: &HashMap<String, String>) -> Value {
     Value::Object(
         metadata
             .iter()
             .map(|(key, value)| {
-                if is_sensitive_metadata_key(key) {
+                if is_sensitive_metadata_key(key) || is_sensitive_metadata_value(value) {
                     (key.clone(), Value::String("[REDACTED]".to_string()))
                 } else {
                     (key.clone(), Value::String(value.clone()))
@@ -163,7 +183,9 @@ mod tests {
 
     use serde_json::Value;
 
-    use super::{is_sensitive_metadata_key, redact_sensitive_metadata};
+    use super::{
+        is_sensitive_metadata_key, is_sensitive_metadata_value, redact_sensitive_metadata,
+    };
 
     #[test]
     fn sensitive_metadata_keys_are_case_insensitive() {
@@ -201,5 +223,46 @@ mod tests {
             Some(&Value::String("req-1".to_string()))
         );
         assert_eq!(object.get("status"), Some(&Value::String("ok".to_string())));
+    }
+
+    #[test]
+    fn sensitive_metadata_values_are_redacted_even_for_non_sensitive_keys() {
+        let mut metadata = HashMap::new();
+        metadata.insert(
+            "reason".to_string(),
+            "provider returned invalid_grant: refresh_token leaked".to_string(),
+        );
+        metadata.insert(
+            "error".to_string(),
+            "dial failed; authorization=Bearer secret".to_string(),
+        );
+        metadata.insert("status".to_string(), "failed".to_string());
+
+        let redacted = redact_sensitive_metadata(&metadata);
+        assert!(redacted.is_object());
+        let object = redacted
+            .as_object()
+            .expect("redacted metadata should always be a JSON object");
+
+        assert_eq!(
+            object.get("reason"),
+            Some(&Value::String("[REDACTED]".to_string()))
+        );
+        assert_eq!(
+            object.get("error"),
+            Some(&Value::String("[REDACTED]".to_string()))
+        );
+        assert_eq!(
+            object.get("status"),
+            Some(&Value::String("failed".to_string()))
+        );
+    }
+
+    #[test]
+    fn sensitive_metadata_value_detection_is_case_insensitive() {
+        assert!(is_sensitive_metadata_value("authorization: Bearer abc"));
+        assert!(is_sensitive_metadata_value("contains refresh_token value"));
+        assert!(is_sensitive_metadata_value("ID_TOKEN present"));
+        assert!(!is_sensitive_metadata_value("provider timeout"));
     }
 }

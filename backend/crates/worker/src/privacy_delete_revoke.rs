@@ -107,9 +107,9 @@ async fn normalize_connector_metadata(
             "CONNECTOR_KEY_METADATA_MISSING",
             "connector key metadata changed during delete workflow",
         )),
-        Err(err) => Err(DeleteRequestError::new(
+        Err(_err) => Err(DeleteRequestError::new(
             "CONNECTOR_KEY_METADATA_UPDATE_FAILED",
-            format!("failed to rotate connector key metadata: {err}"),
+            "failed to rotate connector key metadata",
         )),
     }
 }
