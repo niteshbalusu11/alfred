@@ -66,6 +66,30 @@ async fn main() {
 
     let rate_limiter = http::RateLimiter::default();
     let _rate_limiter_pruner = rate_limiter.spawn_pruner(Duration::from_secs(60));
+    let clerk_jwks_cache = match http::ClerkJwksCache::new(http::ClerkJwksCacheConfig {
+        redis_url: config.redis_url.clone(),
+        cache_key: config.clerk_jwks_cache_key.clone(),
+        default_ttl_seconds: config.clerk_jwks_cache_default_ttl_seconds,
+        stale_ttl_seconds: config.clerk_jwks_cache_stale_ttl_seconds,
+    })
+    .await
+    {
+        Ok(cache) => cache,
+        Err(err) => {
+            error!(error = %err, "failed to initialize Clerk JWKS redis cache");
+            std::process::exit(1);
+        }
+    };
+    let http_client = match reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+    {
+        Ok(http_client) => http_client,
+        Err(err) => {
+            error!(error = %err, "failed to initialize api http client");
+            std::process::exit(1);
+        }
+    };
 
     let app = http::build_router(http::AppState {
         store,
@@ -106,7 +130,8 @@ async fn main() {
         clerk_audience: config.clerk_audience,
         clerk_secret_key: config.clerk_secret_key,
         clerk_jwks_url: config.clerk_jwks_url,
-        http_client: reqwest::Client::new(),
+        clerk_jwks_cache,
+        http_client,
     });
 
     let addr: SocketAddr = config

@@ -34,6 +34,7 @@ pub(super) async fn auth_middleware(
 
     let identity = match verify_identity_token(
         &state.http_client,
+        &state.clerk_jwks_cache,
         &state.clerk_jwks_url,
         &state.clerk_secret_key,
         &state.clerk_issuer,

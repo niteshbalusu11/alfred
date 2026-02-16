@@ -42,15 +42,17 @@ ios-package-build:
 backend-check:
     cd {{ backend_dir }} && cargo check
 
-# Start local infrastructure (Postgres).
+# Start local infrastructure (Postgres + Redis).
 infra-up:
-    docker compose up -d postgres
+    docker compose up -d postgres redis
     @echo "Postgres is starting on 127.0.0.1:5432 (DB: alfred, user: postgres)."
+    @echo "Redis is starting on 127.0.0.1:6379."
     @echo "Export DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/alfred"
+    @echo "Export REDIS_URL=redis://127.0.0.1:6379/0"
 
 # Stop local infrastructure without deleting volumes.
 infra-stop:
-    docker compose stop postgres
+    docker compose stop postgres redis
 
 # Stop and remove local infrastructure including volumes.
 infra-down:
@@ -58,7 +60,7 @@ infra-down:
 
 # Tail local infrastructure logs.
 infra-logs:
-    docker compose logs -f postgres
+    docker compose logs -f postgres redis
 
 # Build Rust backend workspace.
 backend-build:

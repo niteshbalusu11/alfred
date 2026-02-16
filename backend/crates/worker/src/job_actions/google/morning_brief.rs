@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use chrono::{DateTime, Days, NaiveDate, Utc};
+use chrono::{DateTime, Utc};
 use shared::config::WorkerConfig;
 use shared::llm::contracts::MorningBriefOutput;
 use shared::llm::{
@@ -11,6 +11,7 @@ use shared::llm::{
 use shared::models::Preferences;
 use shared::repos::Store;
 use shared::security::SecretRuntime;
+use shared::timezone::{local_day_bounds_utc, user_local_date};
 use tracing::warn;
 
 use super::super::JobActionResult;
@@ -34,8 +35,8 @@ pub(super) async fn build_morning_brief(
 ) -> Result<JobActionResult, JobExecutionError> {
     let session =
         build_google_session(store, config, secret_runtime, oauth_client, user_id).await?;
-    let local_date = Utc::now().date_naive();
-    let (time_min, time_max) = calendar_day_window(local_date)?;
+    let local_date = user_local_date(Utc::now(), &preferences.time_zone);
+    let (time_min, time_max) = calendar_day_window(local_date, &preferences.time_zone)?;
 
     let events = fetch_calendar_events(
         oauth_client,
@@ -165,31 +166,15 @@ pub(super) async fn build_morning_brief(
 }
 
 fn calendar_day_window(
-    local_date: NaiveDate,
+    local_date: chrono::NaiveDate,
+    time_zone: &str,
 ) -> Result<(DateTime<Utc>, DateTime<Utc>), JobExecutionError> {
-    let Some(start_of_day) = local_date.and_hms_opt(0, 0, 0) else {
-        return Err(JobExecutionError::permanent(
+    local_day_bounds_utc(local_date, time_zone).ok_or_else(|| {
+        JobExecutionError::permanent(
             "MORNING_BRIEF_INVALID_CALENDAR_DATE",
-            "unable to compute start of day",
-        ));
-    };
-    let Some(next_day) = local_date.checked_add_days(Days::new(1)) else {
-        return Err(JobExecutionError::permanent(
-            "MORNING_BRIEF_INVALID_CALENDAR_DATE",
-            "unable to compute next day",
-        ));
-    };
-    let Some(start_of_next_day) = next_day.and_hms_opt(0, 0, 0) else {
-        return Err(JobExecutionError::permanent(
-            "MORNING_BRIEF_INVALID_CALENDAR_DATE",
-            "unable to compute next day start",
-        ));
-    };
-
-    Ok((
-        DateTime::<Utc>::from_naive_utc_and_offset(start_of_day, Utc),
-        DateTime::<Utc>::from_naive_utc_and_offset(start_of_next_day, Utc),
-    ))
+            "unable to compute local day boundaries",
+        )
+    })
 }
 
 fn calendar_event_to_meeting_source(

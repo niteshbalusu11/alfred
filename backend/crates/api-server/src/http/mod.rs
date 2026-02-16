@@ -11,6 +11,7 @@ mod assistant;
 mod audit;
 mod authn;
 mod clerk_identity;
+mod clerk_jwks_cache;
 mod connectors;
 mod devices;
 mod errors;
@@ -21,6 +22,7 @@ mod preferences;
 mod privacy;
 mod rate_limit;
 mod tokens;
+pub(crate) use clerk_jwks_cache::{ClerkJwksCache, ClerkJwksCacheConfig};
 pub use rate_limit::RateLimiter;
 
 #[derive(Clone)]
@@ -47,6 +49,7 @@ pub struct AppState {
     pub clerk_audience: String,
     pub clerk_secret_key: String,
     pub clerk_jwks_url: String,
+    pub clerk_jwks_cache: ClerkJwksCache,
     pub http_client: reqwest::Client,
 }
 

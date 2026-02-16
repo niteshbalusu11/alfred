@@ -34,6 +34,7 @@ pub(super) async fn update_preferences(
         "meeting_reminder_minutes".to_string(),
         req.meeting_reminder_minutes.to_string(),
     );
+    metadata.insert("time_zone".to_string(), req.time_zone.clone());
 
     if let Err(err) = state
         .store

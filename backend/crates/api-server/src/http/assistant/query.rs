@@ -12,9 +12,10 @@ use shared::models::{
     AssistantMeetingsTodayPayload, AssistantQueryCapability, AssistantQueryRequest,
     AssistantQueryResponse,
 };
+use shared::timezone::user_local_date;
 use tracing::warn;
 
-use super::super::errors::{bad_gateway_response, bad_request_response};
+use super::super::errors::{bad_gateway_response, bad_request_response, store_error_response};
 use super::super::{AppState, AuthUser};
 use super::fetch::fetch_meetings_for_day;
 use super::session::build_google_session;
@@ -52,13 +53,23 @@ async fn handle_meetings_today_query(state: &AppState, user_id: uuid::Uuid) -> R
         Err(response) => return response,
     };
 
-    let calendar_day = Utc::now().date_naive();
-    let meetings =
-        match fetch_meetings_for_day(&state.http_client, &session.access_token, calendar_day).await
-        {
-            Ok(meetings) => meetings,
-            Err(response) => return response,
-        };
+    let preferences = match state.store.get_or_create_preferences(user_id).await {
+        Ok(preferences) => preferences,
+        Err(err) => return store_error_response(err),
+    };
+
+    let calendar_day = user_local_date(Utc::now(), &preferences.time_zone);
+    let meetings = match fetch_meetings_for_day(
+        &state.http_client,
+        &session.access_token,
+        calendar_day,
+        &preferences.time_zone,
+    )
+    .await
+    {
+        Ok(meetings) => meetings,
+        Err(response) => return response,
+    };
 
     let context = assemble_meetings_today_context(calendar_day, &meetings);
     let raw_context_payload = match serde_json::to_value(&context) {

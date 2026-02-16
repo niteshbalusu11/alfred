@@ -1,6 +1,7 @@
-use chrono::{DateTime, Days, NaiveDate, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use serde::Deserialize;
 use shared::llm::GoogleCalendarMeetingSource;
+use shared::timezone::local_day_bounds_utc;
 
 use super::super::errors::bad_gateway_response;
 
@@ -12,19 +13,14 @@ pub(super) async fn fetch_meetings_for_day(
     http_client: &reqwest::Client,
     access_token: &str,
     calendar_day: NaiveDate,
+    time_zone: &str,
 ) -> Result<Vec<GoogleCalendarMeetingSource>, axum::response::Response> {
-    let Some(start_of_day) = calendar_day.and_hms_opt(0, 0, 0) else {
-        return Ok(Vec::new());
-    };
-    let Some(next_day) = calendar_day.checked_add_days(Days::new(1)) else {
-        return Ok(Vec::new());
-    };
-    let Some(start_of_next_day) = next_day.and_hms_opt(0, 0, 0) else {
+    let Some((start_utc, end_utc)) = local_day_bounds_utc(calendar_day, time_zone) else {
         return Ok(Vec::new());
     };
 
-    let time_min = DateTime::<Utc>::from_naive_utc_and_offset(start_of_day, Utc).to_rfc3339();
-    let time_max = DateTime::<Utc>::from_naive_utc_and_offset(start_of_next_day, Utc).to_rfc3339();
+    let time_min = start_utc.to_rfc3339();
+    let time_max = end_utc.to_rfc3339();
     let max_results = MAX_CALENDAR_EVENTS.to_string();
 
     let response = match http_client

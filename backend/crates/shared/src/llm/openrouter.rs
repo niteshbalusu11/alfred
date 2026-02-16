@@ -16,6 +16,8 @@ const DEFAULT_CHAT_COMPLETIONS_URL: &str = "https://openrouter.ai/api/v1/chat/co
 const DEFAULT_TIMEOUT_MS: u64 = 15_000;
 const DEFAULT_MAX_RETRIES: u32 = 2;
 const DEFAULT_RETRY_BASE_BACKOFF_MS: u64 = 250;
+const DEFAULT_MAX_OUTPUT_TOKENS: u32 = 600;
+const DEFAULT_ALLOW_INSECURE_HTTP: bool = false;
 
 const DEFAULT_PRIMARY_MODEL: &str = "openai/gpt-4o-mini";
 const DEFAULT_FALLBACK_MODEL: &str = "anthropic/claude-3.5-haiku";
@@ -51,6 +53,8 @@ pub struct OpenRouterGatewayConfig {
     pub timeout_ms: u64,
     pub max_retries: u32,
     pub retry_base_backoff_ms: u64,
+    pub max_output_tokens: u32,
+    pub allow_insecure_http: bool,
     pub model_route: OpenRouterModelRoute,
 }
 
@@ -59,11 +63,16 @@ impl OpenRouterGatewayConfig {
         let api_key = require_non_empty_env("OPENROUTER_API_KEY")?;
         let chat_completions_url = optional_trimmed_env("OPENROUTER_CHAT_COMPLETIONS_URL")
             .unwrap_or_else(|| DEFAULT_CHAT_COMPLETIONS_URL.to_string());
-        if !chat_completions_url.starts_with("http://")
-            && !chat_completions_url.starts_with("https://")
-        {
+        let allow_insecure_http = parse_bool_env(
+            "OPENROUTER_ALLOW_INSECURE_HTTP",
+            DEFAULT_ALLOW_INSECURE_HTTP,
+        )?;
+        let uses_https = chat_completions_url.starts_with("https://");
+        let uses_insecure_http = allow_insecure_http && chat_completions_url.starts_with("http://");
+        if !(uses_https || uses_insecure_http) {
             return Err(OpenRouterConfigError::InvalidConfiguration(
-                "OPENROUTER_CHAT_COMPLETIONS_URL must start with http:// or https://".to_string(),
+                "OPENROUTER_CHAT_COMPLETIONS_URL must use https:// (or set OPENROUTER_ALLOW_INSECURE_HTTP=true for local development)"
+                    .to_string(),
             ));
         }
 
@@ -76,6 +85,11 @@ impl OpenRouterGatewayConfig {
                 "OPENROUTER_RETRY_BASE_BACKOFF_MS",
                 DEFAULT_RETRY_BASE_BACKOFF_MS,
             )?,
+            max_output_tokens: parse_u32_env(
+                "OPENROUTER_MAX_OUTPUT_TOKENS",
+                DEFAULT_MAX_OUTPUT_TOKENS,
+            )?,
+            allow_insecure_http,
             model_route: parse_model_route(),
         })
     }
@@ -162,7 +176,8 @@ impl OpenRouterGateway {
             "response_format": {
                 "type": "json_object"
             },
-            "temperature": 0
+            "temperature": 0,
+            "max_tokens": self.config.max_output_tokens
         });
 
         let response = self
@@ -380,6 +395,19 @@ fn parse_u32_env(key: &str, default: u32) -> Result<u32, OpenRouterConfigError> 
                 key: key.to_string(),
                 value,
             }),
+        None => Ok(default),
+    }
+}
+
+fn parse_bool_env(key: &str, default: bool) -> Result<bool, OpenRouterConfigError> {
+    match optional_trimmed_env(key) {
+        Some(value) => match value.to_ascii_lowercase().as_str() {
+            "true" | "1" | "yes" | "on" => Ok(true),
+            "false" | "0" | "no" | "off" => Ok(false),
+            _ => Err(OpenRouterConfigError::InvalidConfiguration(format!(
+                "{key} must be a boolean value"
+            ))),
+        },
         None => Ok(default),
     }
 }

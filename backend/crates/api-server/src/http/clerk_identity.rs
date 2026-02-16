@@ -2,6 +2,8 @@ use chrono::Utc;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header};
 use serde::Deserialize;
 
+use super::clerk_jwks_cache::{ClerkJwksCache, ClerkJwksCacheError};
+
 const MAX_CLOCK_SKEW_SECONDS: i64 = 60;
 
 #[derive(Debug, Clone)]
@@ -45,8 +47,9 @@ struct ClerkJwk {
 
 pub(super) async fn verify_identity_token(
     http_client: &reqwest::Client,
+    jwks_cache: &ClerkJwksCache,
     jwks_url: &str,
-    clerk_secret_key: &str,
+    _clerk_secret_key: &str,
     expected_issuer: &str,
     expected_audience: &str,
     identity_token: &str,
@@ -77,23 +80,27 @@ pub(super) async fn verify_identity_token(
         });
     };
 
-    let jwks: ClerkJwks = http_client
-        .get(jwks_url)
-        .bearer_auth(clerk_secret_key)
-        .send()
+    let jwks_raw = match jwks_cache
+        .load_jwks_for_key(http_client, jwks_url, &key_id)
         .await
-        .map_err(|_| ClerkIdentityError::UpstreamUnavailable {
-            code: "clerk_jwks_unavailable",
-            message: "Unable to reach Clerk JWKS endpoint",
-        })?
-        .error_for_status()
-        .map_err(|_| ClerkIdentityError::UpstreamUnavailable {
-            code: "clerk_jwks_unavailable",
-            message: "Clerk JWKS endpoint returned an error",
-        })?
-        .json()
-        .await
-        .map_err(|_| ClerkIdentityError::UpstreamUnavailable {
+    {
+        Ok(jwks) => jwks,
+        Err(ClerkJwksCacheError::UnknownKeyId) => {
+            return Err(ClerkIdentityError::InvalidToken {
+                code: "invalid_clerk_token",
+                message: "Clerk token key was not recognized",
+            });
+        }
+        Err(ClerkJwksCacheError::UpstreamUnavailable) => {
+            return Err(ClerkIdentityError::UpstreamUnavailable {
+                code: "clerk_jwks_unavailable",
+                message: "Unable to reach Clerk JWKS endpoint",
+            });
+        }
+    };
+
+    let jwks: ClerkJwks =
+        serde_json::from_str(&jwks_raw).map_err(|_| ClerkIdentityError::UpstreamUnavailable {
             code: "clerk_jwks_unavailable",
             message: "Clerk JWKS response was invalid",
         })?;
