@@ -5,8 +5,8 @@ This workspace contains the Alfred iOS v1 backend services.
 ## Crates
 
 1. `crates/api-server`: REST API aligned with `api/openapi.yaml` backed by Postgres + `sqlx`.
-2. `crates/worker`: scheduler/cron worker loop scaffold.
-3. `crates/shared`: shared models and env config.
+2. `crates/worker`: scheduled/proactive job execution (lease/retry/idempotency, push dispatch, privacy delete workflows).
+3. `crates/shared`: shared models, repositories, security runtime, and LLM gateway modules.
 
 ## Local Infrastructure
 
@@ -55,8 +55,8 @@ just dev
 
 1. API handlers are backed by Postgres + `sqlx` for current v1 endpoints.
 2. Migrations are stored under `db/migrations`.
-3. Worker execution remains placeholder logic while durable job processing is implemented.
-4. Scalability boundary: DB queries live in `backend/crates/shared/src/repos`, and HTTP code lives in `backend/crates/api-server/src/http.rs`.
+3. Worker execution includes durable processing primitives (lease ownership, retry classification, idempotency keys, and dead-letter handling).
+4. Scalability boundary: DB queries live in `backend/crates/shared/src/repos`, and HTTP routing/handlers live under `backend/crates/api-server/src/http/*`.
 
 ## Security Runtime Environment
 
@@ -78,9 +78,10 @@ These vars control TEE/KMS-bound decrypt policy for connector refresh tokens:
 
 Connector token usage boundary:
 
-1. Host API/worker crates do not decrypt connector refresh tokens directly.
+1. API/worker handler modules do not call connector decrypt repository APIs directly.
 2. Sensitive Google token refresh/revoke flows execute through the enclave RPC contract in `shared::enclave`.
-3. Decrypt requests fail closed when attestation/KMS policy checks fail or connector key metadata drifts.
+3. Decrypt authorization fails closed when attestation/KMS policy checks fail or connector key metadata drifts.
+4. Current state: enclave RPC is an in-process abstraction in host runtime; full external enclave runtime separation is tracked in issue `#130` (`SEC-001` through `SEC-009`).
 
 ## Push Delivery Environment (Worker)
 
