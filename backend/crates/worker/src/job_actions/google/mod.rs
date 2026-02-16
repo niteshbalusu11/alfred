@@ -10,6 +10,7 @@ use shared::security::SecretRuntime;
 use super::JobActionResult;
 use crate::{JobExecutionError, NotificationContent};
 
+mod ai_observability;
 mod fetch;
 mod morning_brief;
 mod session;

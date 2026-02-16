@@ -1,6 +1,7 @@
 pub mod context;
 pub mod contracts;
 pub mod gateway;
+pub mod observability;
 pub mod openrouter;
 pub mod prompts;
 pub mod safety;
@@ -18,6 +19,7 @@ pub use contracts::{
     MorningBriefContract, UrgentEmailSummaryContract, output_schema,
 };
 pub use gateway::{LlmGateway, LlmGatewayError, LlmGatewayRequest, LlmGatewayResponse};
+pub use observability::{LlmExecutionSource, LlmTelemetryEvent, generate_with_telemetry};
 pub use openrouter::{
     OpenRouterConfigError, OpenRouterGateway, OpenRouterGatewayConfig, OpenRouterModelRoute,
 };

@@ -11,6 +11,8 @@ This document defines the baseline observability stack for API, worker, and push
 | Job processing success rate | >= 99.0% | rolling 24 hours | `worker tick metrics.success_rate` |
 | Job lag p95 | <= 60s | rolling 1 hour | `worker tick metrics.average_lag_seconds`, `max_lag_seconds` |
 | Push delivery success ratio | >= 98.5% | rolling 24 hours | `worker tick metrics.push_delivered / push_attempts` |
+| LLM request success ratio | >= 98.0% | rolling 1 hour | `metric_name=llm_request` grouped by `outcome` |
+| LLM p95 latency | <= 4000ms | rolling 1 hour | `llm_request.latency_ms` |
 
 ## Instrumentation Baseline
 
@@ -35,11 +37,32 @@ This document defines the baseline observability stack for API, worker, and push
   - `average_lag_seconds`, `max_lag_seconds`, `success_rate`
 - Request-to-job correlation is propagated through payload trace metadata and surfaced in worker audit metadata/log fields as `request_id`.
 
+### AI / LLM
+
+- API and worker LLM paths emit `metric_name=llm_request`.
+- Standard fields:
+  - `source` (`api_assistant_query`, `worker_morning_brief`, `worker_urgent_email`)
+  - `capability`
+  - `outcome` (`success` or `failure`)
+  - `provider`, `model`
+  - `latency_ms`
+  - `prompt_tokens`, `completion_tokens`, `total_tokens` (when provider usage exists)
+  - `estimated_cost_usd` (model-price estimate when known)
+  - `error_type` (failure-only)
+- Sustained provider degradation emits:
+  - `event=llm_provider_degradation_alert`
+  - `metric_name=llm_provider_degradation`
+  - `provider`, `consecutive_failures`, `degraded_for_seconds`
+- Recovery after degraded state emits:
+  - `event=llm_provider_recovered`
+  - `metric_name=llm_provider_degradation`
+
 ## Dashboard Links (Staging)
 
 - API Overview: [staging-api-overview](https://grafana.staging.alfred.internal/d/alfred-api-overview)
 - Worker Overview: [staging-worker-overview](https://grafana.staging.alfred.internal/d/alfred-worker-overview)
 - Push Delivery: [staging-push-overview](https://grafana.staging.alfred.internal/d/alfred-push-overview)
+- AI/LLM Overview: [staging-ai-overview](https://grafana.staging.alfred.internal/d/alfred-ai-overview)
 - SLO Burn Rates: [staging-slo-burn](https://grafana.staging.alfred.internal/d/alfred-slo-burn)
 
 ## Dashboard Panel Contract
@@ -53,6 +76,9 @@ This section maps each required SLI/SLO to the expected dashboard panel and metr
 | Worker Overview | Job success rate | `worker tick metrics.success_rate` | >= 99.0% (24h) |
 | Worker Overview | Queue lag | `worker tick metrics.average_lag_seconds` and `max_lag_seconds` | p95 <= 60s (1h), alert if `max_lag_seconds > 300` |
 | Push Delivery | Push success ratio | `worker tick metrics.push_delivered / push_attempts` | >= 98.5% (24h) |
+| AI/LLM Overview | LLM success ratio | `metric_name=llm_request` grouped by `outcome` | >= 98.0% (1h) |
+| AI/LLM Overview | LLM latency p95 | `llm_request.latency_ms` grouped by `source` and `model` | <= 4000ms (1h) |
+| AI/LLM Overview | LLM usage/cost | Sum of `prompt_tokens`, `completion_tokens`, `estimated_cost_usd` by model/provider | Track trend and anomalies |
 | SLO Burn Rates | Burn budget | Derived burn series for API availability, worker success rate, and push delivery success | Page on burn breach |
 
 Verification status:
@@ -68,6 +94,7 @@ Verification status:
 | `alfred-job-lag-high` | `max_lag_seconds > 300` | 10m | high | PagerDuty `alfred-primary` + `#alfred-incidents` |
 | `alfred-job-failure-spike` | `permanent_failures` spike over baseline | 10m | high | PagerDuty `alfred-primary` + `#alfred-incidents` |
 | `alfred-push-delivery-degraded` | push success ratio below 98.5% | 15m | medium | `#alfred-incidents` |
+| `alfred-llm-provider-degraded` | sustained `event=llm_provider_degradation_alert` for any provider | 10m | high | PagerDuty `alfred-primary` + `#alfred-incidents` |
 
 ## Correlation Contract
 

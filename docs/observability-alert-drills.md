@@ -17,6 +17,7 @@ Use this with staging-only endpoints and integrations:
 | Job lag high | Pause worker processing to push `max_lag_seconds > 300` for 10 minutes | `alfred-job-lag-high` | PagerDuty + Slack |
 | Job failure spike | Inject deterministic permanent failures over baseline for 10 minutes | `alfred-job-failure-spike` | PagerDuty + Slack |
 | Push delivery degraded | Force APNs failure mode to push success ratio below 98.5% for 15 minutes | `alfred-push-delivery-degraded` | Slack |
+| LLM provider degraded | Force sustained OpenRouter failures until `llm_provider_degradation_alert` is emitted for 10 minutes | `alfred-llm-provider-degraded` | PagerDuty + Slack |
 
 ## Execution Procedure
 
@@ -38,5 +39,6 @@ Use this with staging-only endpoints and integrations:
 | 2026-02-14 | Job lag high | TBD | PENDING | PENDING | PENDING | Add links to screenshots/tickets |
 | 2026-02-14 | Job failure spike | TBD | PENDING | PENDING | PENDING | Add links to screenshots/tickets |
 | 2026-02-14 | Push delivery degraded | TBD | PENDING | PENDING | PENDING | Add links to screenshots/tickets |
+| 2026-02-14 | LLM provider degraded | TBD | PENDING | PENDING | PENDING | Add links to screenshots/tickets |
 
 Until all rows are `PASS`, keep alerting work in `IN_PROGRESS`.
