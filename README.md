@@ -19,6 +19,24 @@ Alfred is designed around a simple product thesis:
 
 This repository contains the iOS app, backend services, API contract, and security/privacy design docs needed to ship that product.
 
+## Implementation Status (As Of 2026-02-16)
+
+Implemented now:
+
+1. Clerk-authenticated API surface for connectors, preferences, audit events, and privacy delete-all.
+2. LLM-first backend paths for:
+   1. `/v1/assistant/query` (meetings-today capability)
+   2. Worker morning brief generation
+   3. Worker urgent-email prioritization
+3. OpenRouter model routing/fallback plus reliability guardrails (rate limits, circuit breaker, cache, budget controls).
+4. Worker lease/retry/idempotency engine with dead-letter handling.
+5. Encrypted-at-rest storage for connector tokens and APNs device tokens.
+
+Still in progress:
+
+1. Full TEE production boundary hardening (separate enclave runtime, challenge-based attestation, KMS-bound decrypt, enclave-only token-backed provider fetch path).
+2. Remaining AI backlog items such as assistant session memory and eval/regression harness.
+
 ## Architecture Overview
 
 At a high level, Alfred has eight core parts:
@@ -29,7 +47,7 @@ At a high level, Alfred has eight core parts:
 4. OpenRouter provider gateway for model routing/fallback.
 5. Rust worker (`tokio`) for scheduled/proactive processing.
 6. Encrypted Postgres for operational state.
-7. TEE-backed path for sensitive decrypt + provider fetch work.
+7. Attestation-gated sensitive token path (with full enclave-process execution still in progress).
 8. APNs delivery pipeline for user notifications.
 
 ```mermaid
@@ -41,8 +59,11 @@ flowchart LR
     API --> OAuth["Google OAuth + Connector APIs"]
     Worker["Worker (Rust/tokio)"] --> API
     Worker --> DB
-    Worker --> TEE["TEE-Sensitive Execution Path"]
-    TEE --> Google["Google APIs"]
+    API --> SecretRuntime["Attestation + Key Policy Checks"]
+    Worker --> SecretRuntime
+    SecretRuntime --> GoogleOAuth["Google OAuth Token Refresh/Revoke"]
+    API --> Google["Google APIs"]
+    Worker --> Google
     Worker --> APNs["APNs Provider"]
     APNs --> App
 ```
@@ -54,7 +75,8 @@ Alfred is intentionally opinionated about privacy:
 1. Least privilege by default:
    Minimal OAuth scopes and no silent scope broadening.
 2. Token protection:
-   Connector secrets are encrypted at rest, with sensitive decrypt paths guarded by attestation and policy.
+   Connector secrets are encrypted at rest, with sensitive decrypt authorization guarded by attestation and key policy checks.
+   Full enclave-process-only sensitive execution is tracked as active security work.
 3. Data minimization:
    Alfred stores only what is required for reminders/alerts, retries, and auditability.
 4. User control:
@@ -80,6 +102,7 @@ Alfred is intentionally opinionated about privacy:
 6. Product context: `docs/product-context.md`
 7. RFC: `docs/rfc-0001-alfred-ios-v1.md`
 8. Threat model: `docs/threat-model-phase1.md`
+9. Security + TEE execution tracker: [GitHub issue #130](https://github.com/niteshbalusu11/alfred/issues/130)
 
 ## Quick Start
 
