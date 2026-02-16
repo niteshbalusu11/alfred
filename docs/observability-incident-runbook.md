@@ -59,6 +59,15 @@ Dashboards and SLO panel contracts are defined in:
 - If Redis is degraded during runtime, reliability operations may fail open (logged warnings) to preserve request handling; restore Redis health and monitor rate/cost drift.
 - Expected fallback behavior: worker and assistant endpoints should continue with deterministic safety fallback when provider calls fail or breaker is open.
 
+### Security and TEE Rotation
+
+- For key/measurement rotation incidents, execute the controlled workflow in:
+  - `docs/tee-kms-rotation-runbook.md`
+  - `scripts/security/tee-kms-rotation.sh`
+- If enclave attestation checks fail during rotation, use baseline enclave diagnostics from:
+  - `docs/enclave-runtime-baseline.md`
+- Capture evidence logs and attach them to the relevant issue/incident record before closing.
+
 ## Escalation
 
 - High-severity alerts page `alfred-primary` immediately.
