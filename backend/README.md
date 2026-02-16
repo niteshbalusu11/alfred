@@ -14,6 +14,8 @@ This workspace contains the Alfred iOS v1 backend services.
 From repository root:
 
 ```bash
+just check-tools
+just check-infra-tools
 just infra-up
 just backend-migrate
 ```
@@ -32,21 +34,51 @@ Security notes:
 2. `.env.example` contains only safe placeholders for local development.
 3. Explicit shell environment variables override `.env` values.
 
-## Run Services
+## Run Services (Local Quick Start)
 
 From repository root:
+
+1. Start enclave runtime in terminal A:
+
+```bash
+just enclave-runtime
+```
+
+2. Start API server in terminal B:
 
 ```bash
 just api
 ```
 
-In a second terminal:
+3. Start worker in terminal C:
 
 ```bash
 just worker
 ```
 
-Optional combined startup:
+4. Verify health:
+
+```bash
+curl -s http://127.0.0.1:8080/healthz
+curl -s http://127.0.0.1:8080/readyz
+curl -s http://127.0.0.1:8181/healthz
+```
+
+Expected API responses include `{"ok":true}`.
+
+5. Stop infrastructure when done:
+
+```bash
+just infra-stop
+```
+
+If you want to remove local volumes too:
+
+```bash
+just infra-down
+```
+
+Optional combined startup (API + worker + enclave + ngrok in one terminal):
 
 ```bash
 just dev

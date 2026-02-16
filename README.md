@@ -34,8 +34,8 @@ Implemented now:
 
 Still in progress:
 
-1. Full TEE production boundary hardening (separate enclave runtime, challenge-based attestation, KMS-bound decrypt, enclave-only token-backed provider fetch path).
-2. Remaining AI backlog items such as assistant session memory and eval/regression harness.
+1. External security assessment and remediation program before beta (`#43`).
+2. Remaining Phase I product/ops readiness items on the board (`docs/phase1-master-todo.md`).
 
 ## Architecture Overview
 
@@ -47,7 +47,7 @@ At a high level, Alfred has eight core parts:
 4. OpenRouter provider gateway for model routing/fallback.
 5. Rust worker (`tokio`) for scheduled/proactive processing.
 6. Encrypted Postgres for operational state.
-7. Attestation-gated sensitive token path (with full enclave-process execution still in progress).
+7. Attestation-gated sensitive token path with enclave runtime + KMS-bound policy enforcement.
 8. APNs delivery pipeline for user notifications.
 
 ```mermaid
@@ -76,7 +76,7 @@ Alfred is intentionally opinionated about privacy:
    Minimal OAuth scopes and no silent scope broadening.
 2. Token protection:
    Connector secrets are encrypted at rest, with sensitive decrypt authorization guarded by attestation and key policy checks.
-   Full enclave-process-only sensitive execution is tracked as active security work.
+   Enclave runtime + RPC boundary controls are implemented; external assessment/remediation remains in progress.
 3. Data minimization:
    Alfred stores only what is required for reminders/alerts, retries, and auditability.
 4. User control:
@@ -102,9 +102,75 @@ Alfred is intentionally opinionated about privacy:
 6. Product context: `docs/product-context.md`
 7. RFC: `docs/rfc-0001-alfred-ios-v1.md`
 8. Threat model: `docs/threat-model-phase1.md`
-9. Security + TEE execution tracker: [GitHub issue #130](https://github.com/niteshbalusu11/alfred/issues/130)
+9. Security + TEE execution tracker (completed): [GitHub issue #130](https://github.com/niteshbalusu11/alfred/issues/130)
 
-## Quick Start
+## Local Backend Quick Start
+
+Run from repository root (`alfred/`).
+
+1. Validate tools:
+
+```bash
+just check-tools
+just check-infra-tools
+```
+
+2. Create local env file:
+
+```bash
+cp .env.example .env
+```
+
+3. Start local infra and apply DB migrations:
+
+```bash
+just infra-up
+just backend-migrate
+```
+
+4. Start services in separate terminals:
+
+Terminal A:
+
+```bash
+just enclave-runtime
+```
+
+Terminal B:
+
+```bash
+just api
+```
+
+Terminal C:
+
+```bash
+just worker
+```
+
+5. Verify health:
+
+```bash
+curl -s http://127.0.0.1:8080/healthz
+curl -s http://127.0.0.1:8080/readyz
+curl -s http://127.0.0.1:8181/healthz
+```
+
+Expected API responses include `{\"ok\":true}`.
+
+6. Stop local infra when done:
+
+```bash
+just infra-stop
+```
+
+If you want to wipe local DB volumes too:
+
+```bash
+just infra-down
+```
+
+## Quick Build/Check
 
 Run from repository root:
 
