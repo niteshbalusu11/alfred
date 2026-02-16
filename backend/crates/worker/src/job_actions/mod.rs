@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 
 use chrono::Utc;
-use shared::config::WorkerConfig;
 use shared::repos::{AuditResult, ClaimedJob, Store};
-use shared::security::SecretRuntime;
 use tracing::{info, warn};
 
 use crate::{
@@ -11,20 +9,15 @@ use crate::{
     WorkerTickMetrics, apns_environment_label,
 };
 
+mod context;
 mod google;
 mod helpers;
 
-struct JobActionResult {
-    notification: Option<NotificationContent>,
-    metadata: HashMap<String, String>,
-}
+pub(crate) use context::JobActionContext;
+pub(super) use context::JobActionResult;
 
 pub(super) async fn dispatch_job_action(
-    store: &Store,
-    config: &WorkerConfig,
-    secret_runtime: &SecretRuntime,
-    oauth_client: &reqwest::Client,
-    push_sender: &PushSender,
+    context: JobActionContext<'_>,
     job: &ClaimedJob,
     metrics: &mut WorkerTickMetrics,
 ) -> Result<(), JobExecutionError> {
@@ -35,7 +28,8 @@ pub(super) async fn dispatch_job_action(
     }
     let request_id = helpers::extract_request_id(job.payload_ciphertext.as_deref());
 
-    let preferences = store
+    let preferences = context
+        .store
         .get_or_create_preferences(job.user_id)
         .await
         .map_err(|err| {
@@ -59,10 +53,11 @@ pub(super) async fn dispatch_job_action(
         }
     } else {
         google::resolve_job_action(
-            store,
-            config,
-            secret_runtime,
-            oauth_client,
+            context.store,
+            context.config,
+            context.secret_runtime,
+            context.oauth_client,
+            context.llm_gateway,
             job,
             &preferences,
         )
@@ -84,7 +79,7 @@ pub(super) async fn dispatch_job_action(
         metadata.insert("outcome".to_string(), "no_notification".to_string());
 
         record_notification_audit(
-            store,
+            context.store,
             job.user_id,
             "JOB_ACTION_SKIPPED",
             AuditResult::Success,
@@ -116,7 +111,7 @@ pub(super) async fn dispatch_job_action(
         );
 
         record_notification_audit(
-            store,
+            context.store,
             job.user_id,
             "NOTIFICATION_SUPPRESSED",
             AuditResult::Success,
@@ -137,7 +132,7 @@ pub(super) async fn dispatch_job_action(
     }
 
     record_notification_audit(
-        store,
+        context.store,
         job.user_id,
         "JOB_ACTION_GENERATED",
         AuditResult::Success,
@@ -145,7 +140,15 @@ pub(super) async fn dispatch_job_action(
     )
     .await;
 
-    send_notification_to_devices(store, push_sender, job, content, &action.metadata, metrics).await
+    send_notification_to_devices(
+        context.store,
+        context.push_sender,
+        job,
+        content,
+        &action.metadata,
+        metrics,
+    )
+    .await
 }
 
 async fn send_notification_to_devices(

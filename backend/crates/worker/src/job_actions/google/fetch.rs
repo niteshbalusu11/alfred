@@ -102,10 +102,18 @@ pub(super) struct GoogleCalendarEvent {
     pub(super) id: Option<String>,
     pub(super) summary: Option<String>,
     pub(super) start: Option<GoogleCalendarEventStart>,
+    pub(super) end: Option<GoogleCalendarEventStart>,
+    #[serde(default)]
+    pub(super) attendees: Vec<GoogleCalendarAttendee>,
 }
 
 #[derive(Debug, Deserialize)]
 pub(super) struct GoogleCalendarEventStart {
     #[serde(rename = "dateTime")]
     pub(super) date_time: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(super) struct GoogleCalendarAttendee {
+    pub(super) email: Option<String>,
 }
