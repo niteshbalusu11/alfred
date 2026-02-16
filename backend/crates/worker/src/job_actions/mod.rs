@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use chrono::Utc;
 use shared::repos::{AuditResult, ClaimedJob, Store};
+use shared::timezone::user_local_time;
 use tracing::{info, warn};
 
 use crate::{
@@ -90,8 +91,9 @@ pub(super) async fn dispatch_job_action(
         return Ok(());
     };
 
+    let now_local_time = user_local_time(Utc::now(), &preferences.time_zone);
     if helpers::is_within_quiet_hours(
-        Utc::now().time(),
+        now_local_time,
         &preferences.quiet_hours_start,
         &preferences.quiet_hours_end,
     )

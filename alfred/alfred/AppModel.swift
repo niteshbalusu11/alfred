@@ -52,6 +52,7 @@ final class AppModel: ObservableObject {
     @Published var morningBriefLocalTime = "08:00"
     @Published var quietHoursStart = "22:00"
     @Published var quietHoursEnd = "07:00"
+    @Published var timeZone = TimeZone.current.identifier
     @Published var highRiskRequiresConfirm = true
 
     @Published private(set) var auditEvents: [AuditEvent] = []
@@ -160,6 +161,7 @@ final class AppModel: ObservableObject {
             morningBriefLocalTime = prefs.morningBriefLocalTime
             quietHoursStart = prefs.quietHoursStart
             quietHoursEnd = prefs.quietHoursEnd
+            timeZone = prefs.timeZone
             highRiskRequiresConfirm = prefs.highRiskRequiresConfirm
             preferencesStatus = "Preferences synced."
         }
@@ -176,6 +178,7 @@ final class AppModel: ObservableObject {
             morningBriefLocalTime: morningBriefLocalTime.trimmingCharacters(in: .whitespacesAndNewlines),
             quietHoursStart: quietHoursStart.trimmingCharacters(in: .whitespacesAndNewlines),
             quietHoursEnd: quietHoursEnd.trimmingCharacters(in: .whitespacesAndNewlines),
+            timeZone: normalizedTimeZoneIdentifier(from: timeZone),
             highRiskRequiresConfirm: highRiskRequiresConfirm
         )
 
@@ -268,6 +271,14 @@ final class AppModel: ObservableObject {
                 sourceAction: action
             )
         }
+    }
+
+    private func normalizedTimeZoneIdentifier(from value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            return TimeZone.current.identifier
+        }
+        return TimeZone(identifier: trimmed)?.identifier ?? TimeZone.current.identifier
     }
 
     private func startAuthEventObserver() {

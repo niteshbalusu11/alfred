@@ -437,6 +437,7 @@ components:
           morning_brief_local_time,
           quiet_hours_start,
           quiet_hours_end,
+          time_zone,
           high_risk_requires_confirm
         ]
       properties:
@@ -454,6 +455,11 @@ components:
         quiet_hours_end:
           type: string
           pattern: "^([01]\\d|2[0-3]):[0-5]\\d$"
+        time_zone:
+          type: string
+          description: IANA timezone identifier (for example, America/Los_Angeles).
+          minLength: 1
+          maxLength: 64
         high_risk_requires_confirm:
           type: boolean
     UpdatePreferencesRequest:

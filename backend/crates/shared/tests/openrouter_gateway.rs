@@ -216,6 +216,8 @@ fn config_for(
         timeout_ms: 5_000,
         max_retries,
         retry_base_backoff_ms,
+        max_output_tokens: 600,
+        allow_insecure_http: true,
         model_route: OpenRouterModelRoute {
             primary_model: "primary-model".to_string(),
             fallback_model: Some("fallback-model".to_string()),

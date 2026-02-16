@@ -68,7 +68,16 @@ async fn main() {
         config.apns_production_endpoint.clone(),
         config.apns_auth_token.clone(),
     );
-    let oauth_client = reqwest::Client::new();
+    let oauth_client = match reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+    {
+        Ok(client) => client,
+        Err(err) => {
+            error!("failed to initialize worker http client: {err}");
+            std::process::exit(1);
+        }
+    };
     let secret_runtime = SecretRuntime::new(
         TeeAttestationPolicy {
             required: config.tee_attestation_required,

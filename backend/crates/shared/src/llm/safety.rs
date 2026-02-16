@@ -11,6 +11,9 @@ use super::validation::validate_output_value;
 
 const REDACTED_UNTRUSTED_TEXT: &str = "[redacted untrusted instruction]";
 const MAX_FALLBACK_LIST_ITEMS: usize = 3;
+const MAX_OUTPUT_TEXT_CHARS: usize = 500;
+const MAX_OUTPUT_TITLE_CHARS: usize = 120;
+const MAX_OUTPUT_LIST_ITEMS: usize = 8;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SafeOutputSource {
@@ -47,6 +50,7 @@ pub fn resolve_safe_output(
 
     if let Some(model_output) = model_output
         && let Ok(contract) = validate_output_value(capability, model_output)
+        && contract_within_bounds(&contract)
         && passes_action_safety_policy(&contract)
     {
         return SafeOutputResolution {
@@ -240,6 +244,63 @@ fn passes_action_safety_policy(contract: &AssistantOutputContract) -> bool {
     ) && !urgent.output.summary.trim().is_empty()
         && !urgent.output.reason.trim().is_empty()
         && !urgent.output.suggested_actions.is_empty()
+}
+
+fn contract_within_bounds(contract: &AssistantOutputContract) -> bool {
+    match contract {
+        AssistantOutputContract::MeetingsSummary(summary) => {
+            fits_chars(&summary.output.title, MAX_OUTPUT_TITLE_CHARS)
+                && fits_chars(&summary.output.summary, MAX_OUTPUT_TEXT_CHARS)
+                && summary.output.key_points.len() <= MAX_OUTPUT_LIST_ITEMS
+                && summary.output.follow_ups.len() <= MAX_OUTPUT_LIST_ITEMS
+                && summary
+                    .output
+                    .key_points
+                    .iter()
+                    .all(|item| fits_chars(item, MAX_OUTPUT_TEXT_CHARS))
+                && summary
+                    .output
+                    .follow_ups
+                    .iter()
+                    .all(|item| fits_chars(item, MAX_OUTPUT_TEXT_CHARS))
+        }
+        AssistantOutputContract::MorningBrief(brief) => {
+            fits_chars(&brief.output.headline, MAX_OUTPUT_TITLE_CHARS)
+                && fits_chars(&brief.output.summary, MAX_OUTPUT_TEXT_CHARS)
+                && brief.output.priorities.len() <= MAX_OUTPUT_LIST_ITEMS
+                && brief.output.schedule.len() <= MAX_OUTPUT_LIST_ITEMS
+                && brief.output.alerts.len() <= MAX_OUTPUT_LIST_ITEMS
+                && brief
+                    .output
+                    .priorities
+                    .iter()
+                    .all(|item| fits_chars(item, MAX_OUTPUT_TEXT_CHARS))
+                && brief
+                    .output
+                    .schedule
+                    .iter()
+                    .all(|item| fits_chars(item, MAX_OUTPUT_TEXT_CHARS))
+                && brief
+                    .output
+                    .alerts
+                    .iter()
+                    .all(|item| fits_chars(item, MAX_OUTPUT_TEXT_CHARS))
+        }
+        AssistantOutputContract::UrgentEmailSummary(urgent) => {
+            fits_chars(&urgent.output.summary, MAX_OUTPUT_TEXT_CHARS)
+                && fits_chars(&urgent.output.reason, MAX_OUTPUT_TEXT_CHARS)
+                && urgent.output.suggested_actions.len() <= MAX_OUTPUT_LIST_ITEMS
+                && urgent
+                    .output
+                    .suggested_actions
+                    .iter()
+                    .all(|item| fits_chars(item, MAX_OUTPUT_TEXT_CHARS))
+        }
+    }
+}
+
+fn fits_chars(value: &str, max_chars: usize) -> bool {
+    value.chars().count() <= max_chars
 }
 
 fn looks_like_prompt_injection(value: &str) -> bool {
@@ -460,5 +521,26 @@ mod tests {
             assert!(!contract.output.should_notify);
             assert_eq!(contract.output.reason, "deterministic_fallback");
         }
+    }
+
+    #[test]
+    fn resolve_safe_output_rejects_oversized_model_output() {
+        let oversized_output = json!({
+            "version": "2026-02-15",
+            "output": {
+                "title": "Daily meetings",
+                "summary": "S".repeat(800),
+                "key_points": [],
+                "follow_ups": []
+            }
+        });
+
+        let resolved = resolve_safe_output(
+            AssistantCapability::MeetingsSummary,
+            Some(&oversized_output),
+            &json!({ "meeting_count": 0, "meetings": [] }),
+        );
+
+        assert_eq!(resolved.source, SafeOutputSource::DeterministicFallback);
     }
 }

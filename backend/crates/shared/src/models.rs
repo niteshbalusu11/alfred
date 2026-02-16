@@ -104,6 +104,7 @@ pub struct Preferences {
     pub morning_brief_local_time: String,
     pub quiet_hours_start: String,
     pub quiet_hours_end: String,
+    pub time_zone: String,
     pub high_risk_requires_confirm: bool,
 }
 

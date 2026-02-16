@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 base64.workspace = true
 chrono.workspace = true
+chrono-tz.workspace = true
 dotenvy.workspace = true
 ed25519-dalek.workspace = true
 jsonschema.workspace = true

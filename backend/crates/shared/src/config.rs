@@ -17,6 +17,10 @@ pub struct ApiConfig {
     pub clerk_audience: String,
     pub clerk_secret_key: String,
     pub clerk_jwks_url: String,
+    pub redis_url: String,
+    pub clerk_jwks_cache_key: String,
+    pub clerk_jwks_cache_default_ttl_seconds: u64,
+    pub clerk_jwks_cache_stale_ttl_seconds: u64,
     pub google_client_id: String,
     pub google_client_secret: String,
     pub google_redirect_uri: String,
@@ -148,6 +152,20 @@ impl ApiConfig {
             ));
         }
         let clerk_jwks_url = format!("{}/jwks", clerk_backend_api_url.trim_end_matches('/'));
+        let clerk_jwks_cache_default_ttl_seconds =
+            parse_u64_env("CLERK_JWKS_CACHE_DEFAULT_TTL_SECONDS", 300)?;
+        if clerk_jwks_cache_default_ttl_seconds == 0 {
+            return Err(ConfigError::InvalidConfiguration(
+                "CLERK_JWKS_CACHE_DEFAULT_TTL_SECONDS must be greater than 0".to_string(),
+            ));
+        }
+        let clerk_jwks_cache_stale_ttl_seconds =
+            parse_u64_env("CLERK_JWKS_CACHE_STALE_TTL_SECONDS", 300)?;
+        if clerk_jwks_cache_stale_ttl_seconds == 0 {
+            return Err(ConfigError::InvalidConfiguration(
+                "CLERK_JWKS_CACHE_STALE_TTL_SECONDS must be greater than 0".to_string(),
+            ));
+        }
 
         Ok(Self {
             bind_addr: env::var("API_BIND_ADDR").unwrap_or_else(|_| "127.0.0.1:8080".to_string()),
@@ -164,6 +182,12 @@ impl ApiConfig {
             clerk_audience,
             clerk_secret_key,
             clerk_jwks_url,
+            redis_url: optional_trimmed_env("REDIS_URL")
+                .unwrap_or_else(|| "redis://127.0.0.1:6379/0".to_string()),
+            clerk_jwks_cache_key: optional_trimmed_env("CLERK_JWKS_CACHE_KEY")
+                .unwrap_or_else(|| "alfred:clerk:jwks:v1".to_string()),
+            clerk_jwks_cache_default_ttl_seconds,
+            clerk_jwks_cache_stale_ttl_seconds,
             google_client_id: require_env("GOOGLE_OAUTH_CLIENT_ID")?,
             google_client_secret: require_env("GOOGLE_OAUTH_CLIENT_SECRET")?,
             google_redirect_uri: require_env("GOOGLE_OAUTH_REDIRECT_URI")?,
