@@ -1,0 +1,39 @@
+{
+  "case_id": "meetings_summary_schema_violation",
+  "description": "Schema-invalid meetings output triggers deterministic fallback and actionable failure signal.",
+  "capability": "meetings_summary",
+  "include_in_live_smoke": false,
+  "context_payload": {
+    "version": "2026-02-15",
+    "calendar_day": "2026-02-15",
+    "meeting_count": 1,
+    "meetings": [
+      {
+        "event_ref": "evt-standup",
+        "title": "Standup",
+        "start_at": "2026-02-15T10:00:00Z",
+        "end_at": "2026-02-15T10:15:00Z",
+        "duration_minutes": 15,
+        "attendee_count": 5
+      }
+    ],
+    "current_query": "Any meetings this morning?"
+  },
+  "mocked_model_output": {
+    "version": "2026-02-15",
+    "output": {
+      "title": "Morning meetings",
+      "summary": "You have one quick standup.",
+      "key_points": [
+        "10:00 Standup"
+      ]
+    }
+  },
+  "expectations": {
+    "schema_valid": false,
+    "safe_output_source": "deterministic_fallback",
+    "quality": {
+      "min_key_points": 1
+    }
+  }
+}

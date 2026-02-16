@@ -204,33 +204,39 @@ Primary commands:
    1. Builds Rust backend workspace.
 14. `just backend-test`
    1. Runs Rust tests.
-15. `just backend-fmt`
+15. `just backend-eval`
+   1. Runs deterministic LLM eval/regression checks in mocked mode.
+16. `just backend-eval-update`
+   1. Intentionally refreshes mocked-mode eval goldens after reviewed behavior changes.
+17. `just backend-eval-live`
+   1. Runs optional live-provider LLM smoke checks (requires `OPENROUTER_*` env vars).
+18. `just backend-fmt`
    1. Formats Rust code.
-16. `just backend-clippy`
+19. `just backend-clippy`
     1. Runs lint checks with warnings denied.
-17. `just backend-verify`
+20. `just backend-verify`
     1. Runs backend completion gate: fmt + clippy + tests + build.
-18. `just backend-security-audit`
+21. `just backend-security-audit`
     1. Runs dependency vulnerability audit (`cargo audit`).
-19. `just backend-bug-check`
+22. `just backend-bug-check`
     1. Runs backend tests and fails on placeholder/debug macros.
-20. `just backend-architecture-check`
+23. `just backend-architecture-check`
     1. Enforces DB/HTTP layer boundaries for scalability.
-21. `just backend-deep-review`
+24. `just backend-deep-review`
     1. Runs backend verify + security audit + bug check + architecture checks.
-22. `just backend-api`
+25. `just backend-api`
     1. Runs REST API server.
-23. `just backend-worker`
+26. `just backend-worker`
     1. Runs background worker.
-24. `just api` (pending issue `#48`)
+27. `just api` (pending issue `#48`)
     1. Planned alias for `just backend-api` once `.env` startup support lands.
-25. `just worker` (pending issue `#48`)
+28. `just worker` (pending issue `#48`)
     1. Planned alias for `just backend-worker` once `.env` startup support lands.
-26. `just dev`
+29. `just dev`
     1. Runs API server + worker together.
-27. `just docs`
+30. `just docs`
     1. Prints key project documentation paths.
-28. `just sync-master`
+31. `just sync-master`
     1. Fetches remote, checks out `master`, and fast-forward pulls latest.
 
 ## Test and Quality Policy (Strict)
@@ -289,17 +295,19 @@ Use this sequence for most engineering tasks:
    1. `just ios-build`
 8. If backend behavior changed, also run:
    1. `just backend-deep-review`
-9. If frontend core logic changed, also run:
+9. If AI backend prompt/contract/safety behavior changed, also run:
+   1. `just backend-eval`
+10. If frontend core logic changed, also run:
    1. `just ios-test`
-10. If API contract changed:
+11. If API contract changed:
    1. Update `api/openapi.yaml`
    2. Ensure model updates in shared/server/client code.
-11. If persistence changed:
+12. If persistence changed:
    1. Add a new migration under `db/migrations`.
-12. If issue state changed:
+13. If issue state changed:
     1. Update GitHub issue comments/checklist
     2. Keep `docs/phase1-master-todo.md` status consistent where relevant
-13. Before PR merge (mandatory for backend-impacting issues):
+14. Before PR merge (mandatory for backend-impacting issues):
     1. Produce AI review report (security audit + bug check + scalability/cleanliness review)
     2. Use `docs/ai-review-template.md`
     3. Default: hand off to maintainer for manual merge after report is documented in issue/PR

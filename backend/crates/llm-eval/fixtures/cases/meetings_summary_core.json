@@ -1,0 +1,53 @@
+{
+  "case_id": "meetings_summary_core",
+  "description": "Meetings summary stays actionable and schema-safe for assistant query flow.",
+  "capability": "meetings_summary",
+  "include_in_live_smoke": true,
+  "context_payload": {
+    "version": "2026-02-15",
+    "calendar_day": "2026-02-15",
+    "meeting_count": 2,
+    "meetings": [
+      {
+        "event_ref": "evt-team-sync",
+        "title": "Team sync",
+        "start_at": "2026-02-15T09:00:00Z",
+        "end_at": "2026-02-15T09:30:00Z",
+        "duration_minutes": 30,
+        "attendee_count": 4
+      },
+      {
+        "event_ref": "evt-design-review",
+        "title": "Design review",
+        "start_at": "2026-02-15T14:00:00Z",
+        "end_at": "2026-02-15T14:45:00Z",
+        "duration_minutes": 45,
+        "attendee_count": 6
+      }
+    ],
+    "current_query": "What meetings do I have today?"
+  },
+  "mocked_model_output": {
+    "version": "2026-02-15",
+    "output": {
+      "title": "Today's meetings",
+      "summary": "You have two meetings today with planning and design focus.",
+      "key_points": [
+        "09:00 Team sync to align blockers",
+        "14:00 Design review for onboarding flow"
+      ],
+      "follow_ups": [
+        "Bring launch risks to the Team sync",
+        "Share latest prototypes before the design review"
+      ]
+    }
+  },
+  "expectations": {
+    "schema_valid": true,
+    "safe_output_source": "model_output",
+    "quality": {
+      "min_key_points": 2,
+      "min_follow_ups": 1
+    }
+  }
+}
