@@ -10,6 +10,7 @@ The enclave runtime is a separate process (`backend/crates/enclave-runtime`) tha
 
 1. `GET /healthz`
 2. `GET /v1/attestation/document`
+3. `POST /v1/attestation/challenge`
 
 API and worker startup now perform a fail-closed connectivity probe against these endpoints.
 
@@ -23,6 +24,7 @@ Prerequisites:
 4. `ENCLAVE_RUNTIME_MODE=dev-shim`
 5. `TEE_ATTESTATION_REQUIRED=false`
 6. `TEE_ALLOW_INSECURE_DEV_ATTESTATION=true`
+7. (optional) `TEE_ATTESTATION_SIGNING_PRIVATE_KEY` for custom dev signing identity
 
 Start enclave runtime:
 
@@ -58,6 +60,7 @@ Required guardrails:
 3. `TEE_ATTESTATION_DOCUMENT_PATH` or `TEE_ATTESTATION_DOCUMENT` is set
 4. `TEE_ATTESTATION_REQUIRED=true`
 5. `TEE_ALLOW_INSECURE_DEV_ATTESTATION=false`
+6. `TEE_ATTESTATION_SIGNING_PRIVATE_KEY` is configured
 
 In staging/production environments, `ENCLAVE_RUNTIME_MODE=dev-shim` and `ENCLAVE_RUNTIME_MODE=disabled` are rejected by config validation.
 
@@ -82,5 +85,6 @@ cargo run -p enclave-runtime
 1. Enclave runtime process is running as a distinct binary/process.
 2. `GET /healthz` returns `200`.
 3. `GET /v1/attestation/document` returns `200` with JSON payload.
-4. API starts successfully with enclave connectivity check enabled.
-5. Worker starts successfully with enclave connectivity check enabled.
+4. `POST /v1/attestation/challenge` returns `200` with signed challenge-bound evidence.
+5. API starts successfully with enclave connectivity check enabled.
+6. Worker starts successfully with enclave connectivity check enabled.

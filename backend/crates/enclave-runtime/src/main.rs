@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 
 use axum::Router;
-use axum::routing::get;
+use axum::routing::{get, post};
 use shared::config::load_dotenv;
 use tracing::{error, info, warn};
 
@@ -50,6 +50,10 @@ async fn main() {
     let app = Router::new()
         .route("/healthz", get(http::healthz))
         .route("/v1/attestation/document", get(http::attestation_document))
+        .route(
+            "/v1/attestation/challenge",
+            post(http::attestation_challenge),
+        )
         .with_state(RuntimeState {
             config: config.clone(),
         });

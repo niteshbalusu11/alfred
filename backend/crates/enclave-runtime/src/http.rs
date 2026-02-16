@@ -3,6 +3,7 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use serde::Serialize;
 use serde_json::{Value, json};
+use shared::enclave_runtime::{AttestationChallengeRequest, AttestationChallengeResponse};
 
 use crate::RuntimeState;
 
@@ -33,6 +34,30 @@ pub(crate) async fn attestation_document(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({
                     "code": "attestation_document_unavailable",
+                    "message": err,
+                })),
+            )
+        })
+}
+
+pub(crate) async fn attestation_challenge(
+    State(state): State<RuntimeState>,
+    Json(challenge): Json<AttestationChallengeRequest>,
+) -> Result<Json<AttestationChallengeResponse>, (StatusCode, Json<Value>)> {
+    state
+        .config
+        .attestation_challenge_response(challenge)
+        .map(Json)
+        .map_err(|err| {
+            let status = if err.starts_with("invalid challenge") {
+                StatusCode::BAD_REQUEST
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            };
+            (
+                status,
+                Json(json!({
+                    "code": "attestation_challenge_failed",
                     "message": err,
                 })),
             )

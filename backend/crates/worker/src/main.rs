@@ -127,8 +127,9 @@ async fn main() {
             key_version: config.kms_key_version,
             allowed_measurements: config.kms_allowed_measurements.clone(),
         },
-        config.tee_attestation_document.clone(),
-        config.tee_attestation_document_path.clone(),
+        config.enclave_runtime_base_url.clone(),
+        config.tee_attestation_challenge_timeout_ms,
+        oauth_client.clone(),
     );
 
     let worker_id = Uuid::new_v4();

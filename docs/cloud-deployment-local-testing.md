@@ -218,7 +218,7 @@ API:
 
 Security/TEE:
 1. For non-production smoke staging only: `TEE_ATTESTATION_REQUIRED=false`, `TEE_ALLOW_INSECURE_DEV_ATTESTATION=true`, `TEE_ATTESTATION_DOCUMENT={}`
-2. For production-like secure mode: provide attestation document path/public key and keep insecure mode disabled.
+2. For production-like secure mode: provide attestation document source, challenge signing key (`TEE_ATTESTATION_SIGNING_PRIVATE_KEY`), verifier public key (`TEE_ATTESTATION_PUBLIC_KEY`), and keep insecure mode disabled.
 
 Worker/APNs (if testing push delivery):
 1. `APNS_SANDBOX_ENDPOINT` and/or `APNS_PRODUCTION_ENDPOINT`
