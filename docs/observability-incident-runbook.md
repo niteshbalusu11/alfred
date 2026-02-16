@@ -42,6 +42,19 @@ Dashboards and SLO panel contracts are defined in:
 - Inspect `push_transient_failures` vs `push_permanent_failures`.
 - Verify APNs endpoint and auth token status.
 
+### LLM Reliability
+
+- Check `llm_request` outcome split (`success` vs `failure`) and latency.
+- If `llm_provider_degradation` alerts fire, confirm whether circuit breaker is open via logs:
+  - `circuit_breaker_open retry_after_seconds=...`
+- If responses suddenly downgrade in quality, verify budget mode activation:
+  - budget window spend crossing `LLM_BUDGET_MAX_ESTIMATED_COST_USD`
+  - active `LLM_BUDGET_MODEL` configuration
+- If user requests are rejected, inspect rate-limit failures:
+  - `rate_limited scope=user`
+  - `rate_limited scope=global`
+- Expected fallback behavior: worker and assistant endpoints should continue with deterministic safety fallback when provider calls fail or breaker is open.
+
 ## Escalation
 
 - High-severity alerts page `alfred-primary` immediately.

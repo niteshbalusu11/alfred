@@ -12,6 +12,7 @@ pub type LlmGatewayFuture<'a> =
 
 #[derive(Debug, Clone)]
 pub struct LlmGatewayRequest {
+    pub requester_id: Option<String>,
     pub capability: AssistantCapability,
     pub contract_version: String,
     pub system_prompt: String,
@@ -23,6 +24,7 @@ pub struct LlmGatewayRequest {
 impl LlmGatewayRequest {
     pub fn from_template(template: PromptTemplate, context_payload: Value) -> Self {
         Self {
+            requester_id: None,
             capability: template.capability,
             contract_version: template.contract_version.to_string(),
             system_prompt: template.system_prompt.to_string(),
@@ -30,6 +32,14 @@ impl LlmGatewayRequest {
             output_schema: template.output_schema,
             context_payload,
         }
+    }
+
+    pub fn with_requester_id(mut self, requester_id: impl AsRef<str>) -> Self {
+        let trimmed = requester_id.as_ref().trim();
+        if !trimmed.is_empty() {
+            self.requester_id = Some(trimmed.to_string());
+        }
+        self
     }
 }
 

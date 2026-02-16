@@ -104,7 +104,8 @@ async fn handle_meetings_today_query(
     let request = LlmGatewayRequest::from_template(
         template_for_capability(AssistantCapability::MeetingsSummary),
         context_payload.clone(),
-    );
+    )
+    .with_requester_id(user_id.to_string());
 
     let (llm_result, telemetry) = generate_with_telemetry(
         &state.llm_gateway,

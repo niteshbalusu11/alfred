@@ -1,6 +1,6 @@
 use axum::routing::{delete, get, post};
 use axum::{Router, middleware};
-use shared::llm::OpenRouterGateway;
+use shared::llm::ReliableOpenRouterGateway;
 use shared::repos::Store;
 use shared::security::SecretRuntime;
 use std::collections::HashSet;
@@ -41,7 +41,7 @@ pub struct AppState {
     pub store: Store,
     pub oauth: OAuthConfig,
     pub secret_runtime: SecretRuntime,
-    pub llm_gateway: OpenRouterGateway,
+    pub llm_gateway: ReliableOpenRouterGateway,
     pub rate_limiter: RateLimiter,
     pub trusted_proxy_ips: HashSet<IpAddr>,
     pub oauth_state_ttl_seconds: u64,
