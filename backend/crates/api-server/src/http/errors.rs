@@ -3,8 +3,7 @@ use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use shared::models::{ErrorBody, ErrorResponse};
 use shared::repos::StoreError;
-use shared::security::SecurityError;
-use tracing::{error, warn};
+use tracing::error;
 
 pub(super) fn bad_request_response(code: &str, message: &str) -> Response {
     (
@@ -66,41 +65,17 @@ pub(super) fn too_many_requests_response(retry_after_seconds: u64) -> Response {
     response
 }
 
-pub(super) fn security_error_response(err: SecurityError) -> Response {
-    match err {
-        SecurityError::InvalidAttestationDocument(_)
-        | SecurityError::MissingAttestationPublicKey
-        | SecurityError::InvalidAttestationPublicKey
-        | SecurityError::MissingAttestationSignature
-        | SecurityError::AttestationChallengeRequestFailed { .. }
-        | SecurityError::AttestationChallengeRejected { .. }
-        | SecurityError::ReplayGuardUnavailable => {
-            error!("security runtime misconfigured: {err}");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: ErrorBody {
-                        code: "security_runtime_error".to_string(),
-                        message: "Security runtime is misconfigured".to_string(),
-                    },
-                }),
-            )
-                .into_response()
-        }
-        other => {
-            warn!("decrypt denied by tee/kms policy: {other}");
-            (
-                StatusCode::FORBIDDEN,
-                Json(ErrorResponse {
-                    error: ErrorBody {
-                        code: "decrypt_not_authorized".to_string(),
-                        message: "Connector decrypt is denied by attestation policy".to_string(),
-                    },
-                }),
-            )
-                .into_response()
-        }
-    }
+pub(super) fn decrypt_not_authorized_response() -> Response {
+    (
+        StatusCode::FORBIDDEN,
+        Json(ErrorResponse {
+            error: ErrorBody {
+                code: "decrypt_not_authorized".to_string(),
+                message: "Connector decrypt is denied by attestation policy".to_string(),
+            },
+        }),
+    )
+        .into_response()
 }
 
 pub(super) fn store_error_response(err: StoreError) -> Response {

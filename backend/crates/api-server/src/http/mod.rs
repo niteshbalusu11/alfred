@@ -1,5 +1,6 @@
 use axum::routing::{delete, get, post};
 use axum::{Router, middleware};
+use shared::enclave::EnclaveRpcAuthConfig;
 use shared::llm::ReliableOpenRouterGateway;
 use shared::repos::Store;
 use shared::security::SecretRuntime;
@@ -32,14 +33,20 @@ pub struct OAuthConfig {
     pub redirect_uri: String,
     pub auth_url: String,
     pub token_url: String,
-    pub revoke_url: String,
     pub scopes: Vec<String>,
+}
+
+#[derive(Clone)]
+pub struct EnclaveRpcConfig {
+    pub base_url: String,
+    pub auth: EnclaveRpcAuthConfig,
 }
 
 #[derive(Clone)]
 pub struct AppState {
     pub store: Store,
     pub oauth: OAuthConfig,
+    pub enclave_rpc: EnclaveRpcConfig,
     pub secret_runtime: SecretRuntime,
     pub llm_gateway: ReliableOpenRouterGateway,
     pub rate_limiter: RateLimiter,

@@ -1,7 +1,5 @@
 use shared::config::WorkerConfig;
-use shared::enclave::{
-    ConnectorSecretRequest, EnclaveRpcClient, EnclaveRpcError, GoogleEnclaveOauthConfig,
-};
+use shared::enclave::{ConnectorSecretRequest, EnclaveRpcClient, EnclaveRpcError};
 use shared::repos::{ActiveConnectorMetadata, LEGACY_CONNECTOR_TOKEN_KEY_ID, Store};
 use shared::security::SecretRuntime;
 use tracing::info;
@@ -51,7 +49,7 @@ pub(crate) async fn revoke_active_connectors(
 async fn revoke_single_connector(
     store: &Store,
     config: &WorkerConfig,
-    secret_runtime: &SecretRuntime,
+    _secret_runtime: &SecretRuntime,
     oauth_client: &reqwest::Client,
     user_id: Uuid,
     connector: ActiveConnectorMetadata,
@@ -64,7 +62,7 @@ async fn revoke_single_connector(
     }
 
     let connector = normalize_connector_metadata(store, config, user_id, connector).await?;
-    let enclave_client = build_enclave_client(store, config, secret_runtime, oauth_client);
+    let enclave_client = build_enclave_client(config, oauth_client);
     let revoke_response = enclave_client
         .revoke_google_connector_token(ConnectorSecretRequest {
             user_id,
@@ -130,34 +128,26 @@ async fn normalize_connector_metadata(
     Ok(connector)
 }
 
-fn build_enclave_client(
-    store: &Store,
-    config: &WorkerConfig,
-    secret_runtime: &SecretRuntime,
-    oauth_client: &reqwest::Client,
-) -> EnclaveRpcClient {
+fn build_enclave_client(config: &WorkerConfig, oauth_client: &reqwest::Client) -> EnclaveRpcClient {
     EnclaveRpcClient::new(
-        store.clone(),
-        secret_runtime.clone(),
-        oauth_client.clone(),
-        GoogleEnclaveOauthConfig {
-            client_id: config.google_client_id.clone(),
-            client_secret: config.google_client_secret.clone(),
-            token_url: config.google_token_url.clone(),
-            revoke_url: config.google_revoke_url.clone(),
+        config.enclave_runtime_base_url.clone(),
+        shared::enclave::EnclaveRpcAuthConfig {
+            shared_secret: config.enclave_rpc_shared_secret.clone(),
+            max_clock_skew_seconds: config.enclave_rpc_auth_max_skew_seconds,
         },
+        oauth_client.clone(),
     )
 }
 
 fn map_revoke_enclave_error(err: EnclaveRpcError) -> DeleteRequestError {
     match err {
-        EnclaveRpcError::DecryptNotAuthorized(err) => DeleteRequestError::new(
+        EnclaveRpcError::DecryptNotAuthorized { message } => DeleteRequestError::new(
             "CONNECTOR_DECRYPT_NOT_AUTHORIZED",
-            format!("decrypt authorization failed: {err}"),
+            format!("decrypt authorization failed: {message}"),
         ),
-        EnclaveRpcError::ConnectorTokenDecryptFailed(err) => DeleteRequestError::new(
+        EnclaveRpcError::ConnectorTokenDecryptFailed { message } => DeleteRequestError::new(
             "CONNECTOR_TOKEN_DECRYPT_FAILED",
-            format!("failed to decrypt refresh token: {err}"),
+            format!("failed to decrypt refresh token: {message}"),
         ),
         EnclaveRpcError::ConnectorTokenUnavailable => DeleteRequestError::new(
             "CONNECTOR_TOKEN_MISSING",
@@ -174,6 +164,16 @@ fn map_revoke_enclave_error(err: EnclaveRpcError) -> DeleteRequestError {
         EnclaveRpcError::ProviderResponseInvalid { .. } => DeleteRequestError::new(
             "GOOGLE_REVOKE_FAILED",
             "Google revoke endpoint returned an invalid response",
+        ),
+        EnclaveRpcError::RpcUnauthorized { code }
+        | EnclaveRpcError::RpcContractRejected { code } => DeleteRequestError::new(
+            "ENCLAVE_RPC_REJECTED",
+            format!("secure enclave rpc request rejected: {code}"),
+        ),
+        EnclaveRpcError::RpcTransportUnavailable { message }
+        | EnclaveRpcError::RpcResponseInvalid { message } => DeleteRequestError::new(
+            "ENCLAVE_RPC_UNAVAILABLE",
+            format!("secure enclave rpc unavailable: {message}"),
         ),
     }
 }

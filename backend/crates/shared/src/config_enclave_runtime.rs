@@ -48,3 +48,30 @@ pub(crate) fn validate_enclave_runtime_guards(
 
     Ok(())
 }
+
+pub(crate) fn parse_enclave_rpc_shared_secret(
+    environment: AlfredEnvironment,
+) -> Result<String, ConfigError> {
+    if let Ok(value) = env::var("ENCLAVE_RPC_SHARED_SECRET") {
+        let trimmed = value.trim().to_string();
+        if trimmed.is_empty() {
+            return Err(ConfigError::MissingVar(
+                "ENCLAVE_RPC_SHARED_SECRET".to_string(),
+            ));
+        }
+        if trimmed.len() < 16 {
+            return Err(ConfigError::InvalidConfiguration(
+                "ENCLAVE_RPC_SHARED_SECRET must be at least 16 characters".to_string(),
+            ));
+        }
+        return Ok(trimmed);
+    }
+
+    if matches!(environment, AlfredEnvironment::Local) {
+        return Ok("local-dev-enclave-rpc-secret".to_string());
+    }
+
+    Err(ConfigError::MissingVar(
+        "ENCLAVE_RPC_SHARED_SECRET".to_string(),
+    ))
+}

@@ -20,6 +20,7 @@ chrono = { version = "0.4", features = ["serde"] }
 chrono-tz = "0.10"
 dotenvy = "0.15"
 ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
+hmac = "0.12"
 jsonschema = "0.18"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 redis = { version = "0.29", default-features = false, features = ["tokio-comp", "connection-manager"] }

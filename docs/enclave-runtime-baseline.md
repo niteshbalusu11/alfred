@@ -11,6 +11,8 @@ The enclave runtime is a separate process (`backend/crates/enclave-runtime`) tha
 1. `GET /healthz`
 2. `GET /v1/attestation/document`
 3. `POST /v1/attestation/challenge`
+4. `POST /v1/rpc/google/token/exchange`
+5. `POST /v1/rpc/google/token/revoke`
 
 API and worker startup now perform a fail-closed connectivity probe against these endpoints.
 
@@ -25,6 +27,8 @@ Prerequisites:
 5. `TEE_ATTESTATION_REQUIRED=false`
 6. `TEE_ALLOW_INSECURE_DEV_ATTESTATION=true`
 7. (optional) `TEE_ATTESTATION_SIGNING_PRIVATE_KEY` for custom dev signing identity
+8. `ENCLAVE_RPC_SHARED_SECRET` (for local, default fallback is `local-dev-enclave-rpc-secret`)
+9. `ENCLAVE_RPC_AUTH_MAX_SKEW_SECONDS=30`
 
 Start enclave runtime:
 
@@ -88,3 +92,4 @@ cargo run -p enclave-runtime
 4. `POST /v1/attestation/challenge` returns `200` with signed challenge-bound evidence.
 5. API starts successfully with enclave connectivity check enabled.
 6. Worker starts successfully with enclave connectivity check enabled.
+7. Enclave RPC endpoints reject malformed or unsigned host requests fail-closed.

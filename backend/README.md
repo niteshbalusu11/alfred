@@ -83,14 +83,17 @@ These vars control TEE/KMS-bound decrypt policy for connector refresh tokens:
 18. `TEE_ATTESTATION_SIGNING_PRIVATE_KEY` (base64 Ed25519 private key used by enclave runtime to sign challenge-bound attestation evidence)
 19. `TEE_ATTESTATION_DOCUMENT_PATH` (remote-mode enclave runtime attestation identity source)
 20. `TEE_ATTESTATION_DOCUMENT` (inline remote-mode attestation identity source for local smoke setups)
+21. `ENCLAVE_RPC_SHARED_SECRET` (shared secret for signed host↔enclave RPC request authentication; required outside local)
+22. `ENCLAVE_RPC_AUTH_MAX_SKEW_SECONDS` (default: `30`; max allowed timestamp skew for signed RPC requests)
 
 Connector token usage boundary:
 
 1. API/worker handler modules do not call connector decrypt repository APIs directly.
-2. Sensitive Google token refresh/revoke flows execute through the enclave RPC contract in `shared::enclave`.
-3. Decrypt authorization fails closed when challenge-bound attestation verification/KMS policy checks fail or connector key metadata drifts.
-4. API/worker startup now performs fail-closed connectivity checks against enclave runtime `GET /healthz`, `GET /v1/attestation/document`, and `POST /v1/attestation/challenge`.
-5. Enclave decrypt flow re-reads connector key metadata from storage and does not trust host-provided key metadata in RPC requests.
+2. Host runtimes use signed enclave RPC requests (`POST /v1/rpc/google/token/exchange` and `POST /v1/rpc/google/token/revoke`) with nonce + timestamp replay protections.
+3. Sensitive Google token refresh/revoke flows execute only through enclave runtime handlers.
+4. Decrypt authorization fails closed when challenge-bound attestation verification/KMS policy checks fail or connector key metadata drifts.
+5. API/worker startup performs fail-closed connectivity checks against enclave runtime `GET /healthz`, `GET /v1/attestation/document`, and `POST /v1/attestation/challenge`.
+6. Enclave decrypt flow re-reads connector key metadata from storage and does not trust host-provided key metadata in RPC requests.
 
 Enclave runtime commands:
 

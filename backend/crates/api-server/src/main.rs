@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 use std::time::Duration;
 
 use shared::config::{ApiConfig, load_dotenv};
+use shared::enclave::EnclaveRpcAuthConfig;
 use shared::enclave_runtime::{EnclaveRuntimeEndpointConfig, verify_connectivity};
 use shared::llm::{LlmReliabilityConfig, OpenRouterGatewayConfig, ReliableOpenRouterGateway};
 use shared::repos::Store;
@@ -134,11 +135,17 @@ async fn main() {
             redirect_uri: config.google_redirect_uri,
             auth_url: config.google_auth_url,
             token_url: config.google_token_url,
-            revoke_url: config.google_revoke_url,
             scopes: vec![
                 "https://www.googleapis.com/auth/gmail.readonly".to_string(),
                 "https://www.googleapis.com/auth/calendar.readonly".to_string(),
             ],
+        },
+        enclave_rpc: http::EnclaveRpcConfig {
+            base_url: config.enclave_runtime_base_url.clone(),
+            auth: EnclaveRpcAuthConfig {
+                shared_secret: config.enclave_rpc_shared_secret.clone(),
+                max_clock_skew_seconds: config.enclave_rpc_auth_max_skew_seconds,
+            },
         },
         secret_runtime: SecretRuntime::new(
             TeeAttestationPolicy {
