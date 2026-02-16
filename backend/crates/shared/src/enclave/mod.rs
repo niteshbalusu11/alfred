@@ -14,9 +14,15 @@ use uuid::Uuid;
 pub use client::EnclaveRpcClient;
 pub use contract::{
     AttestedIdentityPayload, ENCLAVE_RPC_CONTRACT_VERSION, ENCLAVE_RPC_PATH_EXCHANGE_GOOGLE_TOKEN,
-    ENCLAVE_RPC_PATH_REVOKE_GOOGLE_TOKEN, EnclaveRpcErrorEnvelope, EnclaveRpcErrorPayload,
+    ENCLAVE_RPC_PATH_FETCH_GOOGLE_CALENDAR_EVENTS,
+    ENCLAVE_RPC_PATH_FETCH_GOOGLE_URGENT_EMAIL_CANDIDATES, ENCLAVE_RPC_PATH_REVOKE_GOOGLE_TOKEN,
+    EnclaveGoogleCalendarAttendee, EnclaveGoogleCalendarEvent, EnclaveGoogleCalendarEventDateTime,
+    EnclaveGoogleEmailCandidate, EnclaveRpcErrorEnvelope, EnclaveRpcErrorPayload,
     EnclaveRpcExchangeGoogleTokenRequest, EnclaveRpcExchangeGoogleTokenResponse,
-    EnclaveRpcRevokeGoogleTokenRequest, EnclaveRpcRevokeGoogleTokenResponse,
+    EnclaveRpcFetchGoogleCalendarEventsRequest, EnclaveRpcFetchGoogleCalendarEventsResponse,
+    EnclaveRpcFetchGoogleUrgentEmailCandidatesRequest,
+    EnclaveRpcFetchGoogleUrgentEmailCandidatesResponse, EnclaveRpcRevokeGoogleTokenRequest,
+    EnclaveRpcRevokeGoogleTokenResponse,
 };
 pub use service::EnclaveOperationService;
 pub use transport_auth::{
@@ -50,10 +56,24 @@ pub struct RevokeGoogleTokenResponse {
     pub attested_identity: AttestedIdentityPayload,
 }
 
+#[derive(Debug, Clone)]
+pub struct FetchGoogleCalendarEventsResponse {
+    pub events: Vec<EnclaveGoogleCalendarEvent>,
+    pub attested_identity: AttestedIdentityPayload,
+}
+
+#[derive(Debug, Clone)]
+pub struct FetchGoogleUrgentEmailCandidatesResponse {
+    pub candidates: Vec<EnclaveGoogleEmailCandidate>,
+    pub attested_identity: AttestedIdentityPayload,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProviderOperation {
     TokenRefresh,
     TokenRevoke,
+    CalendarFetch,
+    GmailFetch,
 }
 
 impl fmt::Display for ProviderOperation {
@@ -61,6 +81,8 @@ impl fmt::Display for ProviderOperation {
         match self {
             Self::TokenRefresh => write!(f, "token_refresh"),
             Self::TokenRevoke => write!(f, "token_revoke"),
+            Self::CalendarFetch => write!(f, "calendar_fetch"),
+            Self::GmailFetch => write!(f, "gmail_fetch"),
         }
     }
 }

@@ -18,7 +18,7 @@ mod urgent_email;
 mod util;
 
 use fetch::fetch_calendar_events;
-use session::build_google_session;
+use session::{build_enclave_client, build_google_session};
 use util::{first_timed_event, truncate_for_notification};
 
 pub(super) async fn resolve_job_action(
@@ -35,10 +35,10 @@ pub(super) async fn resolve_job_action(
             let session =
                 build_google_session(store, config, secret_runtime, oauth_client, job.user_id)
                     .await?;
+            let enclave_client = build_enclave_client(config, oauth_client);
             build_meeting_reminder(
-                oauth_client,
-                &session.access_token,
-                &session.attested_measurement,
+                &enclave_client,
+                session.connector_request,
                 preferences.meeting_reminder_minutes,
             )
             .await
@@ -70,15 +70,16 @@ pub(super) async fn resolve_job_action(
 }
 
 async fn build_meeting_reminder(
-    oauth_client: &reqwest::Client,
-    access_token: &str,
-    attested_measurement: &str,
+    enclave_client: &shared::enclave::EnclaveRpcClient,
+    connector_request: shared::enclave::ConnectorSecretRequest,
     reminder_minutes: u32,
 ) -> Result<JobActionResult, JobExecutionError> {
     let now = Utc::now();
     let lead_minutes = reminder_minutes.max(1);
     let time_max = now + ChronoDuration::minutes(i64::from(lead_minutes));
-    let events = fetch_calendar_events(oauth_client, access_token, now, time_max, 5).await?;
+    let fetch_outcome =
+        fetch_calendar_events(enclave_client, connector_request, now, time_max, 5).await?;
+    let events = fetch_outcome.events;
 
     let mut metadata = HashMap::new();
     metadata.insert("action_source".to_string(), "google_calendar".to_string());
@@ -86,7 +87,7 @@ async fn build_meeting_reminder(
     metadata.insert("events_found".to_string(), events.len().to_string());
     metadata.insert(
         "attested_measurement".to_string(),
-        attested_measurement.to_string(),
+        fetch_outcome.attested_measurement,
     );
 
     let Some(event) = first_timed_event(events) else {

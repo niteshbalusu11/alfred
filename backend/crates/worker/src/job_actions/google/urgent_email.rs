@@ -17,7 +17,7 @@ use super::ai_observability::{
     append_llm_telemetry_metadata, log_llm_telemetry, record_ai_audit_event,
 };
 use super::fetch::fetch_urgent_email_candidates;
-use super::session::build_google_session;
+use super::session::{build_enclave_client, build_google_session};
 use super::util::truncate_for_notification;
 use crate::{JobExecutionError, NotificationContent};
 
@@ -35,12 +35,14 @@ pub(super) async fn build_urgent_email_alert(
 ) -> Result<JobActionResult, JobExecutionError> {
     let session =
         build_google_session(store, config, secret_runtime, oauth_client, user_id).await?;
-    let candidates = fetch_urgent_email_candidates(
-        oauth_client,
-        &session.access_token,
+    let enclave_client = build_enclave_client(config, oauth_client);
+    let fetch_outcome = fetch_urgent_email_candidates(
+        &enclave_client,
+        session.connector_request,
         URGENT_EMAIL_CANDIDATE_MAX_RESULTS,
     )
     .await?;
+    let candidates = fetch_outcome.candidates;
     let candidates_fetched = candidates.len();
     let context = assemble_urgent_email_candidates_context(&candidates);
 
@@ -79,7 +81,7 @@ pub(super) async fn build_urgent_email_alert(
     );
     metadata.insert(
         "attested_measurement".to_string(),
-        session.attested_measurement,
+        fetch_outcome.attested_measurement,
     );
 
     let (llm_result, telemetry) =

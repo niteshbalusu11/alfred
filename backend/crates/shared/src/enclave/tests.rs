@@ -1,5 +1,3 @@
-use std::fs;
-use std::path::PathBuf;
 use std::time::Duration;
 
 use axum::extract::Json;
@@ -11,50 +9,16 @@ use uuid::Uuid;
 
 use super::{
     AttestedIdentityPayload, ConnectorSecretRequest, ENCLAVE_RPC_CONTRACT_VERSION,
-    ENCLAVE_RPC_PATH_EXCHANGE_GOOGLE_TOKEN, EnclaveRpcAuthConfig, EnclaveRpcClient,
+    ENCLAVE_RPC_PATH_EXCHANGE_GOOGLE_TOKEN, ENCLAVE_RPC_PATH_FETCH_GOOGLE_CALENDAR_EVENTS,
+    ENCLAVE_RPC_PATH_FETCH_GOOGLE_URGENT_EMAIL_CANDIDATES, EnclaveRpcAuthConfig, EnclaveRpcClient,
     EnclaveRpcError, EnclaveRpcErrorEnvelope, EnclaveRpcExchangeGoogleTokenRequest,
-    EnclaveRpcExchangeGoogleTokenResponse, EnclaveRpcRevokeGoogleTokenRequest,
+    EnclaveRpcExchangeGoogleTokenResponse, EnclaveRpcFetchGoogleCalendarEventsRequest,
+    EnclaveRpcFetchGoogleCalendarEventsResponse, EnclaveRpcFetchGoogleUrgentEmailCandidatesRequest,
+    EnclaveRpcFetchGoogleUrgentEmailCandidatesResponse, EnclaveRpcRevokeGoogleTokenRequest,
     EnclaveRpcRevokeGoogleTokenResponse,
 };
 
-#[test]
-fn sensitive_worker_api_paths_do_not_log_secret_token_fields() {
-    let shared_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let files = [
-        shared_root.join("../api-server/src/http/assistant/session.rs"),
-        shared_root.join("../api-server/src/http/connectors.rs"),
-        shared_root.join("../api-server/src/http/connectors/revoke.rs"),
-        shared_root.join("../worker/src/job_actions/google/session.rs"),
-        shared_root.join("../worker/src/privacy_delete_revoke.rs"),
-    ];
-
-    for file in files {
-        let content = fs::read_to_string(&file)
-            .expect("failed to read source file for secret logging guard test");
-        assert_no_sensitive_tracing_args(file.display().to_string().as_str(), &content);
-    }
-}
-
-#[test]
-fn host_paths_do_not_call_store_decrypt_directly() {
-    let shared_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let files = [
-        shared_root.join("../api-server/src/http/assistant/session.rs"),
-        shared_root.join("../api-server/src/http/connectors/revoke.rs"),
-        shared_root.join("../worker/src/job_actions/google/session.rs"),
-        shared_root.join("../worker/src/privacy_delete_revoke.rs"),
-    ];
-
-    for file in files {
-        let content = fs::read_to_string(&file)
-            .expect("failed to read source file for decrypt boundary guard test");
-        assert!(
-            !content.contains("decrypt_active_connector_refresh_token("),
-            "{} must not call connector decrypt repository API directly",
-            file.display()
-        );
-    }
-}
+mod boundary_guards;
 
 #[tokio::test]
 async fn rpc_client_maps_timeout_to_transport_unavailable() {
@@ -352,6 +316,94 @@ async fn rpc_client_rejects_request_id_mismatch_in_revoke_response() {
     assert!(matches!(err, EnclaveRpcError::RpcResponseInvalid { .. }));
 }
 
+#[tokio::test]
+async fn rpc_client_rejects_request_id_mismatch_in_calendar_fetch_response() {
+    let app = Router::new().route(
+        ENCLAVE_RPC_PATH_FETCH_GOOGLE_CALENDAR_EVENTS,
+        post(
+            |_req: Json<EnclaveRpcFetchGoogleCalendarEventsRequest>| async move {
+                Json(EnclaveRpcFetchGoogleCalendarEventsResponse {
+                    contract_version: ENCLAVE_RPC_CONTRACT_VERSION.to_string(),
+                    request_id: "mismatched-request-id".to_string(),
+                    events: Vec::new(),
+                    attested_identity: AttestedIdentityPayload {
+                        runtime: "nitro".to_string(),
+                        measurement: "mr_enclave_1".to_string(),
+                    },
+                })
+            },
+        ),
+    );
+    let (base_url, _server) = start_test_server(app).await;
+
+    let client = EnclaveRpcClient::new(
+        base_url,
+        EnclaveRpcAuthConfig {
+            shared_secret: "local-secret".to_string(),
+            max_clock_skew_seconds: 30,
+        },
+        reqwest::Client::new(),
+    );
+
+    let err = client
+        .fetch_google_calendar_events(
+            ConnectorSecretRequest {
+                user_id: Uuid::new_v4(),
+                connector_id: Uuid::new_v4(),
+            },
+            "2026-02-16T00:00:00Z".to_string(),
+            "2026-02-16T23:59:59Z".to_string(),
+            5,
+        )
+        .await
+        .expect_err("calendar request_id mismatch must fail closed");
+
+    assert!(matches!(err, EnclaveRpcError::RpcResponseInvalid { .. }));
+}
+
+#[tokio::test]
+async fn rpc_client_rejects_request_id_mismatch_in_gmail_fetch_response() {
+    let app = Router::new().route(
+        ENCLAVE_RPC_PATH_FETCH_GOOGLE_URGENT_EMAIL_CANDIDATES,
+        post(
+            |_req: Json<EnclaveRpcFetchGoogleUrgentEmailCandidatesRequest>| async move {
+                Json(EnclaveRpcFetchGoogleUrgentEmailCandidatesResponse {
+                    contract_version: ENCLAVE_RPC_CONTRACT_VERSION.to_string(),
+                    request_id: "mismatched-request-id".to_string(),
+                    candidates: Vec::new(),
+                    attested_identity: AttestedIdentityPayload {
+                        runtime: "nitro".to_string(),
+                        measurement: "mr_enclave_1".to_string(),
+                    },
+                })
+            },
+        ),
+    );
+    let (base_url, _server) = start_test_server(app).await;
+
+    let client = EnclaveRpcClient::new(
+        base_url,
+        EnclaveRpcAuthConfig {
+            shared_secret: "local-secret".to_string(),
+            max_clock_skew_seconds: 30,
+        },
+        reqwest::Client::new(),
+    );
+
+    let err = client
+        .fetch_google_urgent_email_candidates(
+            ConnectorSecretRequest {
+                user_id: Uuid::new_v4(),
+                connector_id: Uuid::new_v4(),
+            },
+            5,
+        )
+        .await
+        .expect_err("gmail request_id mismatch must fail closed");
+
+    assert!(matches!(err, EnclaveRpcError::RpcResponseInvalid { .. }));
+}
+
 async fn start_test_server(app: Router) -> (String, tokio::task::JoinHandle<()>) {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
@@ -367,35 +419,4 @@ async fn start_test_server(app: Router) -> (String, tokio::task::JoinHandle<()>)
     });
 
     (format!("http://{}", local_addr), server)
-}
-
-fn assert_no_sensitive_tracing_args(path: &str, content: &str) {
-    const TRACING_MACROS: [&str; 5] = ["trace!(", "debug!(", "info!(", "warn!(", "error!("];
-    const SENSITIVE_TERMS: [&str; 4] = [
-        "refresh_token",
-        "access_token",
-        "client_secret",
-        "apns_token",
-    ];
-
-    for macro_call in TRACING_MACROS {
-        let mut from = 0;
-        while let Some(start_offset) = content[from..].find(macro_call) {
-            let start = from + start_offset;
-            let Some(end_offset) = content[start..].find(");") else {
-                break;
-            };
-            let end = start + end_offset + 2;
-            let snippet = content[start..end].to_ascii_lowercase();
-
-            for term in SENSITIVE_TERMS {
-                assert!(
-                    !snippet.contains(term),
-                    "{path} contains sensitive term `{term}` in tracing macro: {snippet}"
-                );
-            }
-
-            from = end;
-        }
-    }
 }

@@ -20,7 +20,7 @@ use super::ai_observability::{
     append_llm_telemetry_metadata, log_llm_telemetry, record_ai_audit_event,
 };
 use super::fetch::{GoogleCalendarEvent, fetch_calendar_events};
-use super::session::build_google_session;
+use super::session::{build_enclave_client, build_google_session};
 use super::util::truncate_for_notification;
 use crate::{JobExecutionError, NotificationContent};
 
@@ -39,17 +39,19 @@ pub(super) async fn build_morning_brief(
 ) -> Result<JobActionResult, JobExecutionError> {
     let session =
         build_google_session(store, config, secret_runtime, oauth_client, user_id).await?;
+    let enclave_client = build_enclave_client(config, oauth_client);
     let local_date = user_local_date(Utc::now(), &preferences.time_zone);
     let (time_min, time_max) = calendar_day_window(local_date, &preferences.time_zone)?;
 
-    let events = fetch_calendar_events(
-        oauth_client,
-        &session.access_token,
+    let fetch_outcome = fetch_calendar_events(
+        &enclave_client,
+        session.connector_request,
         time_min,
         time_max,
         MORNING_BRIEF_CALENDAR_MAX_RESULTS,
     )
     .await?;
+    let events = fetch_outcome.events;
     let events_fetched = events.len();
 
     let meetings = events
@@ -111,7 +113,7 @@ pub(super) async fn build_morning_brief(
     );
     metadata.insert(
         "attested_measurement".to_string(),
-        session.attested_measurement,
+        fetch_outcome.attested_measurement,
     );
 
     let (llm_result, telemetry) =
