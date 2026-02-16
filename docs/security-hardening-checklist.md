@@ -12,6 +12,7 @@
 | Secret scanning blocks leaks in CI | DONE | `.github/workflows/ci.yml` (`Secret Scan` job) |
 | IAM least-privilege review documented | DONE | `docs/iam-least-privilege-review.md` |
 | Log redaction verification captured | DONE | Existing redacted error patterns + deep review checks |
+| TEE/KMS key rotation runbook and operator script are defined | DONE | `docs/tee-kms-rotation-runbook.md`, `scripts/security/tee-kms-rotation.sh` |
 
 ## Critical Risk Summary
 
