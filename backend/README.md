@@ -124,7 +124,9 @@ These vars control runtime reliability protections for LLM requests:
 
 Behavior notes:
 
-1. Requests are limited globally and per-user per window.
-2. Repeated provider failures open a circuit breaker and fail closed until cooldown elapses.
-3. Successful responses are cached for short-lived duplicate prompts.
-4. When budget window spend reaches threshold, requests route to `LLM_BUDGET_MODEL` until the window resets.
+1. Reliability state is Redis-backed (via `REDIS_URL`) and shared across API/worker instances.
+2. Requests are limited globally and per-user per window.
+3. Repeated provider failures open a circuit breaker and fail closed until cooldown elapses.
+4. Successful responses are cached in Redis for short-lived duplicate prompts, surviving process restarts.
+5. When budget window spend reaches threshold, requests route to `LLM_BUDGET_MODEL` until the window resets.
+6. API/worker startup fails fast if Redis reliability state cannot initialize.

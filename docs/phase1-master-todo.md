@@ -217,6 +217,7 @@ Ship a private beta where iOS users can:
 | AI-007 | P0 | Migrate urgent-email worker path to LLM prioritization (`#98`) | BE | 2026-03-18 | DONE | AI-003, AI-005 | Urgent-email decision path is LLM-based with safe fallback |
 | AI-008 | P0 | Add AI observability + redacted audit events (`#99`) | SRE | 2026-03-20 | DONE | AI-004, AI-006, AI-007 | Latency/usage/cost metrics and redacted audit events are live |
 | AI-009 | P0 | Add LLM reliability guardrails (`#100`) | BE | 2026-03-22 | DONE | AI-004 | Circuit breaker/rate limits/cache/budgets enforced |
+| AI-013 | P0 | Move LLM reliability state to Redis (`#118`) | BE | 2026-03-30 | DONE | AI-009 | Reliability cache/rate-limit/breaker/budget state is shared and restart-safe |
 | AI-010 | P0 | Add assistant session memory for follow-up continuity (`#101`) | BE | 2026-03-24 | TODO | AI-004 | Session-context follow-up queries supported with retention controls |
 | AI-011 | P0 | Add LLM eval/regression harness in CI (`#102`) | QA | 2026-03-26 | TODO | AI-005, AI-006, AI-007 | Prompt/output regressions are detected by automated checks |
 | AI-012 | P0 | Maintain migration tracker + execution order (`#103`) | FOUNDER | 2026-03-05 | IN_PROGRESS | - | Tracker issue reflects live execution order and status |
