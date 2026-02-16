@@ -2249,6 +2249,7 @@ dependencies = [
  "dotenvy",
  "ed25519-dalek",
  "jsonschema",
+ "redis",
  "reqwest",
  "schemars",
  "serde",
@@ -2257,6 +2258,7 @@ dependencies = [
  "sqlx",
  "thiserror",
  "tokio",
+ "tracing",
  "uuid",
 ]
 

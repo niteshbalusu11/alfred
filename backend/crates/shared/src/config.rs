@@ -73,6 +73,7 @@ pub struct WorkerConfig {
     pub database_url: String,
     pub database_max_connections: u32,
     pub data_encryption_key: String,
+    pub redis_url: String,
 }
 
 #[derive(Debug, Error)]
@@ -326,6 +327,8 @@ impl WorkerConfig {
             database_url: require_env("DATABASE_URL")?,
             database_max_connections: parse_u32_env("DATABASE_MAX_CONNECTIONS", 5)?,
             data_encryption_key: require_env("DATA_ENCRYPTION_KEY")?,
+            redis_url: optional_trimmed_env("REDIS_URL")
+                .unwrap_or_else(|| "redis://127.0.0.1:6379/0".to_string()),
         })
     }
 }

@@ -43,10 +43,13 @@ async fn main() {
             std::process::exit(1);
         }
     };
-    let llm_gateway = match ReliableOpenRouterGateway::from_openrouter_config(
+    let llm_gateway = match ReliableOpenRouterGateway::from_openrouter_config_with_redis(
         openrouter_config,
         llm_reliability_config,
-    ) {
+        &config.redis_url,
+    )
+    .await
+    {
         Ok(gateway) => gateway,
         Err(err) => {
             error!(error = %err, "failed to initialize LLM gateway");

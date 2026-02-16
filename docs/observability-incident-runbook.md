@@ -53,6 +53,10 @@ Dashboards and SLO panel contracts are defined in:
 - If user requests are rejected, inspect rate-limit failures:
   - `rate_limited scope=user`
   - `rate_limited scope=global`
+- Verify Redis health for shared reliability state:
+  - connectivity to `REDIS_URL`
+  - key activity under `alfred:llm:reliability:v1:*`
+- If Redis is degraded during runtime, reliability operations may fail open (logged warnings) to preserve request handling; restore Redis health and monitor rate/cost drift.
 - Expected fallback behavior: worker and assistant endpoints should continue with deterministic safety fallback when provider calls fail or breaker is open.
 
 ## Escalation
