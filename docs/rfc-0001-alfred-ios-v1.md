@@ -427,6 +427,9 @@ Mitigations:
 
 ### 10.1 Trust Boundaries
 
+Canonical source of truth for Phase I implementation details:
+`docs/adr-0001-tee-provider-trust-boundary.md`
+
 1. Boundary A: API/worker host runtimes are untrusted for connector-token plaintext and cannot directly invoke decrypt repository APIs.
 2. Boundary B: Attested enclave identity is trusted for decrypt operations only when measurement is allow-listed and attestation evidence is signed + fresh.
 3. Boundary C: KMS key policy binds decrypt capability to enclave measurement and key metadata (`token_key_id`, `token_version`).

@@ -1,8 +1,11 @@
 # Phase I STRIDE Threat Model
 
-- Last Updated: 2026-02-15
+- Last Updated: 2026-02-16
 - Reviewed For Issue: `#19`
 - Scope: iOS session auth, OAuth connector lifecycle, TEE decrypt path, worker processing, LLM/OpenRouter orchestration, privacy delete flow
+
+Canonical TEE provider/trust contract reference:
+`docs/adr-0001-tee-provider-trust-boundary.md` (SEC-001)
 
 ## 1) System Boundaries
 
