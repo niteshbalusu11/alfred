@@ -31,6 +31,17 @@ This file is intentionally at repository root so coding agents can auto-discover
    4. push pipeline
    5. privacy + audit controls
 
+## Content Blindness Migration (Important)
+
+1. Privacy-boundary tracker for server-blind message content is GitHub issue `#146`.
+2. Delivery phases are `#147`, `#148`, and `#149` in dependency order.
+3. Use labels `phase-1`, `P0`, `backend`, and `content-blindness` for this migration line.
+4. Target privacy boundary:
+   1. Metadata visibility on server is acceptable.
+   2. Message content must be encrypted client-side and decrypted only inside an attested enclave path.
+5. Breaking protocol and contract changes are explicitly allowed pre-launch; optimize for clean boundaries rather than compatibility.
+6. Do not add new plaintext message-content logging or persistence in server-control-plane components.
+
 ## Required Workflow
 
 1. Run `just check-tools`.

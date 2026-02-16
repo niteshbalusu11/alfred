@@ -88,6 +88,22 @@ The project intentionally avoids smart-home control in v1 to reduce reliability 
    4. push pipeline
    5. audit/privacy controls
 
+## Content Blindness Source Of Truth (2026-02-16)
+
+1. Privacy-boundary tracker for server-blind message content is GitHub issue `#146`.
+2. Execution phases are:
+   1. `#147` design and protocol boundary definition
+   2. `#148` encrypted message transport and enclave-only plaintext handling
+   3. `#149` validation, hardening, and privacy verification gates
+3. Current privacy posture:
+   1. Enclave path already protects connector fetch/decrypt workflows.
+   2. Assistant message content must be migrated to enclave-only plaintext handling.
+4. Target boundary for this migration:
+   1. Metadata can remain visible to server control plane.
+   2. User/assistant message body content must remain ciphertext outside the enclave.
+5. Breaking API/protocol changes are acceptable pre-launch; no legacy compatibility requirements for this track.
+6. Required labels for this workstream: `phase-1`, `P0`, `backend`, `content-blindness`.
+
 ## GitHub Issue-Driven Execution
 
 Primary execution queue is GitHub issues in:
