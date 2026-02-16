@@ -1,129 +1,166 @@
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, Utc};
 use reqwest::StatusCode;
 use serde::Deserialize;
-use serde::de::DeserializeOwned;
+use shared::enclave::{
+    ConnectorSecretRequest, EnclaveGoogleCalendarAttendee, EnclaveGoogleCalendarEvent,
+    EnclaveGoogleCalendarEventDateTime, EnclaveGoogleEmailCandidate, EnclaveRpcClient,
+    EnclaveRpcError, ProviderOperation,
+};
 use shared::llm::GoogleEmailCandidateSource;
 
 use crate::{FailureClass, JobExecutionError};
 
-const GOOGLE_CALENDAR_EVENTS_URL: &str =
-    "https://www.googleapis.com/calendar/v3/calendars/primary/events";
-const GMAIL_MESSAGES_URL: &str = "https://gmail.googleapis.com/gmail/v1/users/me/messages";
+pub(super) struct CalendarFetchOutcome {
+    pub(super) events: Vec<GoogleCalendarEvent>,
+    pub(super) attested_measurement: String,
+}
+
+pub(super) struct UrgentEmailFetchOutcome {
+    pub(super) candidates: Vec<GoogleEmailCandidateSource>,
+    pub(super) attested_measurement: String,
+}
 
 pub(super) async fn fetch_calendar_events(
-    oauth_client: &reqwest::Client,
-    access_token: &str,
+    enclave_client: &EnclaveRpcClient,
+    connector_request: ConnectorSecretRequest,
     time_min: DateTime<Utc>,
     time_max: DateTime<Utc>,
     max_results: usize,
-) -> Result<Vec<GoogleCalendarEvent>, JobExecutionError> {
-    let time_min = time_min.to_rfc3339();
-    let time_max = time_max.to_rfc3339();
-    let max_results = max_results.to_string();
-    let request = oauth_client
-        .get(GOOGLE_CALENDAR_EVENTS_URL)
-        .bearer_auth(access_token)
-        .query(&[
-            ("singleEvents", "true"),
-            ("orderBy", "startTime"),
-            ("timeMin", &time_min),
-            ("timeMax", &time_max),
-            ("maxResults", &max_results),
-        ]);
-    let payload: GoogleCalendarEventsResponse = send_google_request(
-        request,
-        "GOOGLE_CALENDAR_UNAVAILABLE",
-        "calendar request failed",
-        "GOOGLE_CALENDAR_FAILED",
-        "calendar request failed",
-        "GOOGLE_CALENDAR_PARSE_FAILED",
-        "calendar response was invalid",
-    )
-    .await?;
+) -> Result<CalendarFetchOutcome, JobExecutionError> {
+    let response = enclave_client
+        .fetch_google_calendar_events(
+            connector_request,
+            time_min.to_rfc3339(),
+            time_max.to_rfc3339(),
+            max_results,
+        )
+        .await
+        .map_err(map_calendar_fetch_error)?;
 
-    Ok(payload.items)
+    Ok(CalendarFetchOutcome {
+        events: response.events.into_iter().map(Into::into).collect(),
+        attested_measurement: response.attested_identity.measurement,
+    })
 }
 
 pub(super) async fn fetch_urgent_email_candidates(
-    oauth_client: &reqwest::Client,
-    access_token: &str,
+    enclave_client: &EnclaveRpcClient,
+    connector_request: ConnectorSecretRequest,
     max_results: usize,
-) -> Result<Vec<GoogleEmailCandidateSource>, JobExecutionError> {
-    let max_results = max_results.clamp(1, 50).to_string();
-    let request = oauth_client
-        .get(GMAIL_MESSAGES_URL)
-        .bearer_auth(access_token)
-        .query(&[
-            ("labelIds", "INBOX"),
-            ("q", "newer_than:2d"),
-            ("maxResults", max_results.as_str()),
-        ]);
-    let payload: GmailMessagesResponse = send_google_request(
-        request,
-        "GMAIL_UNAVAILABLE",
-        "gmail list request failed",
-        "GMAIL_MESSAGES_FAILED",
-        "gmail list request failed",
-        "GMAIL_MESSAGES_PARSE_FAILED",
-        "gmail list response was invalid",
-    )
-    .await?;
+) -> Result<UrgentEmailFetchOutcome, JobExecutionError> {
+    let response = enclave_client
+        .fetch_google_urgent_email_candidates(connector_request, max_results)
+        .await
+        .map_err(map_gmail_fetch_error)?;
 
-    let mut candidates = Vec::with_capacity(payload.messages.len());
-    for message in payload.messages {
-        let request = oauth_client
-            .get(format!("{GMAIL_MESSAGES_URL}/{}", message.id))
-            .bearer_auth(access_token)
-            .query(&[
-                ("format", "metadata"),
-                ("metadataHeaders", "From"),
-                ("metadataHeaders", "Subject"),
-            ]);
-        let details: GmailMessageMetadataResponse = send_google_request(
-            request,
-            "GMAIL_UNAVAILABLE",
-            "gmail message request failed",
-            "GMAIL_MESSAGE_FAILED",
-            "gmail message request failed",
-            "GMAIL_MESSAGE_PARSE_FAILED",
-            "gmail message response was invalid",
-        )
-        .await?;
-        candidates.push(details.into_candidate());
-    }
-
-    Ok(candidates)
+    Ok(UrgentEmailFetchOutcome {
+        candidates: response
+            .candidates
+            .into_iter()
+            .map(map_enclave_email_candidate)
+            .collect(),
+        attested_measurement: response.attested_identity.measurement,
+    })
 }
 
-async fn send_google_request<T>(
-    request: reqwest::RequestBuilder,
-    unavailable_code: &str,
-    unavailable_message: &str,
-    failed_code: &str,
-    failed_message_prefix: &str,
-    parse_code: &str,
-    parse_message: &str,
-) -> Result<T, JobExecutionError>
-where
-    T: DeserializeOwned,
-{
-    let response = request.send().await.map_err(|err| {
-        JobExecutionError::transient(unavailable_code, format!("{unavailable_message}: {err}"))
-    })?;
+fn map_calendar_fetch_error(err: EnclaveRpcError) -> JobExecutionError {
+    map_enclave_fetch_error(
+        err,
+        "GOOGLE_CALENDAR_UNAVAILABLE",
+        "GOOGLE_CALENDAR_FAILED",
+        "GOOGLE_CALENDAR_PARSE_FAILED",
+    )
+}
 
-    if !response.status().is_success() {
-        let status = response.status();
-        return Err(classified_http_error(
+fn map_gmail_fetch_error(err: EnclaveRpcError) -> JobExecutionError {
+    map_enclave_fetch_error(
+        err,
+        "GMAIL_UNAVAILABLE",
+        "GMAIL_MESSAGES_FAILED",
+        "GMAIL_MESSAGES_PARSE_FAILED",
+    )
+}
+
+fn map_enclave_fetch_error(
+    err: EnclaveRpcError,
+    provider_unavailable_code: &str,
+    provider_failed_code: &str,
+    provider_parse_code: &str,
+) -> JobExecutionError {
+    match err {
+        EnclaveRpcError::DecryptNotAuthorized { message } => JobExecutionError::permanent(
+            "CONNECTOR_DECRYPT_NOT_AUTHORIZED",
+            format!("decrypt authorization failed: {message}"),
+        ),
+        EnclaveRpcError::ConnectorTokenDecryptFailed { message } => JobExecutionError::transient(
+            "CONNECTOR_TOKEN_DECRYPT_FAILED",
+            format!("failed to decrypt refresh token: {message}"),
+        ),
+        EnclaveRpcError::ConnectorTokenUnavailable => JobExecutionError::permanent(
+            "CONNECTOR_TOKEN_MISSING",
+            "refresh token was unavailable for active connector",
+        ),
+        EnclaveRpcError::ProviderRequestUnavailable { operation, message } => match operation {
+            ProviderOperation::TokenRefresh => JobExecutionError::transient(
+                "GOOGLE_TOKEN_REFRESH_UNAVAILABLE",
+                format!("google token refresh request failed: {message}"),
+            ),
+            ProviderOperation::CalendarFetch | ProviderOperation::GmailFetch => {
+                JobExecutionError::transient(
+                    provider_unavailable_code,
+                    format!("provider request failed: {message}"),
+                )
+            }
+            ProviderOperation::TokenRevoke => JobExecutionError::transient(
+                provider_unavailable_code,
+                format!("provider request failed: {message}"),
+            ),
+        },
+        EnclaveRpcError::ProviderRequestFailed {
+            operation,
             status,
-            failed_code,
-            format!("{failed_message_prefix} with HTTP {}", status.as_u16()),
-        ));
-    }
+            oauth_error,
+        } => {
+            let status = StatusCode::from_u16(status).unwrap_or(StatusCode::BAD_GATEWAY);
+            let message = match oauth_error {
+                Some(error) => format!("provider request rejected: {error}"),
+                None => format!("provider request failed with HTTP {}", status.as_u16()),
+            };
 
-    response
-        .json::<T>()
-        .await
-        .map_err(|err| JobExecutionError::transient(parse_code, format!("{parse_message}: {err}")))
+            match operation {
+                ProviderOperation::TokenRefresh => {
+                    classified_http_error(status, "GOOGLE_TOKEN_REFRESH_FAILED", message)
+                }
+                ProviderOperation::CalendarFetch
+                | ProviderOperation::GmailFetch
+                | ProviderOperation::TokenRevoke => {
+                    classified_http_error(status, provider_failed_code, message)
+                }
+            }
+        }
+        EnclaveRpcError::ProviderResponseInvalid { operation, message } => match operation {
+            ProviderOperation::TokenRefresh => JobExecutionError::transient(
+                "GOOGLE_TOKEN_REFRESH_PARSE_FAILED",
+                format!("google token refresh response was invalid: {message}"),
+            ),
+            ProviderOperation::CalendarFetch
+            | ProviderOperation::GmailFetch
+            | ProviderOperation::TokenRevoke => JobExecutionError::transient(
+                provider_parse_code,
+                format!("provider response was invalid: {message}"),
+            ),
+        },
+        EnclaveRpcError::RpcUnauthorized { code }
+        | EnclaveRpcError::RpcContractRejected { code } => JobExecutionError::permanent(
+            "ENCLAVE_RPC_REJECTED",
+            format!("secure enclave rpc request rejected: {code}"),
+        ),
+        EnclaveRpcError::RpcTransportUnavailable { message }
+        | EnclaveRpcError::RpcResponseInvalid { message } => JobExecutionError::transient(
+            "ENCLAVE_RPC_UNAVAILABLE",
+            format!("secure enclave rpc unavailable: {message}"),
+        ),
+    }
 }
 
 pub(super) fn classified_http_error(
@@ -145,112 +182,6 @@ fn classify_http_failure(status: StatusCode) -> FailureClass {
 }
 
 #[derive(Debug, Deserialize)]
-struct GoogleCalendarEventsResponse {
-    #[serde(default)]
-    items: Vec<GoogleCalendarEvent>,
-}
-
-#[derive(Debug, Deserialize)]
-struct GmailMessagesResponse {
-    #[serde(default)]
-    messages: Vec<GmailMessageListEntry>,
-}
-
-#[derive(Debug, Deserialize)]
-struct GmailMessageListEntry {
-    id: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct GmailMessageMetadataResponse {
-    id: String,
-    snippet: Option<String>,
-    #[serde(rename = "internalDate")]
-    internal_date: Option<String>,
-    #[serde(default, rename = "labelIds")]
-    label_ids: Vec<String>,
-    payload: Option<GmailMessagePayload>,
-}
-
-impl GmailMessageMetadataResponse {
-    fn into_candidate(self) -> GoogleEmailCandidateSource {
-        let has_attachments = self.payload.as_ref().is_some_and(payload_has_attachments);
-        let from = self
-            .payload
-            .as_ref()
-            .and_then(|payload| payload.header_value("From"));
-        let subject = self
-            .payload
-            .as_ref()
-            .and_then(|payload| payload.header_value("Subject"));
-
-        GoogleEmailCandidateSource {
-            message_id: Some(self.id),
-            from,
-            subject,
-            snippet: self.snippet,
-            received_at: self
-                .internal_date
-                .as_deref()
-                .and_then(parse_internal_date_millis),
-            label_ids: self.label_ids,
-            has_attachments,
-        }
-    }
-}
-
-#[derive(Debug, Deserialize)]
-struct GmailMessagePayload {
-    #[serde(default)]
-    headers: Vec<GmailMessageHeader>,
-    #[serde(default)]
-    parts: Vec<GmailMessagePayload>,
-    #[serde(default)]
-    filename: String,
-    body: Option<GmailMessageBody>,
-}
-
-impl GmailMessagePayload {
-    fn header_value(&self, target_name: &str) -> Option<String> {
-        self.headers
-            .iter()
-            .find(|header| header.name.eq_ignore_ascii_case(target_name))
-            .map(|header| header.value.trim().to_string())
-            .filter(|value| !value.is_empty())
-    }
-}
-
-#[derive(Debug, Deserialize)]
-struct GmailMessageHeader {
-    name: String,
-    value: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct GmailMessageBody {
-    #[serde(rename = "attachmentId")]
-    attachment_id: Option<String>,
-}
-
-fn payload_has_attachments(payload: &GmailMessagePayload) -> bool {
-    let has_attachment_id = payload
-        .body
-        .as_ref()
-        .and_then(|body| body.attachment_id.as_ref())
-        .is_some();
-    if has_attachment_id || !payload.filename.trim().is_empty() {
-        return true;
-    }
-
-    payload.parts.iter().any(payload_has_attachments)
-}
-
-fn parse_internal_date_millis(raw: &str) -> Option<DateTime<Utc>> {
-    let millis = raw.parse::<i64>().ok()?;
-    Utc.timestamp_millis_opt(millis).single()
-}
-
-#[derive(Debug, Deserialize)]
 pub(super) struct GoogleCalendarEvent {
     pub(super) id: Option<String>,
     pub(super) summary: Option<String>,
@@ -269,4 +200,48 @@ pub(super) struct GoogleCalendarEventStart {
 #[derive(Debug, Deserialize)]
 pub(super) struct GoogleCalendarAttendee {
     pub(super) email: Option<String>,
+}
+
+impl From<EnclaveGoogleCalendarEvent> for GoogleCalendarEvent {
+    fn from(event: EnclaveGoogleCalendarEvent) -> Self {
+        Self {
+            id: event.id,
+            summary: event.summary,
+            start: event.start.map(Into::into),
+            end: event.end.map(Into::into),
+            attendees: event.attendees.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<EnclaveGoogleCalendarEventDateTime> for GoogleCalendarEventStart {
+    fn from(value: EnclaveGoogleCalendarEventDateTime) -> Self {
+        Self {
+            date_time: value.date_time,
+        }
+    }
+}
+
+impl From<EnclaveGoogleCalendarAttendee> for GoogleCalendarAttendee {
+    fn from(value: EnclaveGoogleCalendarAttendee) -> Self {
+        Self { email: value.email }
+    }
+}
+
+fn map_enclave_email_candidate(value: EnclaveGoogleEmailCandidate) -> GoogleEmailCandidateSource {
+    GoogleEmailCandidateSource {
+        message_id: value.message_id,
+        from: value.from,
+        subject: value.subject,
+        snippet: value.snippet,
+        received_at: value.received_at.as_deref().and_then(parse_rfc3339_utc),
+        label_ids: value.label_ids,
+        has_attachments: value.has_attachments,
+    }
+}
+
+fn parse_rfc3339_utc(value: &str) -> Option<DateTime<Utc>> {
+    DateTime::parse_from_rfc3339(value)
+        .ok()
+        .map(|parsed| parsed.with_timezone(&Utc))
 }

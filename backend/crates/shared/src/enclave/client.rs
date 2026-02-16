@@ -4,10 +4,15 @@ use super::{
     ENCLAVE_RPC_AUTH_NONCE_HEADER, ENCLAVE_RPC_AUTH_SIGNATURE_HEADER,
     ENCLAVE_RPC_AUTH_TIMESTAMP_HEADER, ENCLAVE_RPC_CONTRACT_VERSION,
     ENCLAVE_RPC_CONTRACT_VERSION_HEADER, ENCLAVE_RPC_PATH_EXCHANGE_GOOGLE_TOKEN,
-    ENCLAVE_RPC_PATH_REVOKE_GOOGLE_TOKEN, EnclaveRpcAuthConfig, EnclaveRpcError,
-    EnclaveRpcErrorEnvelope, EnclaveRpcExchangeGoogleTokenRequest,
-    EnclaveRpcExchangeGoogleTokenResponse, EnclaveRpcRevokeGoogleTokenRequest,
-    EnclaveRpcRevokeGoogleTokenResponse, ExchangeGoogleTokenResponse, ProviderOperation,
+    ENCLAVE_RPC_PATH_FETCH_GOOGLE_CALENDAR_EVENTS,
+    ENCLAVE_RPC_PATH_FETCH_GOOGLE_URGENT_EMAIL_CANDIDATES, ENCLAVE_RPC_PATH_REVOKE_GOOGLE_TOKEN,
+    EnclaveRpcAuthConfig, EnclaveRpcError, EnclaveRpcErrorEnvelope,
+    EnclaveRpcExchangeGoogleTokenRequest, EnclaveRpcExchangeGoogleTokenResponse,
+    EnclaveRpcFetchGoogleCalendarEventsRequest, EnclaveRpcFetchGoogleCalendarEventsResponse,
+    EnclaveRpcFetchGoogleUrgentEmailCandidatesRequest,
+    EnclaveRpcFetchGoogleUrgentEmailCandidatesResponse, EnclaveRpcRevokeGoogleTokenRequest,
+    EnclaveRpcRevokeGoogleTokenResponse, ExchangeGoogleTokenResponse,
+    FetchGoogleCalendarEventsResponse, FetchGoogleUrgentEmailCandidatesResponse, ProviderOperation,
     RevokeGoogleTokenResponse, sign_rpc_request,
 };
 
@@ -75,6 +80,68 @@ impl EnclaveRpcClient {
         if response.request_id != payload.request_id {
             return Err(EnclaveRpcError::RpcResponseInvalid {
                 message: "enclave rpc response request_id mismatch for revoke".to_string(),
+            });
+        }
+
+        response.try_into()
+    }
+
+    pub async fn fetch_google_calendar_events(
+        &self,
+        connector: super::ConnectorSecretRequest,
+        time_min: String,
+        time_max: String,
+        max_results: usize,
+    ) -> Result<FetchGoogleCalendarEventsResponse, EnclaveRpcError> {
+        let payload = EnclaveRpcFetchGoogleCalendarEventsRequest {
+            contract_version: ENCLAVE_RPC_CONTRACT_VERSION.to_string(),
+            request_id: uuid::Uuid::new_v4().to_string(),
+            connector,
+            time_min,
+            time_max,
+            max_results,
+        };
+
+        let response: EnclaveRpcFetchGoogleCalendarEventsResponse = self
+            .send_enclave_rpc(
+                ProviderOperation::CalendarFetch,
+                ENCLAVE_RPC_PATH_FETCH_GOOGLE_CALENDAR_EVENTS,
+                &payload,
+            )
+            .await?;
+
+        if response.request_id != payload.request_id {
+            return Err(EnclaveRpcError::RpcResponseInvalid {
+                message: "enclave rpc response request_id mismatch for calendar fetch".to_string(),
+            });
+        }
+
+        response.try_into()
+    }
+
+    pub async fn fetch_google_urgent_email_candidates(
+        &self,
+        connector: super::ConnectorSecretRequest,
+        max_results: usize,
+    ) -> Result<FetchGoogleUrgentEmailCandidatesResponse, EnclaveRpcError> {
+        let payload = EnclaveRpcFetchGoogleUrgentEmailCandidatesRequest {
+            contract_version: ENCLAVE_RPC_CONTRACT_VERSION.to_string(),
+            request_id: uuid::Uuid::new_v4().to_string(),
+            connector,
+            max_results,
+        };
+
+        let response: EnclaveRpcFetchGoogleUrgentEmailCandidatesResponse = self
+            .send_enclave_rpc(
+                ProviderOperation::GmailFetch,
+                ENCLAVE_RPC_PATH_FETCH_GOOGLE_URGENT_EMAIL_CANDIDATES,
+                &payload,
+            )
+            .await?;
+
+        if response.request_id != payload.request_id {
+            return Err(EnclaveRpcError::RpcResponseInvalid {
+                message: "enclave rpc response request_id mismatch for gmail fetch".to_string(),
             });
         }
 
@@ -212,6 +279,62 @@ impl TryFrom<EnclaveRpcRevokeGoogleTokenResponse> for RevokeGoogleTokenResponse 
         }
 
         Ok(Self {
+            attested_identity: value.attested_identity,
+        })
+    }
+}
+
+impl TryFrom<EnclaveRpcFetchGoogleCalendarEventsResponse> for FetchGoogleCalendarEventsResponse {
+    type Error = EnclaveRpcError;
+
+    fn try_from(value: EnclaveRpcFetchGoogleCalendarEventsResponse) -> Result<Self, Self::Error> {
+        if value.contract_version != ENCLAVE_RPC_CONTRACT_VERSION {
+            return Err(EnclaveRpcError::RpcResponseInvalid {
+                message: format!(
+                    "enclave rpc contract mismatch: expected={}, got={}",
+                    ENCLAVE_RPC_CONTRACT_VERSION, value.contract_version
+                ),
+            });
+        }
+
+        if value.request_id.trim().is_empty() {
+            return Err(EnclaveRpcError::RpcResponseInvalid {
+                message: "missing request_id in calendar fetch response".to_string(),
+            });
+        }
+
+        Ok(Self {
+            events: value.events,
+            attested_identity: value.attested_identity,
+        })
+    }
+}
+
+impl TryFrom<EnclaveRpcFetchGoogleUrgentEmailCandidatesResponse>
+    for FetchGoogleUrgentEmailCandidatesResponse
+{
+    type Error = EnclaveRpcError;
+
+    fn try_from(
+        value: EnclaveRpcFetchGoogleUrgentEmailCandidatesResponse,
+    ) -> Result<Self, Self::Error> {
+        if value.contract_version != ENCLAVE_RPC_CONTRACT_VERSION {
+            return Err(EnclaveRpcError::RpcResponseInvalid {
+                message: format!(
+                    "enclave rpc contract mismatch: expected={}, got={}",
+                    ENCLAVE_RPC_CONTRACT_VERSION, value.contract_version
+                ),
+            });
+        }
+
+        if value.request_id.trim().is_empty() {
+            return Err(EnclaveRpcError::RpcResponseInvalid {
+                message: "missing request_id in gmail fetch response".to_string(),
+            });
+        }
+
+        Ok(Self {
+            candidates: value.candidates,
             attested_identity: value.attested_identity,
         })
     }

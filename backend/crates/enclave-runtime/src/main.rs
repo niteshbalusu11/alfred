@@ -112,6 +112,14 @@ async fn main() {
             "/v1/rpc/google/token/revoke",
             post(http::revoke_google_connector_token),
         )
+        .route(
+            "/v1/rpc/google/calendar/events",
+            post(http::fetch_google_calendar_events),
+        )
+        .route(
+            "/v1/rpc/google/gmail/urgent-candidates",
+            post(http::fetch_google_urgent_email_candidates),
+        )
         .with_state(RuntimeState {
             config: config.clone(),
             enclave_service,

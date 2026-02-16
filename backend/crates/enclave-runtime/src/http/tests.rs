@@ -10,7 +10,7 @@ use shared::enclave::{
     EnclaveRpcAuthConfig, sign_rpc_request,
 };
 
-use super::authorize_request;
+use super::rpc::authorize_request;
 
 fn signed_headers(
     auth: &EnclaveRpcAuthConfig,

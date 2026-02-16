@@ -29,7 +29,7 @@ use super::memory::{
     ASSISTANT_SESSION_TTL_SECONDS, build_updated_memory, detect_query_capability,
     query_context_snippet, resolve_query_capability, session_memory_context,
 };
-use super::session::build_google_session;
+use super::session::{build_enclave_client, build_google_session};
 
 pub(crate) async fn query_assistant(
     State(state): State<AppState>,
@@ -98,6 +98,7 @@ async fn handle_meetings_today_query(
         Ok(session) => session,
         Err(response) => return response,
     };
+    let enclave_client = build_enclave_client(state);
 
     let preferences = match state.store.get_or_create_preferences(user_id).await {
         Ok(preferences) => preferences,
@@ -106,8 +107,8 @@ async fn handle_meetings_today_query(
 
     let calendar_day = user_local_date(Utc::now(), &preferences.time_zone);
     let meetings = match fetch_meetings_for_day(
-        &state.http_client,
-        &session.access_token,
+        &enclave_client,
+        session.connector_request,
         calendar_day,
         &preferences.time_zone,
     )
