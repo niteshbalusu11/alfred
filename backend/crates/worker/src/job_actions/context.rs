@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use shared::config::WorkerConfig;
-use shared::llm::LlmGateway;
 use shared::repos::Store;
 use shared::security::SecretRuntime;
 
@@ -12,7 +11,6 @@ pub(crate) struct JobActionContext<'a> {
     pub(crate) config: &'a WorkerConfig,
     pub(crate) secret_runtime: &'a SecretRuntime,
     pub(crate) oauth_client: &'a reqwest::Client,
-    pub(crate) llm_gateway: &'a dyn LlmGateway,
     pub(crate) push_sender: &'a PushSender,
 }
 

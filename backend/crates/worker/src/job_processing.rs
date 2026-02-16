@@ -1,6 +1,5 @@
 use chrono::{Duration as ChronoDuration, Utc};
 use shared::config::WorkerConfig;
-use shared::llm::LlmGateway;
 use shared::repos::{ClaimedJob, Store};
 use shared::security::SecretRuntime;
 use tracing::{error, info, warn};
@@ -13,7 +12,6 @@ struct JobRuntime<'a> {
     config: &'a WorkerConfig,
     secret_runtime: &'a SecretRuntime,
     oauth_client: &'a reqwest::Client,
-    llm_gateway: &'a dyn LlmGateway,
     push_sender: &'a PushSender,
 }
 
@@ -22,7 +20,6 @@ pub(crate) async fn process_due_jobs(
     config: &WorkerConfig,
     secret_runtime: &SecretRuntime,
     oauth_client: &reqwest::Client,
-    llm_gateway: &dyn LlmGateway,
     push_sender: &PushSender,
     worker_id: Uuid,
 ) {
@@ -31,7 +28,6 @@ pub(crate) async fn process_due_jobs(
         config,
         secret_runtime,
         oauth_client,
-        llm_gateway,
         push_sender,
     };
 
@@ -242,7 +238,6 @@ async fn execute_job(
             config: runtime.config,
             secret_runtime: runtime.secret_runtime,
             oauth_client: runtime.oauth_client,
-            llm_gateway: runtime.llm_gateway,
             push_sender: runtime.push_sender,
         },
         job,

@@ -5,6 +5,7 @@ use axum::Router;
 use axum::routing::{get, post};
 use shared::config::load_dotenv;
 use shared::enclave::EnclaveOperationService;
+use shared::llm::{LlmReliabilityConfig, OpenRouterGatewayConfig, ReliableOpenRouterGateway};
 use shared::repos::Store;
 use shared::security::{KmsDecryptPolicy, SecretRuntime, TeeAttestationPolicy};
 use tracing::{error, info, warn};
@@ -17,6 +18,7 @@ struct RuntimeState {
     config: config::RuntimeConfig,
     enclave_service: EnclaveOperationService,
     rpc_replay_guard: Arc<Mutex<std::collections::HashMap<String, i64>>>,
+    llm_gateway: Arc<dyn shared::llm::LlmGateway + Send + Sync>,
 }
 
 #[tokio::main]
@@ -96,6 +98,36 @@ async fn main() {
     );
     let enclave_service =
         EnclaveOperationService::new(store, secret_runtime, http_client, config.oauth.clone());
+    let openrouter_config = match OpenRouterGatewayConfig::from_env() {
+        Ok(cfg) => cfg,
+        Err(err) => {
+            error!("failed to read OpenRouter configuration required for enclave startup: {err}");
+            std::process::exit(1);
+        }
+    };
+    let llm_reliability_config = match LlmReliabilityConfig::from_env() {
+        Ok(cfg) => cfg,
+        Err(err) => {
+            error!("failed to read LLM reliability configuration for enclave startup: {err}");
+            std::process::exit(1);
+        }
+    };
+    let redis_url =
+        std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379/0".to_string());
+    let llm_gateway: Arc<dyn shared::llm::LlmGateway + Send + Sync> =
+        match ReliableOpenRouterGateway::from_openrouter_config_with_redis(
+            openrouter_config,
+            llm_reliability_config,
+            &redis_url,
+        )
+        .await
+        {
+            Ok(gateway) => Arc::new(gateway),
+            Err(err) => {
+                error!("failed to initialize enclave LLM gateway: {err}");
+                std::process::exit(1);
+            }
+        };
 
     let app = Router::new()
         .route("/healthz", get(http::healthz))
@@ -128,10 +160,19 @@ async fn main() {
             "/v1/rpc/assistant/query",
             post(http::process_assistant_query),
         )
+        .route(
+            "/v1/rpc/assistant/morning-brief",
+            post(http::generate_morning_brief),
+        )
+        .route(
+            "/v1/rpc/assistant/urgent-email",
+            post(http::generate_urgent_email_summary),
+        )
         .with_state(RuntimeState {
             config: config.clone(),
             enclave_service,
             rpc_replay_guard: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            llm_gateway,
         });
 
     let addr: SocketAddr = match config.bind_addr.parse() {

@@ -6,6 +6,7 @@ mod transport_auth;
 #[cfg(test)]
 mod tests;
 
+use std::collections::HashMap;
 use std::fmt;
 
 use thiserror::Error;
@@ -15,15 +16,18 @@ pub use client::EnclaveRpcClient;
 pub use contract::{
     AttestedIdentityPayload, ENCLAVE_RPC_CONTRACT_VERSION, ENCLAVE_RPC_PATH_EXCHANGE_GOOGLE_TOKEN,
     ENCLAVE_RPC_PATH_FETCH_ASSISTANT_ATTESTED_KEY, ENCLAVE_RPC_PATH_FETCH_GOOGLE_CALENDAR_EVENTS,
-    ENCLAVE_RPC_PATH_FETCH_GOOGLE_URGENT_EMAIL_CANDIDATES,
-    ENCLAVE_RPC_PATH_PROCESS_ASSISTANT_QUERY, ENCLAVE_RPC_PATH_REVOKE_GOOGLE_TOKEN,
+    ENCLAVE_RPC_PATH_FETCH_GOOGLE_URGENT_EMAIL_CANDIDATES, ENCLAVE_RPC_PATH_GENERATE_MORNING_BRIEF,
+    ENCLAVE_RPC_PATH_GENERATE_URGENT_EMAIL_SUMMARY, ENCLAVE_RPC_PATH_PROCESS_ASSISTANT_QUERY,
+    ENCLAVE_RPC_PATH_REVOKE_GOOGLE_TOKEN, EnclaveGeneratedNotificationPayload,
     EnclaveGoogleCalendarAttendee, EnclaveGoogleCalendarEvent, EnclaveGoogleCalendarEventDateTime,
     EnclaveGoogleEmailCandidate, EnclaveRpcErrorEnvelope, EnclaveRpcErrorPayload,
     EnclaveRpcExchangeGoogleTokenRequest, EnclaveRpcExchangeGoogleTokenResponse,
     EnclaveRpcFetchAssistantAttestedKeyRequest, EnclaveRpcFetchAssistantAttestedKeyResponse,
     EnclaveRpcFetchGoogleCalendarEventsRequest, EnclaveRpcFetchGoogleCalendarEventsResponse,
     EnclaveRpcFetchGoogleUrgentEmailCandidatesRequest,
-    EnclaveRpcFetchGoogleUrgentEmailCandidatesResponse, EnclaveRpcProcessAssistantQueryRequest,
+    EnclaveRpcFetchGoogleUrgentEmailCandidatesResponse, EnclaveRpcGenerateMorningBriefRequest,
+    EnclaveRpcGenerateMorningBriefResponse, EnclaveRpcGenerateUrgentEmailSummaryRequest,
+    EnclaveRpcGenerateUrgentEmailSummaryResponse, EnclaveRpcProcessAssistantQueryRequest,
     EnclaveRpcProcessAssistantQueryResponse, EnclaveRpcRevokeGoogleTokenRequest,
     EnclaveRpcRevokeGoogleTokenResponse,
 };
@@ -95,6 +99,27 @@ pub struct ProcessAssistantQueryResponse {
     pub attested_identity: AttestedIdentityPayload,
 }
 
+#[derive(Debug, Clone)]
+pub struct EnclaveGeneratedNotification {
+    pub title: String,
+    pub body: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct GenerateMorningBriefResponse {
+    pub notification: EnclaveGeneratedNotification,
+    pub metadata: HashMap<String, String>,
+    pub attested_identity: AttestedIdentityPayload,
+}
+
+#[derive(Debug, Clone)]
+pub struct GenerateUrgentEmailSummaryResponse {
+    pub should_notify: bool,
+    pub notification: Option<EnclaveGeneratedNotification>,
+    pub metadata: HashMap<String, String>,
+    pub attested_identity: AttestedIdentityPayload,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProviderOperation {
     TokenRefresh,
@@ -103,6 +128,8 @@ pub enum ProviderOperation {
     GmailFetch,
     AssistantAttestedKey,
     AssistantQuery,
+    AssistantMorningBrief,
+    AssistantUrgentEmail,
 }
 
 impl fmt::Display for ProviderOperation {
@@ -114,6 +141,8 @@ impl fmt::Display for ProviderOperation {
             Self::GmailFetch => write!(f, "gmail_fetch"),
             Self::AssistantAttestedKey => write!(f, "assistant_attested_key"),
             Self::AssistantQuery => write!(f, "assistant_query"),
+            Self::AssistantMorningBrief => write!(f, "assistant_morning_brief"),
+            Self::AssistantUrgentEmail => write!(f, "assistant_urgent_email"),
         }
     }
 }

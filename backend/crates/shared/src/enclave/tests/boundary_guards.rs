@@ -38,6 +38,34 @@ fn host_paths_do_not_perform_google_bearer_fetches_outside_enclave() {
 }
 
 #[test]
+fn host_paths_do_not_construct_plaintext_llm_context_for_migrated_flows() {
+    for file in host_llm_orchestration_guard_files() {
+        let content = fs::read_to_string(&file)
+            .expect("failed to read source file for host llm orchestration guard test");
+        assert!(
+            !content.contains("LlmGatewayRequest::from_template("),
+            "{} must not build LLM request templates in host runtime for migrated paths",
+            file.display()
+        );
+        assert!(
+            !content.contains("template_for_capability("),
+            "{} must not select prompt templates in host runtime for migrated paths",
+            file.display()
+        );
+        assert!(
+            !content.contains("generate_with_telemetry("),
+            "{} must not execute host-side LLM calls for migrated paths",
+            file.display()
+        );
+        assert!(
+            !content.contains("resolve_safe_output("),
+            "{} must not resolve LLM safety output in host runtime for migrated paths",
+            file.display()
+        );
+    }
+}
+
+#[test]
 fn sensitive_error_mapping_does_not_embed_upstream_messages() {
     for file in sensitive_error_message_guard_files() {
         let content = fs::read_to_string(&file)
@@ -219,5 +247,13 @@ fn sensitive_error_message_guard_files() -> Vec<PathBuf> {
         "../worker/src/job_actions/google",
         "../worker/src/privacy_delete.rs",
         "../worker/src/privacy_delete_revoke.rs",
+    ])
+}
+
+fn host_llm_orchestration_guard_files() -> Vec<PathBuf> {
+    collect_rust_guard_files(&[
+        "../api-server/src/http/assistant",
+        "../worker/src/job_actions/google/morning_brief.rs",
+        "../worker/src/job_actions/google/urgent_email.rs",
     ])
 }

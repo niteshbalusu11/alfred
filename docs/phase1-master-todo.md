@@ -236,7 +236,7 @@ Ship a private beta where iOS users can:
 | ID | Pri | Task | Owner | ETA | Status | Depends On | Exit Criteria |
 |---|---|---|---|---|---|---|---|
 | CB-001 | P0 | Define enclave-only message-content architecture and attested key agreement (`#147`) | BE | 2026-02-20 | DONE | SEC-006, AI-004 | Approved protocol/spec defines ciphertext-only server relay and enclave-only plaintext boundary (`docs/assistant-attested-encryption-v1.md`) |
-| CB-002 | P0 | Implement encrypted message transport + enclave decryption/processing path (`#148`) | BE | 2026-02-27 | TODO | CB-001 | `/v1/assistant/query`-class flows carry ciphertext through control plane; plaintext exists only in enclave runtime |
+| CB-002 | P0 | Implement encrypted message transport + enclave decryption/processing path (`#148`) | BE | 2026-02-27 | DONE | CB-001 | `/v1/assistant/query`-class flows carry ciphertext through control plane; plaintext exists only in enclave runtime |
 | CB-003 | P0 | Add privacy verification gates, redaction tests, and rollout hardening (`#149`) | BE | 2026-03-03 | TODO | CB-002 | Automated checks and audit evidence confirm message-body server blindness with metadata-only server observability |
 
 ---
