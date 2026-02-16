@@ -13,6 +13,7 @@ use crate::{JobExecutionError, NotificationContent};
 mod fetch;
 mod morning_brief;
 mod session;
+mod urgent_email;
 mod util;
 
 use fetch::fetch_calendar_events;
@@ -53,7 +54,17 @@ pub(super) async fn resolve_job_action(
             )
             .await
         }
-        JobType::UrgentEmailCheck => build_urgent_email_alert().await,
+        JobType::UrgentEmailCheck => {
+            urgent_email::build_urgent_email_alert(
+                store,
+                config,
+                secret_runtime,
+                oauth_client,
+                llm_gateway,
+                job.user_id,
+            )
+            .await
+        }
     }
 }
 
@@ -105,27 +116,6 @@ async fn build_meeting_reminder(
 
     Ok(JobActionResult {
         notification: Some(NotificationContent { title, body }),
-        metadata,
-    })
-}
-
-async fn build_urgent_email_alert() -> Result<JobActionResult, JobExecutionError> {
-    let mut metadata = HashMap::new();
-    metadata.insert(
-        "action_source".to_string(),
-        "urgent_email_llm_orchestrator".to_string(),
-    );
-    metadata.insert(
-        "reason".to_string(),
-        "llm_orchestration_pending".to_string(),
-    );
-    metadata.insert(
-        "attested_measurement".to_string(),
-        "not_requested_for_llm_pending_path".to_string(),
-    );
-
-    Ok(JobActionResult {
-        notification: None,
         metadata,
     })
 }
