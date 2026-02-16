@@ -6,7 +6,8 @@ This workspace contains the Alfred iOS v1 backend services.
 
 1. `crates/api-server`: REST API aligned with `api/openapi.yaml` backed by Postgres + `sqlx`.
 2. `crates/worker`: scheduled/proactive job execution (lease/retry/idempotency, push dispatch, privacy delete workflows).
-3. `crates/shared`: shared models, repositories, security runtime, and LLM gateway modules.
+3. `crates/enclave-runtime`: enclave runtime baseline process with health and attestation endpoints.
+4. `crates/shared`: shared models, repositories, security runtime, and LLM gateway modules.
 
 ## Local Infrastructure
 
@@ -75,13 +76,26 @@ These vars control TEE/KMS-bound decrypt policy for connector refresh tokens:
 11. `KMS_KEY_VERSION` (default: `1`)
 12. `KMS_ALLOWED_MEASUREMENTS` (CSV; defaults to `TEE_ALLOWED_MEASUREMENTS`)
 13. `TRUSTED_PROXY_IPS` (CSV of proxy/LB source IPs; only these peers are allowed to supply forwarded client IP headers for unauthenticated rate limiting)
+14. `ALFRED_ENV` (`local`, `staging`, `production`; default: `local`)
+15. `ENCLAVE_RUNTIME_MODE` (`dev-shim`, `remote`, `disabled`; non-local requires `remote`)
+16. `ENCLAVE_RUNTIME_BASE_URL` (default: `http://127.0.0.1:8181`)
+17. `ENCLAVE_RUNTIME_PROBE_TIMEOUT_MS` (default: `2000`)
+18. `ENCLAVE_RUNTIME_BIND_ADDR` (enclave runtime process bind address; default: `127.0.0.1:8181`)
+19. `ENCLAVE_RUNTIME_MEASUREMENT` (dev-shim measurement identifier; default: `dev-local-enclave`)
 
 Connector token usage boundary:
 
 1. API/worker handler modules do not call connector decrypt repository APIs directly.
 2. Sensitive Google token refresh/revoke flows execute through the enclave RPC contract in `shared::enclave`.
 3. Decrypt authorization fails closed when attestation/KMS policy checks fail or connector key metadata drifts.
-4. Current state: enclave RPC is an in-process abstraction in host runtime; full external enclave runtime separation is tracked in issue `#130` (`SEC-001` through `SEC-009`).
+4. API/worker startup now performs fail-closed connectivity checks against enclave runtime `GET /healthz` and `GET /v1/attestation/document`.
+
+Enclave runtime commands:
+
+1. `just backend-enclave-runtime`
+2. `just enclave-runtime`
+3. `scripts/enclave-runtime/start-local.sh`
+4. `scripts/enclave-runtime/smoke.sh`
 
 ## Push Delivery Environment (Worker)
 

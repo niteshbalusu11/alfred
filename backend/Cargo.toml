@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "crates/api-server",
+  "crates/enclave-runtime",
   "crates/llm-eval",
   "crates/shared",
   "crates/worker",

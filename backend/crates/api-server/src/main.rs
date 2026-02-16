@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 use std::time::Duration;
 
 use shared::config::{ApiConfig, load_dotenv};
+use shared::enclave_runtime::{EnclaveRuntimeEndpointConfig, verify_connectivity};
 use shared::llm::{LlmReliabilityConfig, OpenRouterGatewayConfig, ReliableOpenRouterGateway};
 use shared::repos::Store;
 use shared::security::{KmsDecryptPolicy, SecretRuntime, TeeAttestationPolicy};
@@ -110,6 +111,20 @@ async fn main() {
             std::process::exit(1);
         }
     };
+    let enclave_runtime_config = EnclaveRuntimeEndpointConfig {
+        mode: config.enclave_runtime_mode,
+        base_url: config.enclave_runtime_base_url.clone(),
+        probe_timeout_ms: config.enclave_runtime_probe_timeout_ms,
+    };
+    if let Err(err) = verify_connectivity(&http_client, &enclave_runtime_config).await {
+        error!(error = %err, "failed enclave runtime startup connectivity check");
+        std::process::exit(1);
+    }
+    info!(
+        enclave_runtime_mode = enclave_runtime_config.mode.as_str(),
+        enclave_runtime_base_url = %enclave_runtime_config.base_url,
+        "enclave runtime connectivity verified"
+    );
 
     let app = http::build_router(http::AppState {
         store,
