@@ -114,6 +114,14 @@ impl RuntimeConfig {
                     .to_string(),
             );
         }
+        if !matches!(environment, AlfredEnvironment::Local)
+            && matches!(attestation_source, AttestationSource::Inline(_))
+        {
+            return Err(
+                "TEE_ATTESTATION_DOCUMENT inline mode is only allowed when ALFRED_ENV=local"
+                    .to_string(),
+            );
+        }
 
         let tee_allowed_measurements =
             parse_list_env("TEE_ALLOWED_MEASUREMENTS", &["dev-local-enclave"]);
@@ -132,6 +140,18 @@ impl RuntimeConfig {
         if enclave_rpc_auth_max_skew_seconds == 0 {
             return Err("ENCLAVE_RPC_AUTH_MAX_SKEW_SECONDS must be > 0".to_string());
         }
+        let kms_allowed_measurements =
+            parse_list_env_with_fallback("KMS_ALLOWED_MEASUREMENTS", &tee_allowed_measurements);
+        let enclave_runtime_base_url = env::var("ENCLAVE_RUNTIME_BASE_URL")
+            .unwrap_or_else(|_| "http://127.0.0.1:8181".to_string());
+        validate_non_local_security_posture(
+            environment,
+            tee_attestation_required,
+            tee_allow_insecure_dev_attestation,
+            &tee_allowed_measurements,
+            &kms_allowed_measurements,
+            enclave_runtime_base_url.as_str(),
+        )?;
 
         Ok(Self {
             bind_addr: env::var("ENCLAVE_RUNTIME_BIND_ADDR")
@@ -154,12 +174,8 @@ impl RuntimeConfig {
             kms_key_id: env::var("KMS_KEY_ID")
                 .unwrap_or_else(|_| "kms/local/alfred-refresh-token".to_string()),
             kms_key_version: parse_i32_env("KMS_KEY_VERSION", 1)?,
-            kms_allowed_measurements: parse_list_env_with_fallback(
-                "KMS_ALLOWED_MEASUREMENTS",
-                &tee_allowed_measurements,
-            ),
-            enclave_runtime_base_url: env::var("ENCLAVE_RUNTIME_BASE_URL")
-                .unwrap_or_else(|_| "http://127.0.0.1:8181".to_string()),
+            kms_allowed_measurements,
+            enclave_runtime_base_url,
             oauth: GoogleEnclaveOauthConfig {
                 client_id: require_env("GOOGLE_OAUTH_CLIENT_ID")?,
                 client_secret: require_env("GOOGLE_OAUTH_CLIENT_SECRET")?,
@@ -281,6 +297,76 @@ fn parse_enclave_rpc_shared_secret(environment: AlfredEnvironment) -> Result<Str
     }
 
     Err("ENCLAVE_RPC_SHARED_SECRET is required outside local env".to_string())
+}
+
+fn validate_non_local_security_posture(
+    environment: AlfredEnvironment,
+    tee_attestation_required: bool,
+    tee_allow_insecure_dev_attestation: bool,
+    tee_allowed_measurements: &[String],
+    kms_allowed_measurements: &[String],
+    enclave_runtime_base_url: &str,
+) -> Result<(), String> {
+    if matches!(environment, AlfredEnvironment::Local) {
+        return Ok(());
+    }
+
+    if !tee_attestation_required {
+        return Err("TEE_ATTESTATION_REQUIRED must be true outside local environment".to_string());
+    }
+    if tee_allow_insecure_dev_attestation {
+        return Err(
+            "TEE_ALLOW_INSECURE_DEV_ATTESTATION must be false outside local environment"
+                .to_string(),
+        );
+    }
+
+    validate_measurement_allowlist("TEE_ALLOWED_MEASUREMENTS", tee_allowed_measurements)?;
+    validate_measurement_allowlist("KMS_ALLOWED_MEASUREMENTS", kms_allowed_measurements)?;
+    validate_non_local_runtime_base_url(enclave_runtime_base_url)?;
+
+    Ok(())
+}
+
+fn validate_measurement_allowlist(key: &str, measurements: &[String]) -> Result<(), String> {
+    if measurements.is_empty() {
+        return Err(format!(
+            "{key} must contain at least one non-dev measurement outside local environment"
+        ));
+    }
+
+    if measurements
+        .iter()
+        .any(|measurement| measurement == "dev-local-enclave")
+    {
+        return Err(format!(
+            "{key} must not include dev-local-enclave outside local environment"
+        ));
+    }
+
+    Ok(())
+}
+
+fn validate_non_local_runtime_base_url(base_url: &str) -> Result<(), String> {
+    let parsed = reqwest::Url::parse(base_url)
+        .map_err(|_| "ENCLAVE_RUNTIME_BASE_URL must be a valid URL".to_string())?;
+    if parsed.scheme() == "https" {
+        return Ok(());
+    }
+
+    if parsed.scheme() == "http"
+        && matches!(
+            parsed.host_str(),
+            Some("127.0.0.1") | Some("localhost") | Some("::1")
+        )
+    {
+        return Ok(());
+    }
+
+    Err(
+        "ENCLAVE_RUNTIME_BASE_URL must use https outside local environment unless it is loopback http"
+            .to_string(),
+    )
 }
 
 fn decode_signing_key_bytes(encoded_key: &str) -> Result<[u8; 32], String> {

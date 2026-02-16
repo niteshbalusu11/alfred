@@ -7,7 +7,11 @@ use thiserror::Error;
 
 use crate::config_enclave_runtime::{
     parse_alfred_environment, parse_enclave_rpc_shared_secret, parse_enclave_runtime_mode,
-    validate_enclave_runtime_guards,
+    validate_enclave_runtime_guards, validate_non_local_enclave_security_posture,
+};
+use crate::config_env::{
+    optional_trimmed_env, parse_bool_env, parse_i32_env, parse_ip_list_env, parse_list_env,
+    parse_list_env_with_fallback, parse_u32_env, parse_u64_env, require_env,
 };
 use crate::enclave_runtime::EnclaveRuntimeMode;
 
@@ -127,13 +131,24 @@ impl ApiConfig {
                 "TEE_ATTESTATION_CHALLENGE_TIMEOUT_MS must be greater than 0".to_string(),
             ));
         }
-        let enclave_runtime_mode =
-            parse_enclave_runtime_mode("ENCLAVE_RUNTIME_MODE", alfred_environment)?;
+        let enclave_runtime_mode = parse_enclave_runtime_mode("ENCLAVE_RUNTIME_MODE")?;
         validate_enclave_runtime_guards(
             alfred_environment,
             enclave_runtime_mode,
             tee_attestation_required,
             tee_allow_insecure_dev_attestation,
+        )?;
+        let kms_allowed_measurements =
+            parse_list_env_with_fallback("KMS_ALLOWED_MEASUREMENTS", &tee_allowed_measurements);
+        let enclave_runtime_base_url = env::var("ENCLAVE_RUNTIME_BASE_URL")
+            .unwrap_or_else(|_| "http://127.0.0.1:8181".to_string());
+        validate_non_local_enclave_security_posture(
+            alfred_environment,
+            tee_attestation_required,
+            tee_allow_insecure_dev_attestation,
+            &tee_allowed_measurements,
+            &kms_allowed_measurements,
+            enclave_runtime_base_url.as_str(),
         )?;
         let enclave_runtime_probe_timeout_ms =
             parse_u64_env("ENCLAVE_RUNTIME_PROBE_TIMEOUT_MS", 2000)?;
@@ -234,13 +249,9 @@ impl ApiConfig {
             kms_key_id: env::var("KMS_KEY_ID")
                 .unwrap_or_else(|_| "kms/local/alfred-refresh-token".to_string()),
             kms_key_version: parse_i32_env("KMS_KEY_VERSION", 1)?,
-            kms_allowed_measurements: parse_list_env_with_fallback(
-                "KMS_ALLOWED_MEASUREMENTS",
-                &tee_allowed_measurements,
-            ),
+            kms_allowed_measurements,
             enclave_runtime_mode,
-            enclave_runtime_base_url: env::var("ENCLAVE_RUNTIME_BASE_URL")
-                .unwrap_or_else(|_| "http://127.0.0.1:8181".to_string()),
+            enclave_runtime_base_url,
             enclave_runtime_probe_timeout_ms,
             enclave_rpc_shared_secret,
             enclave_rpc_auth_max_skew_seconds,
@@ -321,13 +332,24 @@ impl WorkerConfig {
                 "TEE_ATTESTATION_CHALLENGE_TIMEOUT_MS must be greater than 0".to_string(),
             ));
         }
-        let enclave_runtime_mode =
-            parse_enclave_runtime_mode("ENCLAVE_RUNTIME_MODE", alfred_environment)?;
+        let enclave_runtime_mode = parse_enclave_runtime_mode("ENCLAVE_RUNTIME_MODE")?;
         validate_enclave_runtime_guards(
             alfred_environment,
             enclave_runtime_mode,
             tee_attestation_required,
             tee_allow_insecure_dev_attestation,
+        )?;
+        let kms_allowed_measurements =
+            parse_list_env_with_fallback("KMS_ALLOWED_MEASUREMENTS", &tee_allowed_measurements);
+        let enclave_runtime_base_url = env::var("ENCLAVE_RUNTIME_BASE_URL")
+            .unwrap_or_else(|_| "http://127.0.0.1:8181".to_string());
+        validate_non_local_enclave_security_posture(
+            alfred_environment,
+            tee_attestation_required,
+            tee_allow_insecure_dev_attestation,
+            &tee_allowed_measurements,
+            &kms_allowed_measurements,
+            enclave_runtime_base_url.as_str(),
         )?;
         let enclave_runtime_probe_timeout_ms =
             parse_u64_env("ENCLAVE_RUNTIME_PROBE_TIMEOUT_MS", 2000)?;
@@ -375,13 +397,9 @@ impl WorkerConfig {
             kms_key_id: env::var("KMS_KEY_ID")
                 .unwrap_or_else(|_| "kms/local/alfred-refresh-token".to_string()),
             kms_key_version: parse_i32_env("KMS_KEY_VERSION", 1)?,
-            kms_allowed_measurements: parse_list_env_with_fallback(
-                "KMS_ALLOWED_MEASUREMENTS",
-                &tee_allowed_measurements,
-            ),
+            kms_allowed_measurements,
             enclave_runtime_mode,
-            enclave_runtime_base_url: env::var("ENCLAVE_RUNTIME_BASE_URL")
-                .unwrap_or_else(|_| "http://127.0.0.1:8181".to_string()),
+            enclave_runtime_base_url,
             enclave_runtime_probe_timeout_ms,
             enclave_rpc_shared_secret,
             enclave_rpc_auth_max_skew_seconds,
@@ -392,107 +410,4 @@ impl WorkerConfig {
                 .unwrap_or_else(|| "redis://127.0.0.1:6379/0".to_string()),
         })
     }
-}
-
-fn require_env(key: &str) -> Result<String, ConfigError> {
-    env::var(key).map_err(|_| ConfigError::MissingVar(key.to_string()))
-}
-
-fn parse_u32_env(key: &str, default: u32) -> Result<u32, ConfigError> {
-    match env::var(key) {
-        Ok(raw) => raw
-            .parse::<u32>()
-            .map_err(|_| ConfigError::ParseInt(key.to_string())),
-        Err(_) => Ok(default),
-    }
-}
-
-fn parse_u64_env(key: &str, default: u64) -> Result<u64, ConfigError> {
-    match env::var(key) {
-        Ok(raw) => raw
-            .parse::<u64>()
-            .map_err(|_| ConfigError::ParseInt(key.to_string())),
-        Err(_) => Ok(default),
-    }
-}
-
-fn parse_i32_env(key: &str, default: i32) -> Result<i32, ConfigError> {
-    match env::var(key) {
-        Ok(raw) => raw
-            .parse::<i32>()
-            .map_err(|_| ConfigError::ParseInt(key.to_string())),
-        Err(_) => Ok(default),
-    }
-}
-
-fn parse_bool_env(key: &str, default: bool) -> Result<bool, ConfigError> {
-    match env::var(key) {
-        Ok(raw) => {
-            let normalized = raw.trim().to_ascii_lowercase();
-            match normalized.as_str() {
-                "true" | "1" | "yes" | "on" => Ok(true),
-                "false" | "0" | "no" | "off" => Ok(false),
-                _ => Err(ConfigError::ParseBool(key.to_string())),
-            }
-        }
-        Err(_) => Ok(default),
-    }
-}
-
-fn parse_ip_list_env(key: &str) -> Result<Vec<IpAddr>, ConfigError> {
-    let Some(raw) = optional_trimmed_env(key) else {
-        return Ok(Vec::new());
-    };
-
-    raw.split(',')
-        .map(str::trim)
-        .filter(|item| !item.is_empty())
-        .map(|item| {
-            item.parse::<IpAddr>().map_err(|_| {
-                ConfigError::InvalidConfiguration(format!(
-                    "{key} contains invalid IP address '{item}'"
-                ))
-            })
-        })
-        .collect()
-}
-
-fn parse_list_env(key: &str, default: &[&str]) -> Vec<String> {
-    match env::var(key) {
-        Ok(raw) => parse_csv_list(raw),
-        Err(_) => default.iter().map(|item| (*item).to_string()).collect(),
-    }
-}
-
-fn parse_list_env_with_fallback(key: &str, fallback: &[String]) -> Vec<String> {
-    match env::var(key) {
-        Ok(raw) => parse_csv_list(raw),
-        Err(_) => fallback.to_vec(),
-    }
-}
-
-fn parse_csv_list(raw: String) -> Vec<String> {
-    let parsed = raw
-        .split(',')
-        .map(str::trim)
-        .filter(|item| !item.is_empty())
-        .map(ToString::to_string)
-        .collect::<Vec<_>>();
-
-    if parsed.is_empty() {
-        vec!["dev-local-enclave".to_string()]
-    } else {
-        parsed
-    }
-}
-
-fn optional_trimmed_env(key: &str) -> Option<String> {
-    env::var(key).ok().and_then(|value| {
-        let trimmed = value.trim();
-        if trimmed.is_empty() {
-            None
-        } else {
-            Some(trimmed.to_string())
-        }
-    })
 }

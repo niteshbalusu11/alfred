@@ -86,6 +86,14 @@ These vars control TEE/KMS-bound decrypt policy for connector refresh tokens:
 21. `ENCLAVE_RPC_SHARED_SECRET` (shared secret for signed host↔enclave RPC request authentication; required outside local)
 22. `ENCLAVE_RPC_AUTH_MAX_SKEW_SECONDS` (default: `30`; max allowed timestamp skew for signed RPC requests)
 
+Non-local (`ALFRED_ENV=staging|production`) security guards:
+
+1. `ENCLAVE_RUNTIME_MODE` must be `remote`.
+2. `TEE_ATTESTATION_REQUIRED=true` and `TEE_ALLOW_INSECURE_DEV_ATTESTATION=false`.
+3. `TEE_ALLOWED_MEASUREMENTS` and `KMS_ALLOWED_MEASUREMENTS` must not contain `dev-local-enclave`.
+4. `ENCLAVE_RUNTIME_BASE_URL` must use `https`, or loopback `http` only (`127.0.0.1`, `localhost`, `[::1]`).
+5. Enclave runtime rejects inline `TEE_ATTESTATION_DOCUMENT` outside local.
+
 Connector token usage boundary:
 
 1. API/worker handler modules do not call connector decrypt repository APIs directly.
