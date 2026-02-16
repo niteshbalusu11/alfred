@@ -66,10 +66,10 @@ pub(super) async fn build_morning_brief(
         &[],
     );
 
-    let raw_context_payload = serde_json::to_value(&context).map_err(|err| {
+    let raw_context_payload = serde_json::to_value(&context).map_err(|_err| {
         JobExecutionError::permanent(
             "MORNING_BRIEF_CONTEXT_SERIALIZATION_FAILED",
-            format!("failed to serialize morning brief context: {err}"),
+            "failed to serialize morning brief context",
         )
     })?;
     let context_payload = sanitize_context_payload(&raw_context_payload);

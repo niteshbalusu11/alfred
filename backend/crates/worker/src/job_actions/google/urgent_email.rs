@@ -46,10 +46,10 @@ pub(super) async fn build_urgent_email_alert(
     let candidates_fetched = candidates.len();
     let context = assemble_urgent_email_candidates_context(&candidates);
 
-    let raw_context_payload = serde_json::to_value(&context).map_err(|err| {
+    let raw_context_payload = serde_json::to_value(&context).map_err(|_err| {
         JobExecutionError::permanent(
             "URGENT_EMAIL_CONTEXT_SERIALIZATION_FAILED",
-            format!("failed to serialize urgent email context: {err}"),
+            "failed to serialize urgent email context",
         )
     })?;
     let context_payload = sanitize_context_payload(&raw_context_payload);
