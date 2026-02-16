@@ -26,8 +26,6 @@ pub(super) async fn build_google_session(
         .exchange_google_access_token(ConnectorSecretRequest {
             user_id,
             connector_id: connector.connector_id,
-            token_key_id: connector.token_key_id,
-            token_version: connector.token_version,
         })
         .await
         .map_err(map_exchange_enclave_error)?;
@@ -41,8 +39,6 @@ pub(super) async fn build_google_session(
 #[derive(Clone)]
 struct ActiveGoogleConnector {
     connector_id: uuid::Uuid,
-    token_key_id: String,
-    token_version: i32,
 }
 
 async fn load_active_google_connector(
@@ -106,8 +102,6 @@ async fn load_active_google_connector(
 
     Ok(ActiveGoogleConnector {
         connector_id: connector.connector_id,
-        token_key_id: connector.token_key_id,
-        token_version: connector.token_version,
     })
 }
 

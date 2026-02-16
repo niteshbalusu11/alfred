@@ -23,7 +23,7 @@
 
 ## 3) Evidence Collected
 
-1. Code path enforces enclave-attested decrypt checks before secret use (`backend/crates/shared/src/security.rs`).
+1. Code path enforces enclave-attested decrypt checks before secret use (`backend/crates/shared/src/security/mod.rs`).
 2. API and worker bootstrap only consume env-scoped credentials and do not expose raw secret material in responses.
 3. CI runs static + test gates without production infra credentials in workflow definition.
 

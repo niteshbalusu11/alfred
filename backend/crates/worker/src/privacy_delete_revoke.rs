@@ -69,8 +69,6 @@ async fn revoke_single_connector(
         .revoke_google_connector_token(ConnectorSecretRequest {
             user_id,
             connector_id: connector.connector_id,
-            token_key_id: connector.token_key_id.clone(),
-            token_version: connector.token_version,
         })
         .await
         .map_err(map_revoke_enclave_error)?;
