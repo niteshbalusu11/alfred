@@ -52,6 +52,15 @@ Ship a private beta where iOS users can:
 3. Rule-based urgent-email logic has been removed from production worker paths (`#91`).
 4. Execution queue for this migration is GitHub issues `#91` through `#103` (`ai-backend` label).
 
+## Content Blindness Privacy Boundary Update (2026-02-16)
+
+1. Current state: connector provider fetch/decrypt paths are enclave-protected, but assistant message-body content is not yet fully server-blind.
+2. Privacy goal: server can observe routing/operational metadata, while message content remains ciphertext outside enclave memory.
+3. Migration source of truth is tracker issue `#146` with phases `#147`, `#148`, and `#149`.
+4. Labels for this line of work: `phase-1`, `P0`, `backend`, `content-blindness`.
+5. Breaking protocol/contract changes are explicitly acceptable pre-launch for this migration.
+6. Until completion of `#149`, treat message-content visibility in server-control-plane surfaces as an active privacy gap and avoid expanding that surface area.
+
 ## 5) Execution Board
 
 ### A) Product and Scope Control
@@ -222,6 +231,14 @@ Ship a private beta where iOS users can:
 | AI-011 | P0 | Add LLM eval/regression harness in CI (`#102`) | QA | 2026-03-26 | DONE | AI-005, AI-006, AI-007 | Prompt/output regressions are detected by automated checks |
 | AI-012 | P0 | Maintain migration tracker + execution order (`#103`) | FOUNDER | 2026-03-05 | IN_PROGRESS | - | Tracker issue reflects live execution order and status |
 
+### L) Content Blindness Migration (Server-Blind Message Content)
+
+| ID | Pri | Task | Owner | ETA | Status | Depends On | Exit Criteria |
+|---|---|---|---|---|---|---|---|
+| CB-001 | P0 | Define enclave-only message-content architecture and attested key agreement (`#147`) | BE | 2026-02-20 | TODO | SEC-006, AI-004 | Approved protocol/spec defines ciphertext-only server relay and enclave-only plaintext boundary |
+| CB-002 | P0 | Implement encrypted message transport + enclave decryption/processing path (`#148`) | BE | 2026-02-27 | TODO | CB-001 | `/v1/assistant/query`-class flows carry ciphertext through control plane; plaintext exists only in enclave runtime |
+| CB-003 | P0 | Add privacy verification gates, redaction tests, and rollout hardening (`#149`) | BE | 2026-03-03 | TODO | CB-002 | Automated checks and audit evidence confirm message-body server blindness with metadata-only server observability |
+
 ---
 
 ## 6) Critical Path (Must Complete for Beta)
@@ -236,6 +253,7 @@ Ship a private beta where iOS users can:
 8. `QA-002`, `QA-005`, `QA-008`
 9. `GOV-001`, `GOV-002`, `GOV-006`, `GOV-007`, `GOV-008`
 10. `AI-000`, then `AI-001` through `AI-011`
+11. `CB-001`, `CB-002`, `CB-003`
 
 ## 7) Weekly Operating Cadence
 
