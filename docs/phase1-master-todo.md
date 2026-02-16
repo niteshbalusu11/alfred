@@ -214,7 +214,7 @@ Ship a private beta where iOS users can:
 | AI-004 | P0 | Add `/v1/assistant/query` endpoint for interactive questions (`#95`) | BE | 2026-03-12 | DONE | AI-002, AI-003 | Meetings query works end-to-end with typed assistant response |
 | AI-005 | P0 | Add LLM safety layer + deterministic fallback (`#96`) | SEC | 2026-03-14 | DONE | AI-001, AI-002 | Injection defenses and schema/policy guards enforced |
 | AI-006 | P0 | Migrate morning brief worker path to LLM orchestration (`#97`) | BE | 2026-03-16 | DONE | AI-003, AI-005 | Morning brief push content is LLM-generated and policy-safe |
-| AI-007 | P0 | Migrate urgent-email worker path to LLM prioritization (`#98`) | BE | 2026-03-18 | TODO | AI-003, AI-005 | Urgent-email decision path is LLM-based with safe fallback |
+| AI-007 | P0 | Migrate urgent-email worker path to LLM prioritization (`#98`) | BE | 2026-03-18 | DONE | AI-003, AI-005 | Urgent-email decision path is LLM-based with safe fallback |
 | AI-008 | P0 | Add AI observability + redacted audit events (`#99`) | SRE | 2026-03-20 | TODO | AI-004, AI-006, AI-007 | Latency/usage/cost metrics and redacted audit events are live |
 | AI-009 | P0 | Add LLM reliability guardrails (`#100`) | BE | 2026-03-22 | TODO | AI-004 | Circuit breaker/rate limits/cache/budgets enforced |
 | AI-010 | P0 | Add assistant session memory for follow-up continuity (`#101`) | BE | 2026-03-24 | TODO | AI-004 | Session-context follow-up queries supported with retention controls |
