@@ -1,6 +1,5 @@
 use axum::response::Response;
 use shared::enclave::{ConnectorSecretRequest, EnclaveRpcClient};
-use shared::repos::LEGACY_CONNECTOR_TOKEN_KEY_ID;
 use uuid::Uuid;
 
 use super::super::AppState;
@@ -33,7 +32,7 @@ async fn load_active_google_connector(
     state: &AppState,
     user_id: Uuid,
 ) -> Result<ActiveGoogleConnector, Response> {
-    let mut connector = match state.store.list_active_connector_metadata(user_id).await {
+    let connector = match state.store.list_active_connector_metadata(user_id).await {
         Ok(connectors) => connectors
             .into_iter()
             .find(|connector| connector.provider == "google"),
@@ -46,10 +45,12 @@ async fn load_active_google_connector(
         )
     })?;
 
-    if connector.token_key_id == LEGACY_CONNECTOR_TOKEN_KEY_ID {
-        if let Err(err) = state
+    if connector.token_key_id != state.secret_runtime.kms_key_id()
+        || connector.token_version != state.secret_runtime.kms_key_version()
+    {
+        match state
             .store
-            .adopt_legacy_connector_token_key_id(
+            .ensure_active_connector_key_metadata(
                 user_id,
                 connector.connector_id,
                 state.secret_runtime.kms_key_id(),
@@ -57,15 +58,7 @@ async fn load_active_google_connector(
             )
             .await
         {
-            return Err(store_error_response(err));
-        }
-
-        let refreshed_connector = match state
-            .store
-            .get_active_connector_key_metadata(user_id, connector.connector_id)
-            .await
-        {
-            Ok(Some(metadata)) => metadata,
+            Ok(Some(_)) => {}
             Ok(None) => {
                 return Err(bad_request_response(
                     "connector_token_unavailable",
@@ -73,10 +66,7 @@ async fn load_active_google_connector(
                 ));
             }
             Err(err) => return Err(store_error_response(err)),
-        };
-
-        connector.token_key_id = refreshed_connector.token_key_id;
-        connector.token_version = refreshed_connector.token_version;
+        }
     }
 
     Ok(ActiveGoogleConnector {
