@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use chrono::{Duration as ChronoDuration, Utc};
 use shared::config::WorkerConfig;
+use shared::llm::LlmGateway;
 use shared::models::Preferences;
 use shared::repos::{ClaimedJob, JobType, Store};
 use shared::security::SecretRuntime;
@@ -10,6 +11,7 @@ use super::JobActionResult;
 use crate::{JobExecutionError, NotificationContent};
 
 mod fetch;
+mod morning_brief;
 mod session;
 mod util;
 
@@ -22,6 +24,7 @@ pub(super) async fn resolve_job_action(
     config: &WorkerConfig,
     secret_runtime: &SecretRuntime,
     oauth_client: &reqwest::Client,
+    llm_gateway: &dyn LlmGateway,
     job: &ClaimedJob,
     preferences: &Preferences,
 ) -> Result<JobActionResult, JobExecutionError> {
@@ -38,7 +41,18 @@ pub(super) async fn resolve_job_action(
             )
             .await
         }
-        JobType::MorningBrief => build_morning_brief(preferences).await,
+        JobType::MorningBrief => {
+            morning_brief::build_morning_brief(
+                store,
+                config,
+                secret_runtime,
+                oauth_client,
+                llm_gateway,
+                job.user_id,
+                preferences,
+            )
+            .await
+        }
         JobType::UrgentEmailCheck => build_urgent_email_alert().await,
     }
 }
@@ -91,33 +105,6 @@ async fn build_meeting_reminder(
 
     Ok(JobActionResult {
         notification: Some(NotificationContent { title, body }),
-        metadata,
-    })
-}
-
-async fn build_morning_brief(
-    preferences: &Preferences,
-) -> Result<JobActionResult, JobExecutionError> {
-    let mut metadata = HashMap::new();
-    metadata.insert(
-        "action_source".to_string(),
-        "morning_brief_llm_orchestrator".to_string(),
-    );
-    metadata.insert(
-        "reason".to_string(),
-        "llm_orchestration_pending".to_string(),
-    );
-    metadata.insert(
-        "morning_brief_local_time".to_string(),
-        preferences.morning_brief_local_time.clone(),
-    );
-    metadata.insert(
-        "attested_measurement".to_string(),
-        "not_requested_for_llm_pending_path".to_string(),
-    );
-
-    Ok(JobActionResult {
-        notification: None,
         metadata,
     })
 }

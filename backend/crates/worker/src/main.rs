@@ -1,5 +1,5 @@
 use shared::config::{WorkerConfig, load_dotenv};
-use shared::llm::OpenRouterGatewayConfig;
+use shared::llm::{OpenRouterGateway, OpenRouterGatewayConfig};
 use shared::repos::Store;
 use shared::security::{KmsDecryptPolicy, SecretRuntime, TeeAttestationPolicy};
 use tokio::signal;
@@ -41,10 +41,13 @@ async fn main() {
         }
     };
 
-    if let Err(err) = OpenRouterGatewayConfig::from_env() {
-        error!("failed to read OpenRouter configuration required for LLM startup path: {err}");
-        std::process::exit(1);
-    }
+    let llm_gateway = match OpenRouterGatewayConfig::from_env().and_then(OpenRouterGateway::new) {
+        Ok(gateway) => gateway,
+        Err(err) => {
+            error!("failed to read OpenRouter configuration required for LLM startup path: {err}");
+            std::process::exit(1);
+        }
+    };
 
     let store = match Store::connect(
         &config.database_url,
@@ -117,6 +120,7 @@ async fn main() {
                     &config,
                     &secret_runtime,
                     &oauth_client,
+                    &llm_gateway,
                     &push_sender,
                     worker_id,
                 )
