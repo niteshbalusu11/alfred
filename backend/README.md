@@ -98,11 +98,13 @@ These vars are validated at API and worker startup for the LLM backend path:
 
 1. `OPENROUTER_API_KEY` (required)
 2. `OPENROUTER_CHAT_COMPLETIONS_URL` (default: `https://openrouter.ai/api/v1/chat/completions`)
-3. `OPENROUTER_TIMEOUT_MS` (default: `15000`)
-4. `OPENROUTER_MAX_RETRIES` (default: `2`)
-5. `OPENROUTER_RETRY_BASE_BACKOFF_MS` (default: `250`)
-6. `OPENROUTER_MODEL_PRIMARY`
-7. `OPENROUTER_MODEL_FALLBACK`
+3. `OPENROUTER_HTTP_REFERER` (optional, sent as `HTTP-Referer` for OpenRouter app attribution)
+4. `OPENROUTER_APP_TITLE` (optional, sent as `X-Title` for OpenRouter app attribution)
+5. `OPENROUTER_TIMEOUT_MS` (default: `15000`)
+6. `OPENROUTER_MAX_RETRIES` (default: `2`)
+7. `OPENROUTER_RETRY_BASE_BACKOFF_MS` (default: `250`)
+8. `OPENROUTER_MODEL_PRIMARY`
+9. `OPENROUTER_MODEL_FALLBACK`
 
 If model vars are omitted, backend falls back to built-in defaults:
 `openai/gpt-4o-mini` (primary) and `anthropic/claude-3.5-haiku` (fallback).

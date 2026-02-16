@@ -24,6 +24,8 @@ struct TestServerState {
     replies: Arc<Mutex<VecDeque<MockReply>>>,
     seen_models: Arc<Mutex<Vec<String>>>,
     seen_auth_headers: Arc<Mutex<Vec<String>>>,
+    seen_referer_headers: Arc<Mutex<Vec<String>>>,
+    seen_title_headers: Arc<Mutex<Vec<String>>>,
 }
 
 impl TestServerState {
@@ -32,6 +34,8 @@ impl TestServerState {
             replies: Arc::new(Mutex::new(VecDeque::from(replies))),
             seen_models: Arc::new(Mutex::new(Vec::new())),
             seen_auth_headers: Arc::new(Mutex::new(Vec::new())),
+            seen_referer_headers: Arc::new(Mutex::new(Vec::new())),
+            seen_title_headers: Arc::new(Mutex::new(Vec::new())),
         }
     }
 }
@@ -44,7 +48,10 @@ async fn uses_primary_model_and_parses_response() {
     }]);
     let (url, shutdown_tx, server_task) = spawn_test_server(state.clone()).await;
 
-    let gateway = OpenRouterGateway::new(config_for(url, 1, 0)).expect("gateway should build");
+    let mut config = config_for(url, 1, 0);
+    config.app_http_referer = Some("https://alfred.app".to_string());
+    config.app_title = Some("Alfred".to_string());
+    let gateway = OpenRouterGateway::new(config).expect("gateway should build");
     let response = gateway
         .generate(meetings_summary_request())
         .await
@@ -65,6 +72,10 @@ async fn uses_primary_model_and_parses_response() {
         seen_auth_headers,
         vec!["Bearer test-openrouter-key".to_string()]
     );
+    let seen_referer_headers = state.seen_referer_headers.lock().await.clone();
+    assert_eq!(seen_referer_headers, vec!["https://alfred.app".to_string()]);
+    let seen_title_headers = state.seen_title_headers.lock().await.clone();
+    assert_eq!(seen_title_headers, vec!["Alfred".to_string()]);
 }
 
 #[tokio::test]
@@ -213,6 +224,8 @@ fn config_for(
     OpenRouterGatewayConfig {
         chat_completions_url,
         api_key: "test-openrouter-key".to_string(),
+        app_http_referer: None,
+        app_title: None,
         timeout_ms: 5_000,
         max_retries,
         retry_base_backoff_ms,
@@ -314,6 +327,26 @@ async fn test_chat_completions_handler(
         .and_then(|header| header.to_str().ok())
     {
         state.seen_auth_headers.lock().await.push(value.to_string());
+    }
+    if let Some(value) = headers
+        .get("HTTP-Referer")
+        .and_then(|header| header.to_str().ok())
+    {
+        state
+            .seen_referer_headers
+            .lock()
+            .await
+            .push(value.to_string());
+    }
+    if let Some(value) = headers
+        .get("X-Title")
+        .and_then(|header| header.to_str().ok())
+    {
+        state
+            .seen_title_headers
+            .lock()
+            .await
+            .push(value.to_string());
     }
 
     let reply = state.replies.lock().await.pop_front().unwrap_or(MockReply {
