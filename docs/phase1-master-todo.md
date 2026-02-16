@@ -52,6 +52,12 @@ Ship a private beta where iOS users can:
 3. Rule-based urgent-email logic has been removed from production worker paths (`#91`).
 4. Execution queue for this migration is GitHub issues `#91` through `#103` (`ai-backend` label).
 
+## Plan Sync Update (2026-02-16)
+
+1. GitHub issues remain the immediate execution source of truth.
+2. Keep this board aligned in the same work cycle whenever issue status, sequencing, dependencies, or scope changes.
+3. `AGENTS.md` and `agent/start.md` should be updated only for workflow/policy changes, not normal issue progress updates.
+
 ## 5) Execution Board
 
 ### A) Product and Scope Control

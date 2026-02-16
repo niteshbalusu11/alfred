@@ -143,6 +143,9 @@ Code must remain modular by default. Do not keep adding logic to a single large 
 2. Planning board: `docs/phase1-master-todo.md`
 3. Rule:
    1. If a GitHub issue and board item conflict, treat GitHub issue as immediate execution source and update docs in the same change.
+4. Plan update policy:
+   1. When an execution plan changes issue status, sequencing, dependencies, or scope, update the GitHub issue first and keep `docs/phase1-master-todo.md` aligned in the same work cycle.
+   2. Update `AGENTS.md` and `agent/start.md` only when workflow or policy itself changes (not for normal task/status progress).
 
 ## GitHub Issue Workflow (Required)
 
