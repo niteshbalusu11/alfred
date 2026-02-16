@@ -6,7 +6,8 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 use crate::config_enclave_runtime::{
-    parse_alfred_environment, parse_enclave_runtime_mode, validate_enclave_runtime_guards,
+    parse_alfred_environment, parse_enclave_rpc_shared_secret, parse_enclave_runtime_mode,
+    validate_enclave_runtime_guards,
 };
 use crate::enclave_runtime::EnclaveRuntimeMode;
 
@@ -46,6 +47,8 @@ pub struct ApiConfig {
     pub enclave_runtime_mode: EnclaveRuntimeMode,
     pub enclave_runtime_base_url: String,
     pub enclave_runtime_probe_timeout_ms: u64,
+    pub enclave_rpc_shared_secret: String,
+    pub enclave_rpc_auth_max_skew_seconds: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -79,6 +82,8 @@ pub struct WorkerConfig {
     pub enclave_runtime_mode: EnclaveRuntimeMode,
     pub enclave_runtime_base_url: String,
     pub enclave_runtime_probe_timeout_ms: u64,
+    pub enclave_rpc_shared_secret: String,
+    pub enclave_rpc_auth_max_skew_seconds: u64,
     pub database_url: String,
     pub database_max_connections: u32,
     pub data_encryption_key: String,
@@ -137,6 +142,14 @@ impl ApiConfig {
                 "ENCLAVE_RUNTIME_PROBE_TIMEOUT_MS must be greater than 0".to_string(),
             ));
         }
+        let enclave_rpc_auth_max_skew_seconds =
+            parse_u64_env("ENCLAVE_RPC_AUTH_MAX_SKEW_SECONDS", 30)?;
+        if enclave_rpc_auth_max_skew_seconds == 0 {
+            return Err(ConfigError::InvalidConfiguration(
+                "ENCLAVE_RPC_AUTH_MAX_SKEW_SECONDS must be greater than 0".to_string(),
+            ));
+        }
+        let enclave_rpc_shared_secret = parse_enclave_rpc_shared_secret(alfred_environment)?;
 
         let clerk_issuer = require_env("CLERK_ISSUER")?;
         if clerk_issuer.trim().is_empty() {
@@ -229,6 +242,8 @@ impl ApiConfig {
             enclave_runtime_base_url: env::var("ENCLAVE_RUNTIME_BASE_URL")
                 .unwrap_or_else(|_| "http://127.0.0.1:8181".to_string()),
             enclave_runtime_probe_timeout_ms,
+            enclave_rpc_shared_secret,
+            enclave_rpc_auth_max_skew_seconds,
         })
     }
 }
@@ -321,6 +336,14 @@ impl WorkerConfig {
                 "ENCLAVE_RUNTIME_PROBE_TIMEOUT_MS must be greater than 0".to_string(),
             ));
         }
+        let enclave_rpc_auth_max_skew_seconds =
+            parse_u64_env("ENCLAVE_RPC_AUTH_MAX_SKEW_SECONDS", 30)?;
+        if enclave_rpc_auth_max_skew_seconds == 0 {
+            return Err(ConfigError::InvalidConfiguration(
+                "ENCLAVE_RPC_AUTH_MAX_SKEW_SECONDS must be greater than 0".to_string(),
+            ));
+        }
+        let enclave_rpc_shared_secret = parse_enclave_rpc_shared_secret(alfred_environment)?;
 
         Ok(Self {
             tick_seconds,
@@ -360,6 +383,8 @@ impl WorkerConfig {
             enclave_runtime_base_url: env::var("ENCLAVE_RUNTIME_BASE_URL")
                 .unwrap_or_else(|_| "http://127.0.0.1:8181".to_string()),
             enclave_runtime_probe_timeout_ms,
+            enclave_rpc_shared_secret,
+            enclave_rpc_auth_max_skew_seconds,
             database_url: require_env("DATABASE_URL")?,
             database_max_connections: parse_u32_env("DATABASE_MAX_CONNECTIONS", 5)?,
             data_encryption_key: require_env("DATA_ENCRYPTION_KEY")?,

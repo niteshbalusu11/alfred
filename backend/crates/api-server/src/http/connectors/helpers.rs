@@ -1,33 +1,30 @@
 use axum::http::StatusCode;
 use axum::response::Response;
-use shared::enclave::{EnclaveRpcClient, EnclaveRpcError, GoogleEnclaveOauthConfig};
+use shared::enclave::{EnclaveRpcClient, EnclaveRpcError};
 use tracing::warn;
 use url::Url;
 
 use super::super::errors::{
-    bad_gateway_response, bad_request_response, security_error_response, store_error_response,
+    bad_gateway_response, bad_request_response, decrypt_not_authorized_response,
 };
 use super::super::{AppState, OAuthConfig};
 use super::types::{GoogleOAuthErrorResponse, GoogleTokenResponse};
 
 pub(super) fn build_enclave_client(state: &AppState) -> EnclaveRpcClient {
     EnclaveRpcClient::new(
-        state.store.clone(),
-        state.secret_runtime.clone(),
+        state.enclave_rpc.base_url.clone(),
+        state.enclave_rpc.auth.clone(),
         state.http_client.clone(),
-        GoogleEnclaveOauthConfig {
-            client_id: state.oauth.client_id.clone(),
-            client_secret: state.oauth.client_secret.clone(),
-            token_url: state.oauth.token_url.clone(),
-            revoke_url: state.oauth.revoke_url.clone(),
-        },
     )
 }
 
 pub(super) fn map_revoke_enclave_error(err: EnclaveRpcError) -> Response {
     match err {
-        EnclaveRpcError::DecryptNotAuthorized(err) => security_error_response(err),
-        EnclaveRpcError::ConnectorTokenDecryptFailed(err) => store_error_response(err),
+        EnclaveRpcError::DecryptNotAuthorized { .. } => decrypt_not_authorized_response(),
+        EnclaveRpcError::ConnectorTokenDecryptFailed { .. } => bad_gateway_response(
+            "connector_token_decrypt_failed",
+            "Connector token decrypt failed",
+        ),
         EnclaveRpcError::ConnectorTokenUnavailable => bad_request_response(
             "connector_token_unavailable",
             "Connector token metadata changed; retry the request",
@@ -45,6 +42,12 @@ pub(super) fn map_revoke_enclave_error(err: EnclaveRpcError) -> Response {
         }
         EnclaveRpcError::ProviderResponseInvalid { .. } => {
             bad_gateway_response("oauth_revoke_failed", "Google token revoke failed")
+        }
+        EnclaveRpcError::RpcUnauthorized { .. }
+        | EnclaveRpcError::RpcContractRejected { .. }
+        | EnclaveRpcError::RpcTransportUnavailable { .. }
+        | EnclaveRpcError::RpcResponseInvalid { .. } => {
+            bad_gateway_response("enclave_rpc_failed", "Secure enclave RPC request failed")
         }
     }
 }

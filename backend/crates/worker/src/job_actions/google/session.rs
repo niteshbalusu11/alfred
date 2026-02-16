@@ -1,7 +1,5 @@
 use shared::config::WorkerConfig;
-use shared::enclave::{
-    ConnectorSecretRequest, EnclaveRpcClient, EnclaveRpcError, GoogleEnclaveOauthConfig,
-};
+use shared::enclave::{ConnectorSecretRequest, EnclaveRpcClient, EnclaveRpcError};
 use shared::repos::{LEGACY_CONNECTOR_TOKEN_KEY_ID, Store};
 use shared::security::SecretRuntime;
 
@@ -16,12 +14,12 @@ pub(super) struct GoogleSession {
 pub(super) async fn build_google_session(
     store: &Store,
     config: &WorkerConfig,
-    secret_runtime: &SecretRuntime,
+    _secret_runtime: &SecretRuntime,
     oauth_client: &reqwest::Client,
     user_id: uuid::Uuid,
 ) -> Result<GoogleSession, JobExecutionError> {
     let connector = load_active_google_connector(store, config, user_id).await?;
-    let enclave_client = build_enclave_client(store, config, secret_runtime, oauth_client);
+    let enclave_client = build_enclave_client(config, oauth_client);
     let token_response = enclave_client
         .exchange_google_access_token(ConnectorSecretRequest {
             user_id,
@@ -105,34 +103,26 @@ async fn load_active_google_connector(
     })
 }
 
-fn build_enclave_client(
-    store: &Store,
-    config: &WorkerConfig,
-    secret_runtime: &SecretRuntime,
-    oauth_client: &reqwest::Client,
-) -> EnclaveRpcClient {
+fn build_enclave_client(config: &WorkerConfig, oauth_client: &reqwest::Client) -> EnclaveRpcClient {
     EnclaveRpcClient::new(
-        store.clone(),
-        secret_runtime.clone(),
-        oauth_client.clone(),
-        GoogleEnclaveOauthConfig {
-            client_id: config.google_client_id.clone(),
-            client_secret: config.google_client_secret.clone(),
-            token_url: config.google_token_url.clone(),
-            revoke_url: config.google_revoke_url.clone(),
+        config.enclave_runtime_base_url.clone(),
+        shared::enclave::EnclaveRpcAuthConfig {
+            shared_secret: config.enclave_rpc_shared_secret.clone(),
+            max_clock_skew_seconds: config.enclave_rpc_auth_max_skew_seconds,
         },
+        oauth_client.clone(),
     )
 }
 
 fn map_exchange_enclave_error(err: EnclaveRpcError) -> JobExecutionError {
     match err {
-        EnclaveRpcError::DecryptNotAuthorized(err) => JobExecutionError::permanent(
+        EnclaveRpcError::DecryptNotAuthorized { message } => JobExecutionError::permanent(
             "CONNECTOR_DECRYPT_NOT_AUTHORIZED",
-            format!("decrypt authorization failed: {err}"),
+            format!("decrypt authorization failed: {message}"),
         ),
-        EnclaveRpcError::ConnectorTokenDecryptFailed(err) => JobExecutionError::transient(
+        EnclaveRpcError::ConnectorTokenDecryptFailed { message } => JobExecutionError::transient(
             "CONNECTOR_TOKEN_DECRYPT_FAILED",
-            format!("failed to decrypt refresh token: {err}"),
+            format!("failed to decrypt refresh token: {message}"),
         ),
         EnclaveRpcError::ConnectorTokenUnavailable => JobExecutionError::permanent(
             "CONNECTOR_TOKEN_MISSING",
@@ -160,6 +150,16 @@ fn map_exchange_enclave_error(err: EnclaveRpcError) -> JobExecutionError {
         EnclaveRpcError::ProviderResponseInvalid { message, .. } => JobExecutionError::transient(
             "GOOGLE_TOKEN_REFRESH_PARSE_FAILED",
             format!("google token refresh response was invalid: {message}"),
+        ),
+        EnclaveRpcError::RpcUnauthorized { code }
+        | EnclaveRpcError::RpcContractRejected { code } => JobExecutionError::permanent(
+            "ENCLAVE_RPC_REJECTED",
+            format!("secure enclave rpc request rejected: {code}"),
+        ),
+        EnclaveRpcError::RpcTransportUnavailable { message }
+        | EnclaveRpcError::RpcResponseInvalid { message } => JobExecutionError::transient(
+            "ENCLAVE_RPC_UNAVAILABLE",
+            format!("secure enclave rpc unavailable: {message}"),
         ),
     }
 }
