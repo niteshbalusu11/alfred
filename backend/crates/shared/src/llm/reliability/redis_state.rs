@@ -101,7 +101,7 @@ impl RedisReliabilityState {
             Ok(response) => Ok(Some(response)),
             Err(err) => {
                 warn!(error = %err, "failed to parse cached LLM response from redis");
-                let _: redis::RedisResult<()> = connection.del(cache_key).await;
+                let _: redis::RedisResult<i64> = connection.del(cache_key).await;
                 Ok(None)
             }
         }
@@ -173,8 +173,9 @@ impl RedisReliabilityState {
 
     pub(crate) async fn record_provider_success(&self) -> redis::RedisResult<()> {
         let mut connection = self.connection.clone();
-        let _: () = connection.del(self.circuit_breaker_failures_key()).await?;
-        connection.del(self.circuit_breaker_open_key()).await
+        let _: i64 = connection.del(self.circuit_breaker_failures_key()).await?;
+        let _: i64 = connection.del(self.circuit_breaker_open_key()).await?;
+        Ok(())
     }
 
     pub(crate) async fn record_provider_failure(
