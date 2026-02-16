@@ -14,14 +14,17 @@ use uuid::Uuid;
 pub use client::EnclaveRpcClient;
 pub use contract::{
     AttestedIdentityPayload, ENCLAVE_RPC_CONTRACT_VERSION, ENCLAVE_RPC_PATH_EXCHANGE_GOOGLE_TOKEN,
-    ENCLAVE_RPC_PATH_FETCH_GOOGLE_CALENDAR_EVENTS,
-    ENCLAVE_RPC_PATH_FETCH_GOOGLE_URGENT_EMAIL_CANDIDATES, ENCLAVE_RPC_PATH_REVOKE_GOOGLE_TOKEN,
+    ENCLAVE_RPC_PATH_FETCH_ASSISTANT_ATTESTED_KEY, ENCLAVE_RPC_PATH_FETCH_GOOGLE_CALENDAR_EVENTS,
+    ENCLAVE_RPC_PATH_FETCH_GOOGLE_URGENT_EMAIL_CANDIDATES,
+    ENCLAVE_RPC_PATH_PROCESS_ASSISTANT_QUERY, ENCLAVE_RPC_PATH_REVOKE_GOOGLE_TOKEN,
     EnclaveGoogleCalendarAttendee, EnclaveGoogleCalendarEvent, EnclaveGoogleCalendarEventDateTime,
     EnclaveGoogleEmailCandidate, EnclaveRpcErrorEnvelope, EnclaveRpcErrorPayload,
     EnclaveRpcExchangeGoogleTokenRequest, EnclaveRpcExchangeGoogleTokenResponse,
+    EnclaveRpcFetchAssistantAttestedKeyRequest, EnclaveRpcFetchAssistantAttestedKeyResponse,
     EnclaveRpcFetchGoogleCalendarEventsRequest, EnclaveRpcFetchGoogleCalendarEventsResponse,
     EnclaveRpcFetchGoogleUrgentEmailCandidatesRequest,
-    EnclaveRpcFetchGoogleUrgentEmailCandidatesResponse, EnclaveRpcRevokeGoogleTokenRequest,
+    EnclaveRpcFetchGoogleUrgentEmailCandidatesResponse, EnclaveRpcProcessAssistantQueryRequest,
+    EnclaveRpcProcessAssistantQueryResponse, EnclaveRpcRevokeGoogleTokenRequest,
     EnclaveRpcRevokeGoogleTokenResponse,
 };
 pub use service::EnclaveOperationService;
@@ -68,12 +71,38 @@ pub struct FetchGoogleUrgentEmailCandidatesResponse {
     pub attested_identity: AttestedIdentityPayload,
 }
 
+#[derive(Debug, Clone)]
+pub struct FetchAssistantAttestedKeyResponse {
+    pub request_id: String,
+    pub runtime: String,
+    pub measurement: String,
+    pub challenge_nonce: String,
+    pub issued_at: i64,
+    pub expires_at: i64,
+    pub evidence_issued_at: i64,
+    pub key_id: String,
+    pub algorithm: String,
+    pub public_key: String,
+    pub key_expires_at: i64,
+    pub signature: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProcessAssistantQueryResponse {
+    pub session_id: Uuid,
+    pub envelope: crate::models::AssistantEncryptedResponseEnvelope,
+    pub session_state: Option<crate::models::AssistantSessionStateEnvelope>,
+    pub attested_identity: AttestedIdentityPayload,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProviderOperation {
     TokenRefresh,
     TokenRevoke,
     CalendarFetch,
     GmailFetch,
+    AssistantAttestedKey,
+    AssistantQuery,
 }
 
 impl fmt::Display for ProviderOperation {
@@ -83,6 +112,8 @@ impl fmt::Display for ProviderOperation {
             Self::TokenRevoke => write!(f, "token_revoke"),
             Self::CalendarFetch => write!(f, "calendar_fetch"),
             Self::GmailFetch => write!(f, "gmail_fetch"),
+            Self::AssistantAttestedKey => write!(f, "assistant_attested_key"),
+            Self::AssistantQuery => write!(f, "assistant_query"),
         }
     }
 }

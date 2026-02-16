@@ -101,6 +101,30 @@ pub struct AttestationChallengeResponse {
     pub signature: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssistantAttestedKeyChallengeRequest {
+    pub challenge_nonce: String,
+    pub issued_at: i64,
+    pub expires_at: i64,
+    pub request_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssistantAttestedKeyChallengeResponse {
+    pub runtime: String,
+    pub measurement: String,
+    pub challenge_nonce: String,
+    pub issued_at: i64,
+    pub expires_at: i64,
+    pub request_id: String,
+    pub evidence_issued_at: i64,
+    pub key_id: String,
+    pub algorithm: String,
+    pub public_key: String,
+    pub key_expires_at: i64,
+    pub signature: Option<String>,
+}
+
 pub fn attestation_signing_payload(response: &AttestationChallengeResponse) -> String {
     format!(
         "{}|{}|{}|{}|{}|{}|{}|{}",
@@ -112,6 +136,25 @@ pub fn attestation_signing_payload(response: &AttestationChallengeResponse) -> S
         response.operation_purpose,
         response.request_id,
         response.evidence_issued_at
+    )
+}
+
+pub fn assistant_key_attestation_signing_payload(
+    response: &AssistantAttestedKeyChallengeResponse,
+) -> String {
+    format!(
+        "{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}",
+        response.runtime,
+        response.measurement,
+        response.challenge_nonce,
+        response.issued_at,
+        response.expires_at,
+        response.request_id,
+        response.evidence_issued_at,
+        response.key_id,
+        response.algorithm,
+        response.public_key,
+        response.key_expires_at
     )
 }
 

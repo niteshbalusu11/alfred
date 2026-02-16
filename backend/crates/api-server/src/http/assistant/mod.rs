@@ -1,7 +1,5 @@
-mod ai_observability;
-mod fetch;
-mod memory;
+mod attested_key;
 mod query;
-mod session;
 
+pub(crate) use attested_key::fetch_attested_key;
 pub(crate) use query::query_assistant;

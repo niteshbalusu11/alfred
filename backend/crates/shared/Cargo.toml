@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 base64.workspace = true
+chacha20poly1305.workspace = true
 chrono.workspace = true
 chrono-tz.workspace = true
 dotenvy.workspace = true
@@ -22,6 +23,7 @@ thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 uuid.workspace = true
+x25519-dalek.workspace = true
 
 [dev-dependencies]
 axum.workspace = true

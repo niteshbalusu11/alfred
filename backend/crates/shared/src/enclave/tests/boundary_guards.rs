@@ -46,6 +46,43 @@ fn sensitive_error_mapping_does_not_embed_upstream_messages() {
     }
 }
 
+#[test]
+fn assistant_query_contracts_do_not_reintroduce_plaintext_query_fields() {
+    let shared_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+
+    let openapi_path = shared_root.join("../../../api/openapi.yaml");
+    let openapi = fs::read_to_string(&openapi_path)
+        .expect("failed to read OpenAPI spec for assistant contract guard");
+    let openapi_block = extract_named_yaml_block(&openapi, "AssistantQueryRequest:")
+        .expect("AssistantQueryRequest block must exist in OpenAPI");
+    assert!(
+        !openapi_block.contains("query:"),
+        "OpenAPI AssistantQueryRequest must not include plaintext query field"
+    );
+
+    let rust_models_path = shared_root.join("src/models.rs");
+    let rust_models = fs::read_to_string(&rust_models_path)
+        .expect("failed to read shared models for plaintext guard");
+    let rust_block = extract_rust_struct_block(&rust_models, "pub struct AssistantQueryRequest")
+        .expect("AssistantQueryRequest struct must exist in shared models");
+    assert!(
+        !rust_block.contains("pub query:"),
+        "shared AssistantQueryRequest must not include plaintext query field"
+    );
+
+    let swift_models_path =
+        shared_root.join("../../../alfred/Packages/AlfredAPIClient/Sources/Models.swift");
+    let swift_models = fs::read_to_string(&swift_models_path)
+        .expect("failed to read Swift models for plaintext guard");
+    let swift_block =
+        extract_swift_struct_block(&swift_models, "public struct AssistantQueryRequest")
+            .expect("AssistantQueryRequest struct must exist in Swift models");
+    assert!(
+        !swift_block.contains("query: String"),
+        "Swift AssistantQueryRequest must not include plaintext query field"
+    );
+}
+
 fn assert_no_sensitive_tracing_args(path: &str, content: &str) {
     const TRACING_MACROS: [&str; 5] = ["trace!(", "debug!(", "info!(", "warn!(", "error!("];
     const SENSITIVE_TERMS: [&str; 9] = [
@@ -113,6 +150,29 @@ fn collect_rust_guard_files(paths: &[&str]) -> Vec<PathBuf> {
     }
 
     files.into_iter().collect()
+}
+
+fn extract_named_yaml_block<'a>(content: &'a str, marker: &str) -> Option<&'a str> {
+    let start = content.find(marker)?;
+    let remaining = &content[start..];
+    let end = remaining
+        .find("\n    AssistantQueryCapability:")
+        .unwrap_or(remaining.len());
+    Some(&remaining[..end])
+}
+
+fn extract_rust_struct_block<'a>(content: &'a str, marker: &str) -> Option<&'a str> {
+    let start = content.find(marker)?;
+    let remaining = &content[start..];
+    let end = remaining.find("\n}\n\n").unwrap_or(remaining.len());
+    Some(&remaining[..end])
+}
+
+fn extract_swift_struct_block<'a>(content: &'a str, marker: &str) -> Option<&'a str> {
+    let start = content.find(marker)?;
+    let remaining = &content[start..];
+    let end = remaining.find("\n}\n\n").unwrap_or(remaining.len());
+    Some(&remaining[..end])
 }
 
 fn collect_rust_files_recursive(path: &Path, files: &mut BTreeSet<PathBuf>) {

@@ -1,3 +1,8 @@
+use shared::assistant_crypto::{
+    ASSISTANT_ENCRYPTION_ALGORITHM_X25519_CHACHA20POLY1305, AssistantIngressKeyMaterial,
+    AssistantIngressKeyring, derive_public_key_b64,
+};
+use shared::enclave_runtime::AssistantAttestedKeyChallengeRequest;
 use shared::enclave_runtime::{AlfredEnvironment, AttestationChallengeRequest, EnclaveRuntimeMode};
 
 use super::{
@@ -36,6 +41,16 @@ fn build_config(mode: EnclaveRuntimeMode) -> RuntimeConfig {
             shared_secret: "local-dev-enclave-rpc-secret".to_string(),
             max_clock_skew_seconds: 30,
         },
+        assistant_ingress_keys: AssistantIngressKeyring {
+            active: AssistantIngressKeyMaterial {
+                key_id: "assistant-ingress-v1".to_string(),
+                private_key: [11_u8; 32],
+                public_key: derive_public_key_b64([11_u8; 32]),
+                key_expires_at: chrono::Utc::now().timestamp() + 900,
+            },
+            previous: None,
+        },
+        assistant_session_ttl_seconds: 3600,
         attestation_source: AttestationSource::Missing,
         attestation_signing_private_key: [7_u8; 32],
     }
@@ -85,6 +100,30 @@ fn challenge_response_is_signed_and_echoes_challenge_fields() {
     assert_eq!(response.challenge_nonce, "nonce-1");
     assert_eq!(response.operation_purpose, "decrypt");
     assert_eq!(response.request_id, "req-1");
+    assert!(response.signature.is_some());
+}
+
+#[test]
+fn assistant_attested_key_response_is_signed_and_binds_key_fields() {
+    let config = build_config(EnclaveRuntimeMode::DevShim);
+    let challenge = AssistantAttestedKeyChallengeRequest {
+        challenge_nonce: "nonce-key-1".to_string(),
+        issued_at: chrono::Utc::now().timestamp() - 2,
+        expires_at: chrono::Utc::now().timestamp() + 30,
+        request_id: "req-key-1".to_string(),
+    };
+
+    let response = config
+        .assistant_attested_key_challenge_response(challenge)
+        .expect("assistant key challenge should succeed");
+
+    assert_eq!(response.challenge_nonce, "nonce-key-1");
+    assert_eq!(response.request_id, "req-key-1");
+    assert_eq!(
+        response.algorithm,
+        ASSISTANT_ENCRYPTION_ALGORITHM_X25519_CHACHA20POLY1305
+    );
+    assert_eq!(response.key_id, "assistant-ingress-v1");
     assert!(response.signature.is_some());
 }
 

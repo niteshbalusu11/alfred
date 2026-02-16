@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use crate::models::ApnsEnvironment;
 
+mod assistant_encrypted_sessions;
 mod assistant_sessions;
 mod audit;
 mod auth;
@@ -15,6 +16,7 @@ mod preferences;
 mod privacy;
 mod users;
 
+pub use assistant_encrypted_sessions::AssistantEncryptedSessionRecord;
 pub use assistant_sessions::{
     ASSISTANT_SESSION_MEMORY_VERSION_V1, AssistantSessionMemory, AssistantSessionRecord,
     AssistantSessionTurn,

@@ -44,6 +44,69 @@ public struct SendTestNotificationResponse: Codable, Sendable {
 }
 
 public struct AssistantQueryRequest: Codable, Sendable {
+    public let envelope: AssistantEncryptedRequestEnvelope
+    public let sessionId: UUID?
+
+    enum CodingKeys: String, CodingKey {
+        case envelope
+        case sessionId = "session_id"
+    }
+
+    public init(envelope: AssistantEncryptedRequestEnvelope, sessionId: UUID? = nil) {
+        self.envelope = envelope
+        self.sessionId = sessionId
+    }
+}
+
+public struct AssistantEncryptedRequestEnvelope: Codable, Sendable {
+    public let version: String
+    public let algorithm: String
+    public let keyId: String
+    public let requestId: String
+    public let clientEphemeralPublicKey: String
+    public let nonce: String
+    public let ciphertext: String
+
+    enum CodingKeys: String, CodingKey {
+        case version
+        case algorithm
+        case keyId = "key_id"
+        case requestId = "request_id"
+        case clientEphemeralPublicKey = "client_ephemeral_public_key"
+        case nonce
+        case ciphertext
+    }
+}
+
+public struct AssistantEncryptedResponseEnvelope: Codable, Sendable {
+    public let version: String
+    public let algorithm: String
+    public let keyId: String
+    public let requestId: String
+    public let nonce: String
+    public let ciphertext: String
+
+    enum CodingKeys: String, CodingKey {
+        case version
+        case algorithm
+        case keyId = "key_id"
+        case requestId = "request_id"
+        case nonce
+        case ciphertext
+    }
+}
+
+public struct AssistantQueryResponse: Codable, Sendable {
+    public let sessionId: UUID
+    public let envelope: AssistantEncryptedResponseEnvelope
+
+    enum CodingKeys: String, CodingKey {
+        case sessionId = "session_id"
+        case envelope
+    }
+}
+
+public struct AssistantPlaintextQueryRequest: Codable, Sendable {
     public let query: String
     public let sessionId: UUID?
 
@@ -76,7 +139,7 @@ public struct AssistantMeetingsTodayPayload: Codable, Sendable {
     }
 }
 
-public struct AssistantQueryResponse: Codable, Sendable {
+public struct AssistantPlaintextQueryResponse: Codable, Sendable {
     public let sessionId: UUID
     public let capability: AssistantQueryCapability
     public let displayText: String
@@ -87,6 +150,65 @@ public struct AssistantQueryResponse: Codable, Sendable {
         case capability
         case displayText = "display_text"
         case payload
+    }
+}
+
+public struct AssistantAttestedKeyRequest: Codable, Sendable {
+    public let challengeNonce: String
+    public let issuedAt: Int64
+    public let expiresAt: Int64
+    public let requestId: String
+
+    enum CodingKeys: String, CodingKey {
+        case challengeNonce = "challenge_nonce"
+        case issuedAt = "issued_at"
+        case expiresAt = "expires_at"
+        case requestId = "request_id"
+    }
+
+    public init(challengeNonce: String, issuedAt: Int64, expiresAt: Int64, requestId: String) {
+        self.challengeNonce = challengeNonce
+        self.issuedAt = issuedAt
+        self.expiresAt = expiresAt
+        self.requestId = requestId
+    }
+}
+
+public struct AssistantAttestedKeyAttestation: Codable, Sendable {
+    public let runtime: String
+    public let measurement: String
+    public let challengeNonce: String
+    public let issuedAt: Int64
+    public let expiresAt: Int64
+    public let requestId: String
+    public let evidenceIssuedAt: Int64
+    public let signature: String?
+
+    enum CodingKeys: String, CodingKey {
+        case runtime
+        case measurement
+        case challengeNonce = "challenge_nonce"
+        case issuedAt = "issued_at"
+        case expiresAt = "expires_at"
+        case requestId = "request_id"
+        case evidenceIssuedAt = "evidence_issued_at"
+        case signature
+    }
+}
+
+public struct AssistantAttestedKeyResponse: Codable, Sendable {
+    public let keyId: String
+    public let algorithm: String
+    public let publicKey: String
+    public let keyExpiresAt: Int64
+    public let attestation: AssistantAttestedKeyAttestation
+
+    enum CodingKeys: String, CodingKey {
+        case keyId = "key_id"
+        case algorithm
+        case publicKey = "public_key"
+        case keyExpiresAt = "key_expires_at"
+        case attestation
     }
 }
 

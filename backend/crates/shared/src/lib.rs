@@ -1,3 +1,4 @@
+pub mod assistant_crypto;
 pub mod config;
 mod config_enclave_runtime;
 mod config_env;

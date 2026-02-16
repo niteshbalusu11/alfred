@@ -34,9 +34,43 @@ pub struct SendTestNotificationResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AssistantQueryRequest {
-    pub query: String,
+    pub envelope: AssistantEncryptedRequestEnvelope,
     #[serde(default)]
     pub session_id: Option<Uuid>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AssistantEncryptedRequestEnvelope {
+    pub version: String,
+    pub algorithm: String,
+    pub key_id: String,
+    pub request_id: String,
+    pub client_ephemeral_public_key: String,
+    pub nonce: String,
+    pub ciphertext: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AssistantEncryptedResponseEnvelope {
+    pub version: String,
+    pub algorithm: String,
+    pub key_id: String,
+    pub request_id: String,
+    pub nonce: String,
+    pub ciphertext: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AssistantSessionStateEnvelope {
+    pub version: String,
+    pub algorithm: String,
+    pub key_id: String,
+    pub nonce: String,
+    pub ciphertext: String,
+    pub expires_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -56,9 +90,54 @@ pub struct AssistantMeetingsTodayPayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AssistantQueryResponse {
     pub session_id: Uuid,
+    pub envelope: AssistantEncryptedResponseEnvelope,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssistantPlaintextQueryRequest {
+    pub query: String,
+    #[serde(default)]
+    pub session_id: Option<Uuid>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssistantPlaintextQueryResponse {
+    pub session_id: Uuid,
     pub capability: AssistantQueryCapability,
     pub display_text: String,
     pub payload: AssistantMeetingsTodayPayload,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AssistantAttestedKeyRequest {
+    pub challenge_nonce: String,
+    pub issued_at: i64,
+    pub expires_at: i64,
+    pub request_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AssistantAttestedKeyResponse {
+    pub key_id: String,
+    pub algorithm: String,
+    pub public_key: String,
+    pub key_expires_at: i64,
+    pub attestation: AssistantAttestedKeyAttestation,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AssistantAttestedKeyAttestation {
+    pub runtime: String,
+    pub measurement: String,
+    pub challenge_nonce: String,
+    pub issued_at: i64,
+    pub expires_at: i64,
+    pub request_id: String,
+    pub evidence_issued_at: i64,
+    pub signature: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
