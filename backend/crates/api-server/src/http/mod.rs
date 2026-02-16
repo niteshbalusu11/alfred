@@ -1,7 +1,6 @@
 use axum::routing::{delete, get, post};
 use axum::{Router, middleware};
 use shared::enclave::EnclaveRpcAuthConfig;
-use shared::llm::ReliableOpenRouterGateway;
 use shared::repos::Store;
 use shared::security::SecretRuntime;
 use std::collections::HashSet;
@@ -48,7 +47,6 @@ pub struct AppState {
     pub oauth: OAuthConfig,
     pub enclave_rpc: EnclaveRpcConfig,
     pub secret_runtime: SecretRuntime,
-    pub llm_gateway: ReliableOpenRouterGateway,
     pub rate_limiter: RateLimiter,
     pub trusted_proxy_ips: HashSet<IpAddr>,
     pub oauth_state_ttl_seconds: u64,
@@ -87,6 +85,13 @@ pub fn build_router(app_state: AppState) -> Router {
         .route(
             "/v1/assistant/query",
             post(assistant::query_assistant).layer(middleware::from_fn_with_state(
+                protected_rate_limit_layer_state.clone(),
+                rate_limit::sensitive_rate_limit_middleware,
+            )),
+        )
+        .route(
+            "/v1/assistant/attested-key",
+            post(assistant::fetch_attested_key).layer(middleware::from_fn_with_state(
                 protected_rate_limit_layer_state.clone(),
                 rate_limit::sensitive_rate_limit_middleware,
             )),

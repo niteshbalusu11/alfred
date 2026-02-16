@@ -6,10 +6,15 @@ use chrono::Utc;
 use ed25519_dalek::{Signer, SigningKey};
 use serde::Deserialize;
 use serde_json::{Value, json};
+use shared::assistant_crypto::{
+    ASSISTANT_ENCRYPTION_ALGORITHM_X25519_CHACHA20POLY1305, AssistantIngressKeyMaterial,
+    AssistantIngressKeyring, derive_public_key_b64,
+};
 use shared::enclave::{EnclaveRpcAuthConfig, GoogleEnclaveOauthConfig};
 use shared::enclave_runtime::{
-    AlfredEnvironment, AttestationChallengeRequest, AttestationChallengeResponse,
-    EnclaveRuntimeMode, attestation_signing_payload,
+    AlfredEnvironment, AssistantAttestedKeyChallengeRequest, AssistantAttestedKeyChallengeResponse,
+    AttestationChallengeRequest, AttestationChallengeResponse, EnclaveRuntimeMode,
+    assistant_key_attestation_signing_payload, attestation_signing_payload,
 };
 
 #[derive(Debug, Clone)]
@@ -35,6 +40,8 @@ pub(crate) struct RuntimeConfig {
     pub(crate) enclave_runtime_base_url: String,
     pub(crate) oauth: GoogleEnclaveOauthConfig,
     pub(crate) enclave_rpc_auth: EnclaveRpcAuthConfig,
+    pub(crate) assistant_ingress_keys: AssistantIngressKeyring,
+    pub(crate) assistant_session_ttl_seconds: u64,
     attestation_source: AttestationSource,
     attestation_signing_private_key: [u8; 32],
 }
@@ -134,6 +141,15 @@ impl RuntimeConfig {
         if tee_attestation_challenge_timeout_ms == 0 {
             return Err("TEE_ATTESTATION_CHALLENGE_TIMEOUT_MS must be > 0".to_string());
         }
+        let assistant_session_ttl_seconds =
+            parse_u64_env("ASSISTANT_INGRESS_SESSION_TTL_SECONDS", 3600)?;
+        if assistant_session_ttl_seconds == 0 {
+            return Err("ASSISTANT_INGRESS_SESSION_TTL_SECONDS must be > 0".to_string());
+        }
+        let assistant_key_ttl_seconds = parse_u64_env("ASSISTANT_INGRESS_KEY_TTL_SECONDS", 900)?;
+        if assistant_key_ttl_seconds == 0 {
+            return Err("ASSISTANT_INGRESS_KEY_TTL_SECONDS must be > 0".to_string());
+        }
 
         let enclave_rpc_auth_max_skew_seconds =
             parse_u64_env("ENCLAVE_RPC_AUTH_MAX_SKEW_SECONDS", 30)?;
@@ -152,6 +168,55 @@ impl RuntimeConfig {
             &kms_allowed_measurements,
             enclave_runtime_base_url.as_str(),
         )?;
+        let assistant_key_expires_at = Utc::now().timestamp() + assistant_key_ttl_seconds as i64;
+        let active_key_id = env::var("ASSISTANT_INGRESS_ACTIVE_KEY_ID")
+            .unwrap_or_else(|_| "assistant-ingress-v1".to_string());
+        if active_key_id.trim().is_empty() {
+            return Err("ASSISTANT_INGRESS_ACTIVE_KEY_ID must not be empty".to_string());
+        }
+        let active_private_key =
+            if let Some(encoded) = optional_trimmed_env("ASSISTANT_INGRESS_ACTIVE_PRIVATE_KEY") {
+                decode_x25519_private_key(encoded.as_str(), "ASSISTANT_INGRESS_ACTIVE_PRIVATE_KEY")?
+            } else if matches!(environment, AlfredEnvironment::Local) {
+                [11_u8; 32]
+            } else {
+                return Err(
+                    "ASSISTANT_INGRESS_ACTIVE_PRIVATE_KEY is required outside local environment"
+                        .to_string(),
+                );
+            };
+        let active_key = AssistantIngressKeyMaterial {
+            key_id: active_key_id,
+            private_key: active_private_key,
+            public_key: derive_public_key_b64(active_private_key),
+            key_expires_at: assistant_key_expires_at,
+        };
+        let previous_key = match optional_trimmed_env("ASSISTANT_INGRESS_PREVIOUS_KEY_ID") {
+            Some(previous_key_id) => {
+                if previous_key_id == active_key.key_id {
+                    return Err(
+                        "ASSISTANT_INGRESS_PREVIOUS_KEY_ID must differ from active key id"
+                            .to_string(),
+                    );
+                }
+                let previous_key_encoded =
+                    optional_trimmed_env("ASSISTANT_INGRESS_PREVIOUS_PRIVATE_KEY").ok_or(
+                        "ASSISTANT_INGRESS_PREVIOUS_PRIVATE_KEY is required when previous key id is set"
+                            .to_string(),
+                    )?;
+                let previous_private_key = decode_x25519_private_key(
+                    previous_key_encoded.as_str(),
+                    "ASSISTANT_INGRESS_PREVIOUS_PRIVATE_KEY",
+                )?;
+                Some(AssistantIngressKeyMaterial {
+                    key_id: previous_key_id,
+                    private_key: previous_private_key,
+                    public_key: derive_public_key_b64(previous_private_key),
+                    key_expires_at: assistant_key_expires_at,
+                })
+            }
+            None => None,
+        };
 
         Ok(Self {
             bind_addr: env::var("ENCLAVE_RUNTIME_BIND_ADDR")
@@ -188,6 +253,11 @@ impl RuntimeConfig {
                 shared_secret: parse_enclave_rpc_shared_secret(environment)?,
                 max_clock_skew_seconds: enclave_rpc_auth_max_skew_seconds,
             },
+            assistant_ingress_keys: AssistantIngressKeyring {
+                active: active_key,
+                previous: previous_key,
+            },
+            assistant_session_ttl_seconds,
             attestation_source,
             attestation_signing_private_key,
         })
@@ -257,6 +327,50 @@ impl RuntimeConfig {
         };
 
         let payload = attestation_signing_payload(&response);
+        let signing_key = SigningKey::from_bytes(&self.attestation_signing_private_key);
+        let signature = signing_key.sign(payload.as_bytes());
+        response.signature =
+            Some(base64::engine::general_purpose::STANDARD.encode(signature.to_bytes().as_ref()));
+
+        Ok(response)
+    }
+
+    pub(crate) fn assistant_attested_key_challenge_response(
+        &self,
+        challenge: AssistantAttestedKeyChallengeRequest,
+    ) -> Result<AssistantAttestedKeyChallengeResponse, String> {
+        if challenge.challenge_nonce.trim().is_empty() {
+            return Err("invalid challenge: challenge_nonce is required".to_string());
+        }
+        if challenge.request_id.trim().is_empty() {
+            return Err("invalid challenge: request_id is required".to_string());
+        }
+        if challenge.expires_at <= challenge.issued_at {
+            return Err("invalid challenge: expires_at must be greater than issued_at".to_string());
+        }
+
+        let now = Utc::now().timestamp();
+        if now > challenge.expires_at {
+            return Err("invalid challenge: challenge has expired".to_string());
+        }
+
+        let (runtime, measurement) = self.attestation_identity()?;
+        let mut response = AssistantAttestedKeyChallengeResponse {
+            runtime,
+            measurement,
+            challenge_nonce: challenge.challenge_nonce,
+            issued_at: challenge.issued_at,
+            expires_at: challenge.expires_at,
+            request_id: challenge.request_id,
+            evidence_issued_at: now,
+            key_id: self.assistant_ingress_keys.active.key_id.clone(),
+            algorithm: ASSISTANT_ENCRYPTION_ALGORITHM_X25519_CHACHA20POLY1305.to_string(),
+            public_key: self.assistant_ingress_keys.active.public_key.clone(),
+            key_expires_at: self.assistant_ingress_keys.active.key_expires_at,
+            signature: None,
+        };
+
+        let payload = assistant_key_attestation_signing_payload(&response);
         let signing_key = SigningKey::from_bytes(&self.attestation_signing_private_key);
         let signature = signing_key.sign(payload.as_bytes());
         response.signature =
@@ -380,6 +494,16 @@ fn decode_signing_key_bytes(encoded_key: &str) -> Result<[u8; 32], String> {
     key_bytes.try_into().map_err(|_| {
         "TEE_ATTESTATION_SIGNING_PRIVATE_KEY must decode to exactly 32 bytes".to_string()
     })
+}
+
+fn decode_x25519_private_key(encoded_key: &str, key_name: &str) -> Result<[u8; 32], String> {
+    let key_bytes = base64::engine::general_purpose::STANDARD
+        .decode(encoded_key.as_bytes())
+        .map_err(|_| format!("{key_name} must be valid base64 for a 32-byte X25519 key"))?;
+
+    key_bytes
+        .try_into()
+        .map_err(|_| format!("{key_name} must decode to exactly 32 bytes"))
 }
 
 fn require_env(key: &str) -> Result<String, String> {

@@ -7,15 +7,25 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use shared::enclave::{
     ENCLAVE_RPC_CONTRACT_VERSION, ENCLAVE_RPC_PATH_EXCHANGE_GOOGLE_TOKEN,
-    ENCLAVE_RPC_PATH_FETCH_GOOGLE_CALENDAR_EVENTS,
-    ENCLAVE_RPC_PATH_FETCH_GOOGLE_URGENT_EMAIL_CANDIDATES, ENCLAVE_RPC_PATH_REVOKE_GOOGLE_TOKEN,
+    ENCLAVE_RPC_PATH_FETCH_ASSISTANT_ATTESTED_KEY, ENCLAVE_RPC_PATH_FETCH_GOOGLE_CALENDAR_EVENTS,
+    ENCLAVE_RPC_PATH_FETCH_GOOGLE_URGENT_EMAIL_CANDIDATES,
+    ENCLAVE_RPC_PATH_PROCESS_ASSISTANT_QUERY, ENCLAVE_RPC_PATH_REVOKE_GOOGLE_TOKEN,
     EnclaveRpcExchangeGoogleTokenRequest, EnclaveRpcExchangeGoogleTokenResponse,
+    EnclaveRpcFetchAssistantAttestedKeyRequest, EnclaveRpcFetchAssistantAttestedKeyResponse,
     EnclaveRpcFetchGoogleCalendarEventsRequest, EnclaveRpcFetchGoogleCalendarEventsResponse,
     EnclaveRpcFetchGoogleUrgentEmailCandidatesRequest,
-    EnclaveRpcFetchGoogleUrgentEmailCandidatesResponse, EnclaveRpcRevokeGoogleTokenRequest,
+    EnclaveRpcFetchGoogleUrgentEmailCandidatesResponse, EnclaveRpcProcessAssistantQueryRequest,
+    EnclaveRpcProcessAssistantQueryResponse, EnclaveRpcRevokeGoogleTokenRequest,
     EnclaveRpcRevokeGoogleTokenResponse,
 };
 use shared::enclave_runtime::{AttestationChallengeRequest, AttestationChallengeResponse};
+use shared::models::{
+    AssistantMeetingsTodayPayload, AssistantPlaintextQueryResponse, AssistantQueryCapability,
+    AssistantSessionStateEnvelope,
+};
+use uuid::Uuid;
+
+use shared::assistant_crypto::{decrypt_assistant_request, encrypt_assistant_response};
 
 use crate::RuntimeState;
 
@@ -213,6 +223,186 @@ pub(crate) async fn fetch_google_urgent_email_candidates(
     }
 }
 
+pub(crate) async fn fetch_assistant_attested_key(
+    State(state): State<RuntimeState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    let request = match validate_request::<EnclaveRpcFetchAssistantAttestedKeyRequest>(
+        &state,
+        &headers,
+        ENCLAVE_RPC_PATH_FETCH_ASSISTANT_ATTESTED_KEY,
+        &body,
+    ) {
+        Ok(request) => request,
+        Err(rejection) => return rejection.into_response(),
+    };
+
+    let challenge_response = state.config.assistant_attested_key_challenge_response(
+        shared::enclave_runtime::AssistantAttestedKeyChallengeRequest {
+            challenge_nonce: request.challenge_nonce,
+            issued_at: request.issued_at,
+            expires_at: request.expires_at,
+            request_id: request.request_id.clone(),
+        },
+    );
+
+    match challenge_response {
+        Ok(response) => Json(EnclaveRpcFetchAssistantAttestedKeyResponse {
+            contract_version: ENCLAVE_RPC_CONTRACT_VERSION.to_string(),
+            request_id: request.request_id,
+            runtime: response.runtime,
+            measurement: response.measurement,
+            challenge_nonce: response.challenge_nonce,
+            issued_at: response.issued_at,
+            expires_at: response.expires_at,
+            evidence_issued_at: response.evidence_issued_at,
+            key_id: response.key_id,
+            algorithm: response.algorithm,
+            public_key: response.public_key,
+            key_expires_at: response.key_expires_at,
+            signature: response.signature,
+        })
+        .into_response(),
+        Err(err) => rpc::reject(
+            StatusCode::BAD_REQUEST,
+            shared::enclave::EnclaveRpcErrorEnvelope::new(
+                Some(request.request_id),
+                "invalid_request_payload",
+                err,
+                false,
+            ),
+        )
+        .into_response(),
+    }
+}
+
+pub(crate) async fn process_assistant_query(
+    State(state): State<RuntimeState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    let request = match validate_request::<EnclaveRpcProcessAssistantQueryRequest>(
+        &state,
+        &headers,
+        ENCLAVE_RPC_PATH_PROCESS_ASSISTANT_QUERY,
+        &body,
+    ) {
+        Ok(request) => request,
+        Err(rejection) => return rejection.into_response(),
+    };
+
+    let (plaintext, selected_key) =
+        match decrypt_assistant_request(&state.config.assistant_ingress_keys, &request.envelope) {
+            Ok(result) => result,
+            Err(err) => {
+                return rpc::reject(
+                    StatusCode::BAD_REQUEST,
+                    shared::enclave::EnclaveRpcErrorEnvelope::new(
+                        Some(request.request_id),
+                        "invalid_request_payload",
+                        format!("assistant envelope decrypt failed: {err}"),
+                        false,
+                    ),
+                )
+                .into_response();
+            }
+        };
+
+    let query = plaintext.query.trim();
+    if query.is_empty() {
+        return rpc::reject(
+            StatusCode::BAD_REQUEST,
+            shared::enclave::EnclaveRpcErrorEnvelope::new(
+                Some(request.request_id),
+                "invalid_request_payload",
+                "assistant query must not be empty",
+                false,
+            ),
+        )
+        .into_response();
+    }
+
+    let session_id = request
+        .session_id
+        .or(plaintext.session_id)
+        .unwrap_or_else(Uuid::new_v4);
+    let response_contract = AssistantPlaintextQueryResponse {
+        session_id,
+        capability: AssistantQueryCapability::MeetingsToday,
+        display_text: "Encrypted assistant ingress accepted. Full enclave orchestration is queued for phase 2."
+            .to_string(),
+        payload: AssistantMeetingsTodayPayload {
+            title: "Encrypted ingress active".to_string(),
+            summary: format!("Encrypted query received ({} chars).", query.len()),
+            key_points: vec![
+                "Host never parsed assistant plaintext.".to_string(),
+                "Ciphertext ingress and attested enclave key path are active.".to_string(),
+            ],
+            follow_ups: vec![],
+        },
+    };
+    let encrypted_response = match encrypt_assistant_response(
+        &selected_key,
+        request.envelope.request_id.as_str(),
+        request.envelope.client_ephemeral_public_key.as_str(),
+        &response_contract,
+    ) {
+        Ok(envelope) => envelope,
+        Err(err) => {
+            return rpc::reject(
+                StatusCode::BAD_REQUEST,
+                shared::enclave::EnclaveRpcErrorEnvelope::new(
+                    Some(request.request_id),
+                    "invalid_request_payload",
+                    format!("assistant response encryption failed: {err}"),
+                    false,
+                ),
+            )
+            .into_response();
+        }
+    };
+
+    let session_state = AssistantSessionStateEnvelope {
+        version: request.envelope.version,
+        algorithm: request.envelope.algorithm,
+        key_id: request.envelope.key_id,
+        nonce: request.envelope.nonce,
+        ciphertext: request.envelope.ciphertext,
+        expires_at: chrono::Utc::now()
+            + chrono::Duration::seconds(state.config.assistant_session_ttl_seconds as i64),
+    };
+    let (runtime, measurement) = match state.config.attestation_document() {
+        Ok(document) => {
+            let runtime = document
+                .get("runtime")
+                .and_then(|value| value.as_str())
+                .unwrap_or("unknown")
+                .to_string();
+            let measurement = document
+                .get("measurement")
+                .and_then(|value| value.as_str())
+                .unwrap_or("unknown")
+                .to_string();
+            (runtime, measurement)
+        }
+        Err(_) => ("unknown".to_string(), "unknown".to_string()),
+    };
+
+    Json(EnclaveRpcProcessAssistantQueryResponse {
+        contract_version: ENCLAVE_RPC_CONTRACT_VERSION.to_string(),
+        request_id: request.request_id,
+        session_id,
+        envelope: encrypted_response,
+        session_state: Some(session_state),
+        attested_identity: shared::enclave::AttestedIdentityPayload {
+            runtime,
+            measurement,
+        },
+    })
+    .into_response()
+}
+
 trait RpcEnvelope {
     fn contract_version(&self) -> &str;
     fn request_id(&self) -> &str;
@@ -249,6 +439,26 @@ impl RpcEnvelope for EnclaveRpcFetchGoogleCalendarEventsRequest {
 }
 
 impl RpcEnvelope for EnclaveRpcFetchGoogleUrgentEmailCandidatesRequest {
+    fn contract_version(&self) -> &str {
+        &self.contract_version
+    }
+
+    fn request_id(&self) -> &str {
+        &self.request_id
+    }
+}
+
+impl RpcEnvelope for EnclaveRpcFetchAssistantAttestedKeyRequest {
+    fn contract_version(&self) -> &str {
+        &self.contract_version
+    }
+
+    fn request_id(&self) -> &str {
+        &self.request_id
+    }
+}
+
+impl RpcEnvelope for EnclaveRpcProcessAssistantQueryRequest {
     fn contract_version(&self) -> &str {
         &self.contract_version
     }

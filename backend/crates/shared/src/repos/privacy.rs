@@ -254,6 +254,10 @@ impl Store {
             .bind(user_id)
             .execute(&mut *tx)
             .await?;
+        sqlx::query("DELETE FROM assistant_encrypted_sessions WHERE user_id = $1")
+            .bind(user_id)
+            .execute(&mut *tx)
+            .await?;
         sqlx::query("DELETE FROM connectors WHERE user_id = $1")
             .bind(user_id)
             .execute(&mut *tx)

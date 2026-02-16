@@ -62,7 +62,7 @@ paths:
   /v1/assistant/query:
     post:
       tags: [Assistant]
-      summary: Query assistant with natural language
+      summary: Query assistant with encrypted envelope
       operationId: queryAssistant
       security:
         - bearerAuth: []
@@ -79,6 +79,34 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AssistantQueryResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+  /v1/assistant/attested-key:
+    post:
+      tags: [Assistant]
+      summary: Fetch attested enclave assistant encryption key
+      operationId: fetchAssistantAttestedKey
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssistantAttestedKeyRequest"
+      responses:
+        "200":
+          description: Attested assistant encryption key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssistantAttestedKeyResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -346,14 +374,60 @@ components:
           enum: [QUEUED]
     AssistantQueryRequest:
       type: object
-      required: [query]
+      required: [envelope]
       properties:
-        query:
-          type: string
-          minLength: 1
+        envelope:
+          $ref: "#/components/schemas/AssistantEncryptedRequestEnvelope"
         session_id:
           type: string
           format: uuid
+    AssistantEncryptedRequestEnvelope:
+      type: object
+      required:
+        [
+          version,
+          algorithm,
+          key_id,
+          request_id,
+          client_ephemeral_public_key,
+          nonce,
+          ciphertext
+        ]
+      properties:
+        version:
+          type: string
+          enum: [v1]
+        algorithm:
+          type: string
+          enum: [x25519-chacha20poly1305]
+        key_id:
+          type: string
+        request_id:
+          type: string
+        client_ephemeral_public_key:
+          type: string
+        nonce:
+          type: string
+        ciphertext:
+          type: string
+    AssistantEncryptedResponseEnvelope:
+      type: object
+      required: [version, algorithm, key_id, request_id, nonce, ciphertext]
+      properties:
+        version:
+          type: string
+          enum: [v1]
+        algorithm:
+          type: string
+          enum: [x25519-chacha20poly1305]
+        key_id:
+          type: string
+        request_id:
+          type: string
+        nonce:
+          type: string
+        ciphertext:
+          type: string
     AssistantQueryCapability:
       type: string
       enum: [meetings_today]
@@ -375,17 +449,76 @@ components:
             type: string
     AssistantQueryResponse:
       type: object
-      required: [session_id, capability, display_text, payload]
+      required: [session_id, envelope]
       properties:
         session_id:
           type: string
           format: uuid
-        capability:
-          $ref: "#/components/schemas/AssistantQueryCapability"
-        display_text:
+        envelope:
+          $ref: "#/components/schemas/AssistantEncryptedResponseEnvelope"
+    AssistantAttestedKeyRequest:
+      type: object
+      required: [challenge_nonce, issued_at, expires_at, request_id]
+      properties:
+        challenge_nonce:
           type: string
-        payload:
-          $ref: "#/components/schemas/AssistantMeetingsTodayPayload"
+        issued_at:
+          type: integer
+          format: int64
+        expires_at:
+          type: integer
+          format: int64
+        request_id:
+          type: string
+    AssistantAttestedKeyAttestation:
+      type: object
+      required:
+        [
+          runtime,
+          measurement,
+          challenge_nonce,
+          issued_at,
+          expires_at,
+          request_id,
+          evidence_issued_at
+        ]
+      properties:
+        runtime:
+          type: string
+        measurement:
+          type: string
+        challenge_nonce:
+          type: string
+        issued_at:
+          type: integer
+          format: int64
+        expires_at:
+          type: integer
+          format: int64
+        request_id:
+          type: string
+        evidence_issued_at:
+          type: integer
+          format: int64
+        signature:
+          type: string
+          nullable: true
+    AssistantAttestedKeyResponse:
+      type: object
+      required: [key_id, algorithm, public_key, key_expires_at, attestation]
+      properties:
+        key_id:
+          type: string
+        algorithm:
+          type: string
+          enum: [x25519-chacha20poly1305]
+        public_key:
+          type: string
+        key_expires_at:
+          type: integer
+          format: int64
+        attestation:
+          $ref: "#/components/schemas/AssistantAttestedKeyAttestation"
     StartGoogleConnectRequest:
       type: object
       required: [redirect_uri]

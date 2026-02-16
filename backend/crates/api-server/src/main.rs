@@ -4,7 +4,6 @@ use std::time::Duration;
 use shared::config::{ApiConfig, load_dotenv};
 use shared::enclave::EnclaveRpcAuthConfig;
 use shared::enclave_runtime::{EnclaveRuntimeEndpointConfig, verify_connectivity};
-use shared::llm::{LlmReliabilityConfig, OpenRouterGatewayConfig, ReliableOpenRouterGateway};
 use shared::repos::Store;
 use shared::security::{KmsDecryptPolicy, SecretRuntime, TeeAttestationPolicy};
 use tracing::{error, info};
@@ -24,37 +23,6 @@ async fn main() {
         Ok(cfg) => cfg,
         Err(err) => {
             error!(error = %err, "failed to read config");
-            std::process::exit(1);
-        }
-    };
-
-    let openrouter_config = match OpenRouterGatewayConfig::from_env() {
-        Ok(cfg) => cfg,
-        Err(err) => {
-            error!(
-                error = %err,
-                "failed to read OpenRouter configuration required for LLM startup path"
-            );
-            std::process::exit(1);
-        }
-    };
-    let llm_reliability_config = match LlmReliabilityConfig::from_env() {
-        Ok(cfg) => cfg,
-        Err(err) => {
-            error!(error = %err, "failed to read LLM reliability configuration");
-            std::process::exit(1);
-        }
-    };
-    let llm_gateway = match ReliableOpenRouterGateway::from_openrouter_config_with_redis(
-        openrouter_config,
-        llm_reliability_config,
-        &config.redis_url,
-    )
-    .await
-    {
-        Ok(gateway) => gateway,
-        Err(err) => {
-            error!(error = %err, "failed to initialize LLM gateway");
             std::process::exit(1);
         }
     };
@@ -165,7 +133,6 @@ async fn main() {
             config.tee_attestation_challenge_timeout_ms,
             http_client.clone(),
         ),
-        llm_gateway,
         rate_limiter,
         trusted_proxy_ips: config.trusted_proxy_ips.into_iter().collect(),
         oauth_state_ttl_seconds: config.oauth_state_ttl_seconds,

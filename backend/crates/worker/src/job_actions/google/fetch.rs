@@ -108,7 +108,9 @@ fn map_enclave_fetch_error(
             ProviderOperation::CalendarFetch | ProviderOperation::GmailFetch => {
                 JobExecutionError::transient(provider_unavailable_code, "provider request failed")
             }
-            ProviderOperation::TokenRevoke => {
+            ProviderOperation::TokenRevoke
+            | ProviderOperation::AssistantAttestedKey
+            | ProviderOperation::AssistantQuery => {
                 JobExecutionError::transient(provider_unavailable_code, "provider request failed")
             }
         },
@@ -126,7 +128,9 @@ fn map_enclave_fetch_error(
                 }
                 ProviderOperation::CalendarFetch
                 | ProviderOperation::GmailFetch
-                | ProviderOperation::TokenRevoke => {
+                | ProviderOperation::TokenRevoke
+                | ProviderOperation::AssistantAttestedKey
+                | ProviderOperation::AssistantQuery => {
                     classified_http_error(status, provider_failed_code, message)
                 }
             }
@@ -138,7 +142,9 @@ fn map_enclave_fetch_error(
             ),
             ProviderOperation::CalendarFetch
             | ProviderOperation::GmailFetch
-            | ProviderOperation::TokenRevoke => {
+            | ProviderOperation::TokenRevoke
+            | ProviderOperation::AssistantAttestedKey
+            | ProviderOperation::AssistantQuery => {
                 JobExecutionError::transient(provider_parse_code, "provider response was invalid")
             }
         },

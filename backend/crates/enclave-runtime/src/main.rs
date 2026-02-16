@@ -120,6 +120,14 @@ async fn main() {
             "/v1/rpc/google/gmail/urgent-candidates",
             post(http::fetch_google_urgent_email_candidates),
         )
+        .route(
+            "/v1/rpc/assistant/attested-key",
+            post(http::fetch_assistant_attested_key),
+        )
+        .route(
+            "/v1/rpc/assistant/query",
+            post(http::process_assistant_query),
+        )
         .with_state(RuntimeState {
             config: config.clone(),
             enclave_service,

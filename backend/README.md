@@ -117,6 +117,12 @@ These vars control TEE/KMS-bound decrypt policy for connector refresh tokens:
 20. `TEE_ATTESTATION_DOCUMENT` (inline remote-mode attestation identity source for local smoke setups)
 21. `ENCLAVE_RPC_SHARED_SECRET` (shared secret for signed host↔enclave RPC request authentication; required outside local)
 22. `ENCLAVE_RPC_AUTH_MAX_SKEW_SECONDS` (default: `30`; max allowed timestamp skew for signed RPC requests)
+23. `ASSISTANT_INGRESS_ACTIVE_KEY_ID` (default: `assistant-ingress-v1`; key id advertised to clients for assistant ingress encryption)
+24. `ASSISTANT_INGRESS_ACTIVE_PRIVATE_KEY` (base64 X25519 private key for active assistant ingress decryption key; required outside local)
+25. `ASSISTANT_INGRESS_PREVIOUS_KEY_ID` (optional previous key id accepted for decrypt during key rotation grace windows)
+26. `ASSISTANT_INGRESS_PREVIOUS_PRIVATE_KEY` (optional previous base64 X25519 private key paired with previous key id)
+27. `ASSISTANT_INGRESS_KEY_TTL_SECONDS` (default: `900`; attested key expiry horizon returned to clients)
+28. `ASSISTANT_INGRESS_SESSION_TTL_SECONDS` (default: `3600`; encrypted assistant session-state persistence TTL)
 
 Non-local (`ALFRED_ENV=staging|production`) security guards:
 

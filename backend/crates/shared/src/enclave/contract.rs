@@ -6,6 +6,8 @@ pub const ENCLAVE_RPC_PATH_REVOKE_GOOGLE_TOKEN: &str = "/v1/rpc/google/token/rev
 pub const ENCLAVE_RPC_PATH_FETCH_GOOGLE_CALENDAR_EVENTS: &str = "/v1/rpc/google/calendar/events";
 pub const ENCLAVE_RPC_PATH_FETCH_GOOGLE_URGENT_EMAIL_CANDIDATES: &str =
     "/v1/rpc/google/gmail/urgent-candidates";
+pub const ENCLAVE_RPC_PATH_FETCH_ASSISTANT_ATTESTED_KEY: &str = "/v1/rpc/assistant/attested-key";
+pub const ENCLAVE_RPC_PATH_PROCESS_ASSISTANT_QUERY: &str = "/v1/rpc/assistant/query";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttestedIdentityPayload {
@@ -94,6 +96,55 @@ pub struct EnclaveRpcFetchGoogleUrgentEmailCandidatesResponse {
     pub contract_version: String,
     pub request_id: String,
     pub candidates: Vec<EnclaveGoogleEmailCandidate>,
+    pub attested_identity: AttestedIdentityPayload,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnclaveRpcFetchAssistantAttestedKeyRequest {
+    pub contract_version: String,
+    pub request_id: String,
+    pub challenge_nonce: String,
+    pub issued_at: i64,
+    pub expires_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnclaveRpcFetchAssistantAttestedKeyResponse {
+    pub contract_version: String,
+    pub request_id: String,
+    pub runtime: String,
+    pub measurement: String,
+    pub challenge_nonce: String,
+    pub issued_at: i64,
+    pub expires_at: i64,
+    pub evidence_issued_at: i64,
+    pub key_id: String,
+    pub algorithm: String,
+    pub public_key: String,
+    pub key_expires_at: i64,
+    pub signature: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnclaveRpcProcessAssistantQueryRequest {
+    pub contract_version: String,
+    pub request_id: String,
+    pub user_id: uuid::Uuid,
+    pub envelope: crate::models::AssistantEncryptedRequestEnvelope,
+    #[serde(default)]
+    pub session_id: Option<uuid::Uuid>,
+    #[serde(default)]
+    pub prior_session_state: Option<crate::models::AssistantSessionStateEnvelope>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnclaveRpcProcessAssistantQueryResponse {
+    pub contract_version: String,
+    pub request_id: String,
+    pub session_id: uuid::Uuid,
+    pub envelope: crate::models::AssistantEncryptedResponseEnvelope,
+    #[serde(default)]
+    pub session_state: Option<crate::models::AssistantSessionStateEnvelope>,
     pub attested_identity: AttestedIdentityPayload,
 }
 

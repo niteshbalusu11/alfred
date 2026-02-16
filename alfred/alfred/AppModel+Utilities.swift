@@ -19,6 +19,12 @@ extension AppModel {
                 return "Server error (\(statusCode)): \(details)"
             case .decodingError:
                 return "Failed to decode API response."
+            case .assistantAttestationFailed(let reason):
+                return "Assistant attestation verification failed: \(reason)"
+            case .assistantEncryptionFailed(let reason):
+                return "Assistant request encryption failed: \(reason)"
+            case .assistantDecryptionFailed(let reason):
+                return "Assistant response decryption failed: \(reason)"
             }
         }
 

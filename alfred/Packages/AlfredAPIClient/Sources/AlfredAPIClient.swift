@@ -8,6 +8,9 @@ public enum AlfredAPIClientError: Error, Sendable {
     case unauthorized
     case serverError(statusCode: Int, code: String?, message: String?)
     case decodingError
+    case assistantAttestationFailed(reason: String)
+    case assistantEncryptionFailed(reason: String)
+    case assistantDecryptionFailed(reason: String)
 }
 
 public final class AlfredAPIClient: Sendable {
@@ -65,6 +68,62 @@ public final class AlfredAPIClient: Sendable {
             path: "/v1/assistant/query",
             body: request,
             requiresAuth: true
+        )
+    }
+
+    public func fetchAssistantAttestedKey(_ request: AssistantAttestedKeyRequest) async throws -> AssistantAttestedKeyResponse {
+        try await send(
+            method: "POST",
+            path: "/v1/assistant/attested-key",
+            body: request,
+            requiresAuth: true
+        )
+    }
+
+    public func queryAssistantEncrypted(
+        query: String,
+        sessionId: UUID? = nil,
+        attestationConfig: AssistantAttestationVerificationConfig
+    ) async throws -> AssistantPlaintextQueryResponse {
+        let challengeNonce = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
+        let requestID = UUID().uuidString
+        let issuedAt = Int64(Date().timeIntervalSince1970)
+        let expiresAt = issuedAt + Int64(attestationConfig.challengeWindowSeconds)
+        let keyResponse = try await fetchAssistantAttestedKey(
+            AssistantAttestedKeyRequest(
+                challengeNonce: challengeNonce,
+                issuedAt: issuedAt,
+                expiresAt: expiresAt,
+                requestId: requestID
+            )
+        )
+
+        try AssistantEnvelopeCrypto.verifyAttestedKeyResponse(
+            keyResponse,
+            expectedChallengeNonce: challengeNonce,
+            expectedRequestID: requestID,
+            config: attestationConfig
+        )
+
+        let plaintextRequest = AssistantPlaintextQueryRequest(query: query, sessionId: sessionId)
+        let encryptedPayload = try AssistantEnvelopeCrypto.encryptRequest(
+            plaintextRequest: plaintextRequest,
+            requestID: requestID,
+            attestedKey: keyResponse
+        )
+        let apiResponse = try await queryAssistant(
+            AssistantQueryRequest(envelope: encryptedPayload.envelope, sessionId: sessionId)
+        )
+
+        guard apiResponse.envelope.requestId == requestID else {
+            throw AlfredAPIClientError.assistantDecryptionFailed(reason: "response request_id mismatch")
+        }
+
+        return try AssistantEnvelopeCrypto.decryptResponse(
+            envelope: apiResponse.envelope,
+            requestID: requestID,
+            clientEphemeralPrivateKey: encryptedPayload.clientEphemeralPrivateKey,
+            attestedKey: keyResponse
         )
     }
 

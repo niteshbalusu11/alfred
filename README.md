@@ -25,7 +25,7 @@ Implemented now:
 
 1. Clerk-authenticated API surface for connectors, preferences, audit events, and privacy delete-all.
 2. LLM-first backend paths for:
-   1. `/v1/assistant/query` (meetings-today capability)
+   1. `/v1/assistant/attested-key` + encrypted `/v1/assistant/query` (meetings-today capability)
    2. Worker morning brief generation
    3. Worker urgent-email prioritization
 3. OpenRouter model routing/fallback plus reliability guardrails (rate limits, circuit breaker, cache, budget controls).
@@ -120,6 +120,9 @@ just check-infra-tools
 ```bash
 cp .env.example .env
 ```
+
+Assistant note:
+`ASSISTANT_INGRESS_*` defaults in `.env.example` are set for local development so encrypted assistant queries can run end-to-end without extra setup.
 
 3. Start local infra and apply DB migrations:
 
