@@ -90,6 +90,7 @@ Connector token usage boundary:
 2. Sensitive Google token refresh/revoke flows execute through the enclave RPC contract in `shared::enclave`.
 3. Decrypt authorization fails closed when challenge-bound attestation verification/KMS policy checks fail or connector key metadata drifts.
 4. API/worker startup now performs fail-closed connectivity checks against enclave runtime `GET /healthz`, `GET /v1/attestation/document`, and `POST /v1/attestation/challenge`.
+5. Enclave decrypt flow re-reads connector key metadata from storage and does not trust host-provided key metadata in RPC requests.
 
 Enclave runtime commands:
 

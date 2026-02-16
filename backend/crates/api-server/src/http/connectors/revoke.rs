@@ -34,7 +34,7 @@ pub(crate) async fn revoke_connector(
         }
     };
 
-    let mut connector_metadata = match state
+    let connector_metadata = match state
         .store
         .get_active_connector_key_metadata(user.user_id, connector_id)
         .await
@@ -62,8 +62,8 @@ pub(crate) async fn revoke_connector(
         );
     }
 
-    if connector_metadata.token_key_id == LEGACY_CONNECTOR_TOKEN_KEY_ID {
-        if let Err(err) = state
+    if connector_metadata.token_key_id == LEGACY_CONNECTOR_TOKEN_KEY_ID
+        && let Err(err) = state
             .store
             .adopt_legacy_connector_token_key_id(
                 user.user_id,
@@ -72,24 +72,8 @@ pub(crate) async fn revoke_connector(
                 state.secret_runtime.kms_key_version(),
             )
             .await
-        {
-            return store_error_response(err);
-        }
-
-        connector_metadata = match state
-            .store
-            .get_active_connector_key_metadata(user.user_id, connector_id)
-            .await
-        {
-            Ok(Some(connector_metadata)) => connector_metadata,
-            Ok(None) => {
-                return bad_request_response(
-                    "connector_token_unavailable",
-                    "Connector token metadata changed; retry the request",
-                );
-            }
-            Err(err) => return store_error_response(err),
-        };
+    {
+        return store_error_response(err);
     }
 
     let enclave_client = build_enclave_client(&state);
@@ -97,8 +81,6 @@ pub(crate) async fn revoke_connector(
         .revoke_google_connector_token(ConnectorSecretRequest {
             user_id: user.user_id,
             connector_id,
-            token_key_id: connector_metadata.token_key_id.clone(),
-            token_version: connector_metadata.token_version,
         })
         .await
     {

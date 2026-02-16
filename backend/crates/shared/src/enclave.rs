@@ -5,8 +5,11 @@ use serde::Deserialize;
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::repos::{Store, StoreError};
-use crate::security::{AttestedIdentity, ConnectorKeyMetadata, SecretRuntime, SecurityError};
+use crate::repos::{ConnectorKeyMetadata as PersistedConnectorKeyMetadata, Store, StoreError};
+use crate::security::{
+    AttestedIdentity, ConnectorKeyMetadata as AuthorizedConnectorKeyMetadata, SecretRuntime,
+    SecurityError,
+};
 
 #[derive(Debug, Clone)]
 pub struct GoogleEnclaveOauthConfig {
@@ -20,8 +23,6 @@ pub struct GoogleEnclaveOauthConfig {
 pub struct ConnectorSecretRequest {
     pub user_id: Uuid,
     pub connector_id: Uuid,
-    pub token_key_id: String,
-    pub token_version: i32,
 }
 
 #[derive(Debug, Clone)]
@@ -191,11 +192,18 @@ impl EnclaveRpcClient {
         &self,
         request: &ConnectorSecretRequest,
     ) -> Result<(String, AttestedIdentity), EnclaveRpcError> {
+        let connector_metadata = self
+            .store
+            .get_active_connector_key_metadata(request.user_id, request.connector_id)
+            .await
+            .map_err(EnclaveRpcError::ConnectorTokenDecryptFailed)?
+            .ok_or(EnclaveRpcError::ConnectorTokenUnavailable)?;
+
         let attested_identity = self
             .secret_runtime
-            .authorize_connector_decrypt(&ConnectorKeyMetadata {
-                key_id: request.token_key_id.clone(),
-                key_version: request.token_version,
+            .authorize_connector_decrypt(&AuthorizedConnectorKeyMetadata {
+                key_id: connector_metadata.token_key_id.clone(),
+                key_version: connector_metadata.token_version,
             })
             .await
             .map_err(EnclaveRpcError::DecryptNotAuthorized)?;
@@ -205,8 +213,11 @@ impl EnclaveRpcClient {
             .decrypt_active_connector_refresh_token(
                 request.user_id,
                 request.connector_id,
-                &request.token_key_id,
-                request.token_version,
+                &PersistedConnectorKeyMetadata {
+                    provider: connector_metadata.provider,
+                    token_key_id: connector_metadata.token_key_id,
+                    token_version: connector_metadata.token_version,
+                },
             )
             .await
             .map_err(EnclaveRpcError::ConnectorTokenDecryptFailed)?
@@ -254,7 +265,9 @@ mod tests {
     fn sensitive_worker_api_paths_do_not_log_secret_token_fields() {
         let shared_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let files = [
+            shared_root.join("../api-server/src/http/assistant/session.rs"),
             shared_root.join("../api-server/src/http/connectors.rs"),
+            shared_root.join("../api-server/src/http/connectors/revoke.rs"),
             shared_root.join("../worker/src/job_actions/google/session.rs"),
             shared_root.join("../worker/src/privacy_delete_revoke.rs"),
         ];
@@ -263,6 +276,27 @@ mod tests {
             let content = fs::read_to_string(&file)
                 .expect("failed to read source file for secret logging guard test");
             assert_no_sensitive_tracing_args(file.display().to_string().as_str(), &content);
+        }
+    }
+
+    #[test]
+    fn host_paths_do_not_call_store_decrypt_directly() {
+        let shared_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let files = [
+            shared_root.join("../api-server/src/http/assistant/session.rs"),
+            shared_root.join("../api-server/src/http/connectors/revoke.rs"),
+            shared_root.join("../worker/src/job_actions/google/session.rs"),
+            shared_root.join("../worker/src/privacy_delete_revoke.rs"),
+        ];
+
+        for file in files {
+            let content = fs::read_to_string(&file)
+                .expect("failed to read source file for decrypt boundary guard test");
+            assert!(
+                !content.contains("decrypt_active_connector_refresh_token("),
+                "{} must not call connector decrypt repository API directly",
+                file.display()
+            );
         }
     }
 

@@ -139,22 +139,23 @@ impl Store {
         &self,
         user_id: Uuid,
         connector_id: Uuid,
-        token_key_id: &str,
-        token_version: i32,
+        metadata: &ConnectorKeyMetadata,
     ) -> Result<Option<String>, StoreError> {
         let refresh_token = sqlx::query_scalar(
-            "SELECT pgp_sym_decrypt(refresh_token_ciphertext, $5) AS refresh_token
+            "SELECT pgp_sym_decrypt(refresh_token_ciphertext, $6) AS refresh_token
              FROM connectors
              WHERE id = $1
                AND user_id = $2
+               AND provider = $3
                AND status = 'ACTIVE'
-               AND token_key_id = $3
-               AND token_version = $4",
+               AND token_key_id = $4
+               AND token_version = $5",
         )
         .bind(connector_id)
         .bind(user_id)
-        .bind(token_key_id)
-        .bind(token_version)
+        .bind(&metadata.provider)
+        .bind(&metadata.token_key_id)
+        .bind(metadata.token_version)
         .bind(&self.data_encryption_key)
         .fetch_optional(&self.pool)
         .await?;

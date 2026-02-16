@@ -106,7 +106,7 @@ Ship a private beta where iOS users can:
 | SEC-001 | P0 | Pick TEE provider/architecture decision record | SEC | 2026-02-21 | DONE | - | ADR approved |
 | SEC-002 | P0 | Build enclave image baseline | SEC | 2026-02-28 | DONE | SEC-001 | Image boot + smoke pass |
 | SEC-003 | P0 | Implement enclave attestation validation | SEC | 2026-03-04 | DONE | SEC-002 | Attestation verified end-to-end |
-| SEC-004 | P0 | Bind KMS decrypt access to enclave measurements | SEC | 2026-03-06 | IN_PROGRESS | SEC-003 | Decrypt denied outside attested enclave |
+| SEC-004 | P0 | Bind KMS decrypt access to enclave measurements | SEC | 2026-03-06 | DONE | SEC-003 | Decrypt denied outside attested enclave |
 | SEC-005 | P0 | Implement secure host<->enclave RPC contract | SEC | 2026-03-08 | IN_PROGRESS | SEC-002 | RPC path stable and tested |
 | SEC-006 | P0 | Move Google API fetch/decrypt path into enclave process | SEC | 2026-03-13 | TODO | SEC-004, BE-006 | Sensitive path enclave-only |
 | SEC-007 | P0 | Token encryption/decryption service with key versioning | SEC | 2026-03-09 | IN_PROGRESS | SEC-004 | Key versioned crypto works |
