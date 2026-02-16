@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 use std::time::Duration;
 
 use shared::config::{ApiConfig, load_dotenv};
-use shared::llm::{OpenRouterGateway, OpenRouterGatewayConfig};
+use shared::llm::{LlmReliabilityConfig, OpenRouterGatewayConfig, ReliableOpenRouterGateway};
 use shared::repos::Store;
 use shared::security::{KmsDecryptPolicy, SecretRuntime, TeeAttestationPolicy};
 use tracing::{error, info};
@@ -26,13 +26,30 @@ async fn main() {
         }
     };
 
-    let llm_gateway = match OpenRouterGatewayConfig::from_env().and_then(OpenRouterGateway::new) {
-        Ok(gateway) => gateway,
+    let openrouter_config = match OpenRouterGatewayConfig::from_env() {
+        Ok(cfg) => cfg,
         Err(err) => {
             error!(
                 error = %err,
                 "failed to read OpenRouter configuration required for LLM startup path"
             );
+            std::process::exit(1);
+        }
+    };
+    let llm_reliability_config = match LlmReliabilityConfig::from_env() {
+        Ok(cfg) => cfg,
+        Err(err) => {
+            error!(error = %err, "failed to read LLM reliability configuration");
+            std::process::exit(1);
+        }
+    };
+    let llm_gateway = match ReliableOpenRouterGateway::from_openrouter_config(
+        openrouter_config,
+        llm_reliability_config,
+    ) {
+        Ok(gateway) => gateway,
+        Err(err) => {
+            error!(error = %err, "failed to initialize LLM gateway");
             std::process::exit(1);
         }
     };

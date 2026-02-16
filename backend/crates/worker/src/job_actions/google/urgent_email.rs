@@ -61,7 +61,8 @@ pub(super) async fn build_urgent_email_alert(
     let request = LlmGatewayRequest::from_template(
         template_for_capability(AssistantCapability::UrgentEmailSummary),
         context_payload.clone(),
-    );
+    )
+    .with_requester_id(user_id.to_string());
 
     let mut metadata = HashMap::new();
     metadata.insert(

@@ -106,3 +106,25 @@ These vars are validated at API and worker startup for the LLM backend path:
 
 If model vars are omitted, backend falls back to built-in defaults:
 `openai/gpt-4o-mini` (primary) and `anthropic/claude-3.5-haiku` (fallback).
+
+## LLM Reliability Guardrails
+
+These vars control runtime reliability protections for LLM requests:
+
+1. `LLM_RATE_LIMIT_WINDOW_SECONDS` (default: `60`)
+2. `LLM_RATE_LIMIT_GLOBAL_MAX_REQUESTS` (default: `120`)
+3. `LLM_RATE_LIMIT_PER_USER_MAX_REQUESTS` (default: `30`)
+4. `LLM_CIRCUIT_BREAKER_FAILURE_THRESHOLD` (default: `5`)
+5. `LLM_CIRCUIT_BREAKER_COOLDOWN_SECONDS` (default: `60`)
+6. `LLM_CACHE_TTL_SECONDS` (default: `20`)
+7. `LLM_CACHE_MAX_ENTRIES` (default: `256`)
+8. `LLM_BUDGET_WINDOW_SECONDS` (default: `3600`)
+9. `LLM_BUDGET_MAX_ESTIMATED_COST_USD` (default: `1.0`)
+10. `LLM_BUDGET_MODEL` (default: `openai/gpt-4o-mini`)
+
+Behavior notes:
+
+1. Requests are limited globally and per-user per window.
+2. Repeated provider failures open a circuit breaker and fail closed until cooldown elapses.
+3. Successful responses are cached for short-lived duplicate prompts.
+4. When budget window spend reaches threshold, requests route to `LLM_BUDGET_MODEL` until the window resets.

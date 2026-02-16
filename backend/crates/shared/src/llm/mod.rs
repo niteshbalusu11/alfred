@@ -4,6 +4,7 @@ pub mod gateway;
 pub mod observability;
 pub mod openrouter;
 pub mod prompts;
+pub mod reliability;
 pub mod safety;
 pub mod validation;
 
@@ -24,5 +25,9 @@ pub use openrouter::{
     OpenRouterConfigError, OpenRouterGateway, OpenRouterGatewayConfig, OpenRouterModelRoute,
 };
 pub use prompts::{PromptTemplate, template_for_capability};
+pub use reliability::{
+    LlmReliabilityConfig, LlmReliabilityConfigError, ReliableGatewayBuildError,
+    ReliableOpenRouterGateway,
+};
 pub use safety::{SafeOutputSource, resolve_safe_output, sanitize_context_payload};
 pub use validation::{OutputValidationError, validate_output_json, validate_output_value};
