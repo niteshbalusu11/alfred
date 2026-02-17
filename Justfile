@@ -5,6 +5,7 @@ ios_project := "alfred/alfred.xcodeproj"
 ios_scheme := "alfred"
 ios_package_dir := "alfred/Packages/AlfredAPIClient"
 backend_dir := "backend"
+default_database_url := "postgres://postgres:postgres@127.0.0.1:5432/alfred"
 
 default:
     @just --list
@@ -72,7 +73,7 @@ backend-test:
 
 # Run backend integration tests (requires Postgres at DATABASE_URL).
 backend-integration-test:
-    cd {{ backend_dir }} && cargo test -p integration-tests
+    cd {{ backend_dir }} && DATABASE_URL="${DATABASE_URL:-{{ default_database_url }}}" cargo test -p integration-tests
 
 # Run deterministic LLM eval/regression checks with mocked outputs.
 backend-eval:
@@ -92,11 +93,11 @@ install-sqlx-cli:
 
 # Apply SQL migrations to the configured Postgres database.
 backend-migrate: install-sqlx-cli
-    cd {{ backend_dir }} && sqlx migrate run --source ../db/migrations
+    cd {{ backend_dir }} && DATABASE_URL="${DATABASE_URL:-{{ default_database_url }}}" sqlx migrate run --source ../db/migrations
 
 # Show migration state for the configured Postgres database.
 backend-migrate-check: install-sqlx-cli
-    cd {{ backend_dir }} && sqlx migrate info --source ../db/migrations
+    cd {{ backend_dir }} && DATABASE_URL="${DATABASE_URL:-{{ default_database_url }}}" sqlx migrate info --source ../db/migrations
 
 # Format Rust code.
 backend-fmt:
