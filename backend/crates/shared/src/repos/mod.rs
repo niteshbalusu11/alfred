@@ -99,6 +99,13 @@ pub struct ActiveConnectorMetadata {
 }
 
 #[derive(Debug, Clone)]
+pub struct ConnectorStateRecord {
+    pub connector_id: Uuid,
+    pub provider: String,
+    pub status: String,
+}
+
+#[derive(Debug, Clone)]
 pub struct ClaimedJob {
     pub id: Uuid,
     pub user_id: Uuid,

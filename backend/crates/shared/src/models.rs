@@ -182,6 +182,18 @@ pub struct RevokeConnectorResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConnectorSummary {
+    pub connector_id: String,
+    pub provider: String,
+    pub status: ConnectorStatus,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ListConnectorsResponse {
+    pub items: Vec<ConnectorSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Preferences {
     pub meeting_reminder_minutes: u32,
     pub morning_brief_local_time: String,

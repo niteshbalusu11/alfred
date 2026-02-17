@@ -158,6 +158,15 @@ public final class AlfredAPIClient: Sendable {
         )
     }
 
+    public func listConnectors() async throws -> ListConnectorsResponse {
+        try await send(
+            method: "GET",
+            path: "/v1/connectors",
+            body: Optional<EmptyBody>.none,
+            requiresAuth: true
+        )
+    }
+
     public func getPreferences() async throws -> Preferences {
         try await send(
             method: "GET",

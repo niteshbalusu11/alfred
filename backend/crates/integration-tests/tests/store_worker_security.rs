@@ -218,13 +218,11 @@ async fn connector_key_metadata_drift_conflict_fails_closed() {
         .await
         .expect("commit task should not panic or cancel");
 
-    match rotation_result {
-        Err(StoreError::InvalidData(message)) => {
-            assert!(
-                message.contains("rotation conflict"),
-                "unexpected invalid data error: {message}"
-            );
-        }
-        other => panic!("expected drift conflict invalid data error, got: {other:?}"),
-    }
+    assert!(
+        matches!(
+            &rotation_result,
+            Err(StoreError::InvalidData(message)) if message.contains("rotation conflict")
+        ),
+        "expected drift conflict invalid data error, got: {rotation_result:?}"
+    );
 }

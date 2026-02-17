@@ -108,6 +108,7 @@ pub fn build_router(app_state: AppState) -> Router {
                 rate_limit::sensitive_rate_limit_middleware,
             )),
         )
+        .route("/v1/connectors", get(connectors::list_connectors))
         .route(
             "/v1/connectors/{connector_id}",
             delete(connectors::revoke_connector).layer(middleware::from_fn_with_state(

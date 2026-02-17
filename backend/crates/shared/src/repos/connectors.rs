@@ -2,7 +2,8 @@ use sqlx::Row;
 use uuid::Uuid;
 
 use super::{
-    ActiveConnectorMetadata, ConnectorKeyMetadata, LEGACY_CONNECTOR_TOKEN_KEY_ID, Store, StoreError,
+    ActiveConnectorMetadata, ConnectorKeyMetadata, ConnectorStateRecord,
+    LEGACY_CONNECTOR_TOKEN_KEY_ID, Store, StoreError,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -35,6 +36,34 @@ fn classify_connector_key_rotation_outcome(
 }
 
 impl Store {
+    pub async fn list_connector_states(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<ConnectorStateRecord>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT id, provider, status
+             FROM connectors
+             WHERE user_id = $1
+             ORDER BY created_at ASC, id ASC",
+        )
+        .bind(user_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        rows.into_iter()
+            .map(|row| {
+                let connector_id: Uuid = row.try_get("id")?;
+                let provider: String = row.try_get("provider")?;
+                let status: String = row.try_get("status")?;
+                Ok(ConnectorStateRecord {
+                    connector_id,
+                    provider,
+                    status,
+                })
+            })
+            .collect()
+    }
+
     pub async fn list_active_connector_metadata(
         &self,
         user_id: Uuid,

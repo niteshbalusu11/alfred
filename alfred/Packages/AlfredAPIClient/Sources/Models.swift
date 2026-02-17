@@ -276,6 +276,22 @@ public struct RevokeConnectorResponse: Codable, Sendable {
     public let status: ConnectorStatus
 }
 
+public struct ConnectorSummary: Codable, Sendable {
+    public let connectorId: String
+    public let provider: String
+    public let status: ConnectorStatus
+
+    enum CodingKeys: String, CodingKey {
+        case connectorId = "connector_id"
+        case provider
+        case status
+    }
+}
+
+public struct ListConnectorsResponse: Codable, Sendable {
+    public let items: [ConnectorSummary]
+}
+
 public struct Preferences: Codable, Sendable {
     public let meetingReminderMinutes: Int
     public let morningBriefLocalTime: String
