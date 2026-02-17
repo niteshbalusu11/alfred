@@ -1,21 +1,24 @@
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use chrono::{Duration, Utc};
 use serde_json::Value;
 use shared::llm::{
     AssistantCapability, AssistantOutputContract, LlmExecutionSource, LlmGatewayRequest,
-    assemble_meetings_today_context, generate_with_telemetry, resolve_safe_output,
-    sanitize_context_payload, template_for_capability,
+    SafeOutputSource, generate_with_telemetry, resolve_safe_output, sanitize_context_payload,
+    template_for_capability,
 };
-use shared::models::{AssistantQueryCapability, AssistantStructuredPayload};
+use shared::models::AssistantQueryCapability;
 use tracing::warn;
 use uuid::Uuid;
 
 use super::super::mapping::{log_telemetry, map_calendar_event_to_meeting_source};
 use super::super::memory::{query_context_snippet, session_memory_context};
-use super::super::notifications::non_empty;
 use super::super::session_state::EnclaveAssistantSessionState;
 use super::AssistantOrchestratorResult;
+use super::calendar_fallback::{
+    build_calendar_context_payload, compare_meetings_by_start_time, default_display_for_window,
+    deterministic_calendar_fallback_payload,
+};
+use super::calendar_range::plan_calendar_query_window;
 use crate::RuntimeState;
 use crate::http::rpc;
 
@@ -42,30 +45,28 @@ pub(super) async fn execute_calendar_query(
         }
     };
 
-    let calendar_day = Utc::now().date_naive();
-    let time_min = match calendar_day.and_hms_opt(0, 0, 0) {
-        Some(start) => start.and_utc(),
+    let window = match plan_calendar_query_window(query, chrono::Utc::now()) {
+        Some(window) => window,
         None => {
             return Err(rpc::reject(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 shared::enclave::EnclaveRpcErrorEnvelope::new(
                     Some(request_id.to_string()),
                     "rpc_internal_error",
-                    "failed to resolve calendar day window",
+                    "failed to resolve calendar query window",
                     true,
                 ),
             )
             .into_response());
         }
     };
-    let time_max = time_min + Duration::days(1);
 
     let fetch_response = match state
         .enclave_service
         .fetch_google_calendar_events(
             connector,
-            time_min.to_rfc3339(),
-            time_max.to_rfc3339(),
+            window.time_min.to_rfc3339(),
+            window.time_max.to_rfc3339(),
             CALENDAR_MAX_RESULTS,
         )
         .await
@@ -78,29 +79,14 @@ pub(super) async fn execute_calendar_query(
         }
     };
 
-    let meetings = fetch_response
+    let mut meetings = fetch_response
         .events
         .iter()
         .map(map_calendar_event_to_meeting_source)
         .collect::<Vec<_>>();
-    let meetings_context = assemble_meetings_today_context(calendar_day, &meetings);
+    meetings.sort_by(compare_meetings_by_start_time);
 
-    let mut context_payload = match serde_json::to_value(&meetings_context) {
-        Ok(value) => value,
-        Err(_) => {
-            return Err(rpc::reject(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                shared::enclave::EnclaveRpcErrorEnvelope::new(
-                    Some(request_id.to_string()),
-                    "rpc_internal_error",
-                    "failed to serialize meetings context",
-                    true,
-                ),
-            )
-            .into_response());
-        }
-    };
-
+    let mut context_payload = build_calendar_context_payload(&window, &meetings);
     if let Value::Object(entries) = &mut context_payload {
         entries.insert(
             "query_context".to_string(),
@@ -146,39 +132,38 @@ pub(super) async fn execute_calendar_query(
         &context_payload,
     );
 
-    let AssistantOutputContract::MeetingsSummary(summary_contract) = resolved.contract else {
-        return Err(rpc::reject(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            shared::enclave::EnclaveRpcErrorEnvelope::new(
-                Some(request_id.to_string()),
-                "rpc_internal_error",
-                "assistant contract resolution failed",
-                true,
-            ),
-        )
-        .into_response());
+    let payload = if resolved.source == SafeOutputSource::DeterministicFallback {
+        deterministic_calendar_fallback_payload(&window, &meetings)
+    } else {
+        let AssistantOutputContract::MeetingsSummary(summary_contract) = resolved.contract else {
+            return Err(rpc::reject(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                shared::enclave::EnclaveRpcErrorEnvelope::new(
+                    Some(request_id.to_string()),
+                    "rpc_internal_error",
+                    "assistant contract resolution failed",
+                    true,
+                ),
+            )
+            .into_response());
+        };
+
+        shared::models::AssistantStructuredPayload {
+            title: summary_contract.output.title,
+            summary: summary_contract.output.summary,
+            key_points: summary_contract.output.key_points,
+            follow_ups: summary_contract.output.follow_ups,
+        }
     };
 
-    let display_text = non_empty(summary_contract.output.summary.as_str())
-        .unwrap_or(default_display_for_capability(&capability))
+    let display_text = super::super::notifications::non_empty(payload.summary.as_str())
+        .unwrap_or(default_display_for_window(&capability, &window))
         .to_string();
 
     Ok(AssistantOrchestratorResult {
         capability,
         display_text,
-        payload: AssistantStructuredPayload {
-            title: summary_contract.output.title,
-            summary: summary_contract.output.summary,
-            key_points: summary_contract.output.key_points,
-            follow_ups: summary_contract.output.follow_ups,
-        },
+        payload,
         attested_identity: fetch_response.attested_identity,
     })
-}
-
-fn default_display_for_capability(capability: &AssistantQueryCapability) -> &'static str {
-    match capability {
-        AssistantQueryCapability::CalendarLookup => "Here is your calendar summary.",
-        _ => "Here are your meetings for today.",
-    }
 }

@@ -8,6 +8,8 @@ use super::session_state::EnclaveAssistantSessionState;
 use crate::RuntimeState;
 
 mod calendar;
+mod calendar_fallback;
+mod calendar_range;
 mod chat;
 mod email;
 mod mixed;
