@@ -9,10 +9,21 @@ struct ContentView: View {
     var body: some View {
         ZStack(alignment: .top) {
             Group {
-                if model.isAuthenticated {
+                if case .bootstrapping = model.startupRoute {
+                    StartupBootstrapView()
+                } else if case .signedOut = model.startupRoute {
+                    StartupSignedOutView(
+                        apiBaseURL: model.apiBaseURL,
+                        onOpenAuth: { presentAuthFlow() }
+                    )
+                } else if case .signedIn = model.startupRoute {
                     AppTabShellView(model: model)
-                } else {
-                    signedOutView
+                } else if case .authBootstrapFailed(let message) = model.startupRoute {
+                    StartupAuthBootstrapFailureView(
+                        message: message,
+                        onRetry: { retryAuthBootstrap() },
+                        onSignOut: { signOut() }
+                    )
                 }
             }
             .appScreenBackground()
@@ -35,6 +46,11 @@ struct ContentView: View {
         .sheet(isPresented: $authIsPresented) {
             AuthView()
         }
+        .onChange(of: model.startupRoute) { route in
+            if case .signedIn = route {
+                authIsPresented = false
+            }
+        }
         .onOpenURL { url in
             Task {
                 await model.handleOAuthCallbackURL(url)
@@ -42,24 +58,20 @@ struct ContentView: View {
         }
     }
 
-    private var signedOutView: some View {
-        VStack(spacing: 16) {
-            Text("You are signed out")
-                .font(.title3)
-                .foregroundStyle(AppTheme.Colors.textPrimary)
+    private func presentAuthFlow() {
+        authIsPresented = true
+    }
 
-            Text(model.apiBaseURL.absoluteString)
-                .font(.footnote)
-                .foregroundStyle(AppTheme.Colors.textSecondary)
-                .textSelection(.enabled)
-
-            Button("Sign in") {
-                authIsPresented = true
-            }
-            .buttonStyle(.appPrimary)
+    private func retryAuthBootstrap() {
+        Task {
+            await model.retryAuthBootstrap()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .padding(.top, 40)
+    }
+
+    private func signOut() {
+        Task {
+            await model.signOut()
+        }
     }
 }
 

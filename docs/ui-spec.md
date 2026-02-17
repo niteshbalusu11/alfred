@@ -1,6 +1,6 @@
 # Alfred UI Specification (Phase I)
 
-- Last Updated: 2026-02-15
+- Last Updated: 2026-02-17
 - Scope: iOS front-end design and implementation rules for Phase I
 - Audience: iOS engineers and autonomous coding agents
 
@@ -13,11 +13,24 @@ If a front-end issue conflicts with ad hoc styling choices, follow this spec and
 ## 2) Product Direction
 
 1. Dark-mode-only experience for Phase I.
-2. Native iOS bottom-tab navigation as primary app structure.
+2. Monochrome cartoony visual language is the app-wide style baseline.
 3. Home is the primary interaction surface.
 4. Connectors must be first-class and future-extensible (Google now, others later).
+5. Native iOS bottom-tab navigation remains the primary app structure after auth.
 
-## 3) Navigation Architecture
+## 3) Startup + Auth Journey (FE12)
+
+First-launch/auth routing must be deterministic and Clerk-native:
+
+1. App launch enters a bootstrap state while session/auth state is resolved.
+2. If unauthenticated, route to startup entry screen and present Clerk `AuthView` as the login surface.
+3. If authenticated and bootstrap succeeds, route directly to app shell.
+4. If authenticated but bootstrap fails, show recoverable UX with retry and sign-out actions.
+5. Post-login lands in Home tab by default unless a supported deep link route override exists.
+
+Do not replace Clerk login UI with custom credential forms in Phase I.
+
+## 4) Navigation Architecture
 
 Primary tabs:
 
@@ -33,7 +46,13 @@ Architecture rules:
 3. Route deep links through centralized router logic, not per-screen ad hoc handlers.
 4. Keep tab identity centralized in one enum.
 
-## 4) Screen Responsibilities
+## 5) Screen Responsibilities
+
+### Startup/Auth
+
+1. Show brand-forward first-open startup screen for signed-out users.
+2. Use Clerk native auth widget as the actual login/sign-up surface.
+3. Provide clean bootstrap loading state and a recoverable bootstrap failure state.
 
 ### Home
 
@@ -59,14 +78,24 @@ Architecture rules:
 2. Host preferences and notification settings.
 3. Host privacy actions (revoke, delete-all) with explicit confirmations.
 
-## 5) Visual System (Dark-Only)
+## 6) Visual System (Monochrome Cartoon, Dark-Only)
 
-1. Use near-black base surfaces and elevated dark cards.
-2. Use semantic colors/tokens; avoid hard-coded ad hoc colors in feature views.
-3. Keep one primary accent color for core actions.
-4. Preserve strong text contrast and Dynamic Type support.
+Core palette (four-tone baseline):
 
-## 6) State UX Rules (Required)
+1. `ink`: near-black for app background and strong contrast.
+2. `charcoal`: dark elevated surfaces and containers.
+3. `smoke`: subdued text/secondary contrast.
+4. `paper`: near-white for primary text and primary CTA fills.
+
+Component styling rules:
+
+1. Use semantic theme tokens; do not hard-code ad hoc colors in feature views.
+2. Keep palette grayscale-only for Phase I (no hue accents unless explicitly approved).
+3. Use thick outlines and hard shadows for cartoony depth.
+4. Prefer bold typography weight for primary headlines and buttons.
+5. Preserve strong text contrast and Dynamic Type support.
+
+## 7) State UX Rules (Required)
 
 Every async surface must support:
 
@@ -77,7 +106,7 @@ Every async surface must support:
 
 Do not block the whole app with spinners for local section fetches.
 
-## 7) SwiftUI Engineering Rules (Required)
+## 8) SwiftUI Engineering Rules (Required)
 
 This section is mandatory for all front-end issues.
 
@@ -91,7 +120,7 @@ This section is mandatory for all front-end issues.
 6. Keep routing/state orchestration outside presentational subviews.
 7. Add lightweight comments only where flow is non-obvious.
 
-## 8) Skills Guidance For Agents
+## 9) Skills Guidance For Agents
 
 When implementing front-end issues, use the repository SwiftUI skills as applicable:
 
@@ -102,17 +131,17 @@ When implementing front-end issues, use the repository SwiftUI skills as applica
 
 Agents should explicitly note skill usage in issue updates when a skill guided implementation decisions.
 
-## 9) Acceptance Checklist For Front-End Issues
+## 10) Acceptance Checklist For Front-End Issues
 
 Before handoff:
 
 1. `just ios-build` passes.
 2. `just ios-test` passes when core logic/state behavior changed.
-3. UI follows tab architecture and dark-theme token usage.
+3. UI follows tab architecture and monochrome-cartoon theme token usage.
 4. Loading/empty/error states are implemented for touched screens.
 5. Files respect modularity and size constraints from this spec and `AGENTS.md`.
 
-## 10) Relationship To Existing Docs
+## 11) Relationship To Existing Docs
 
 1. Product intent: `docs/product-context.md`
 2. Engineering constraints: `docs/engineering-standards.md`

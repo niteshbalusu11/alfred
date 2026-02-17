@@ -14,7 +14,13 @@ struct AppCard<Content: View>: View {
             .clipShape(RoundedRectangle(cornerRadius: AppTheme.Layout.cardCornerRadius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: AppTheme.Layout.cardCornerRadius, style: .continuous)
-                    .stroke(AppTheme.Colors.outline, lineWidth: 1)
+                    .stroke(AppTheme.Colors.outline, lineWidth: AppTheme.Layout.cartoonStrokeWidth)
+            )
+            .shadow(
+                color: AppTheme.Colors.shadow.opacity(0.85),
+                radius: 0,
+                x: 0,
+                y: AppTheme.Layout.cartoonShadowOffset
             )
     }
 }

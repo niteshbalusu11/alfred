@@ -45,5 +45,9 @@ struct AppStatusBadge: View {
             .padding(.vertical, 4)
             .background(style.background)
             .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(AppTheme.Colors.outline, lineWidth: 1)
+            )
     }
 }
