@@ -12,7 +12,32 @@ jobs:
   backend:
     name: Backend Checks (master)
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: alfred_ci
+        options: >-
+          --health-cmd "pg_isready -U postgres -d alfred_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
     env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/alfred_ci
+      REDIS_URL: redis://127.0.0.1:6379/0
       SQLX_CLI_ROOT: ${{ github.workspace }}/.cargo-sqlx-cli
       SQLX_CLI_VERSION: 0.8.6
     defaults:
@@ -54,14 +79,31 @@ jobs:
           path: ${{ env.SQLX_CLI_ROOT }}
           key: ${{ steps.cache-sqlx-cli.outputs.cache-primary-key }}
 
+      - name: Add sqlx-cli to PATH
+        run: echo "$SQLX_CLI_ROOT/bin" >> "$GITHUB_PATH"
+
+      - name: Migration Check
+        run: |
+          sqlx migrate run --source ../db/migrations
+          sqlx migrate info --source ../db/migrations
+
       - name: Fmt (check)
         run: cargo fmt --all --check
 
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
-      - name: Test
-        run: cargo test
+      - name: Secret Logging Guard Tests
+        run: cargo test -p shared boundary_guards
+
+      - name: Unit and Module Tests
+        run: cargo test --workspace --exclude integration-tests
+
+      - name: Integration Tests (Auth/Privacy)
+        run: cargo test -p integration-tests
+
+      - name: LLM Eval (mocked)
+        run: cargo run -p llm-eval -- --mode mocked
 
       - name: Build
         run: cargo build --workspace

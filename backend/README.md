@@ -65,6 +65,8 @@ just api
 just worker
 ```
 
+The three commands above now run through `bacon` with restart-on-change enabled.
+
 4. Verify health:
 
 ```bash

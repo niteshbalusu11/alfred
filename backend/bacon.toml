@@ -1,0 +1,33 @@
+#:schema https://dystroy.org/bacon/.bacon.schema.json
+
+default_job = "api"
+env.CARGO_TERM_COLOR = "always"
+
+[jobs.api]
+command = ["cargo", "run", "-p", "api-server"]
+need_stdout = true
+allow_warnings = true
+background = false
+on_change_strategy = "kill_then_restart"
+watch = ["Cargo.toml", "Cargo.lock", "crates/api-server", "crates/shared"]
+
+[jobs.worker]
+command = ["cargo", "run", "-p", "worker"]
+need_stdout = true
+allow_warnings = true
+background = false
+on_change_strategy = "kill_then_restart"
+watch = ["Cargo.toml", "Cargo.lock", "crates/worker", "crates/shared"]
+
+[jobs.enclave-runtime]
+command = ["cargo", "run", "-p", "enclave-runtime"]
+need_stdout = true
+allow_warnings = true
+background = false
+on_change_strategy = "kill_then_restart"
+watch = ["Cargo.toml", "Cargo.lock", "crates/enclave-runtime", "crates/shared"]
+
+[keybindings]
+a = "job:api"
+w = "job:worker"
+e = "job:enclave-runtime"

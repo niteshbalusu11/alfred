@@ -1,13 +1,9 @@
 import SwiftUI
 
 struct ConnectorsView: View {
+    @Environment(\.openURL) private var openURL
     @ObservedObject var model: AppModel
-
-    private struct FutureConnector: Identifiable {
-        let id: String
-        let title: String
-        let subtitle: String
-    }
+    @State private var showConnectConfirmation = false
 
     private var hasConnector: Bool {
         !model.connectorID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -17,273 +13,128 @@ struct ConnectorsView: View {
         !model.googleState.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private var hasConsentURL: Bool {
-        !model.googleAuthURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
     private var isGoogleActionInFlight: Bool {
         model.isLoading(.startGoogleOAuth)
             || model.isLoading(.completeGoogleOAuth)
-            || model.isLoading(.revokeConnector)
     }
 
-    private var connectorsErrorBanner: AppModel.ErrorBanner? {
-        guard let banner = model.errorBanner, let source = banner.sourceAction else {
-            return nil
-        }
-        let connectorActions: Set<AppModel.Action> = [
-            .startGoogleOAuth,
-            .completeGoogleOAuth,
-            .revokeConnector
-        ]
-        return connectorActions.contains(source) ? banner : nil
+    private var isToggleOn: Bool {
+        hasConnector || hasPendingConsent || isGoogleActionInFlight
     }
 
-    private var hubStatusBadge: (title: String, style: AppStatusBadge.Style) {
-        if connectorsErrorBanner != nil {
-            return ("Action needed", .danger)
+    private var shouldDisableToggle: Bool {
+        hasPendingConsent || isGoogleActionInFlight
+    }
+
+    private var googleConnectToggle: Binding<Bool> {
+        Binding(
+            get: { isToggleOn },
+            set: { wantsOn in
+                guard wantsOn else { return }
+                guard !shouldDisableToggle else { return }
+                showConnectConfirmation = true
+            }
+        )
+    }
+
+    private var helperText: String {
+        if hasPendingConsent {
+            return "Finish sign-in in your browser, then return to Alfred."
         }
         if isGoogleActionInFlight {
-            return ("Syncing", .warning)
-        }
-        return hasConnector ? ("Operational", .success) : ("Setup pending", .warning)
-    }
-
-    private var googleHealthBadge: (title: String, style: AppStatusBadge.Style) {
-        if connectorsErrorBanner != nil {
-            return ("Issue", .danger)
-        }
-        if isGoogleActionInFlight {
-            return ("Syncing", .warning)
+            return "Starting Google sign-in..."
         }
         if hasConnector {
-            return ("Healthy", .success)
+            return "You're all set."
         }
-        if hasPendingConsent {
-            return ("Awaiting consent", .warning)
-        }
-        return ("Not configured", .neutral)
+        return "Turn on Google and continue to sign in from your browser."
     }
 
-    private var googleActionTitle: String {
-        hasConnector ? "Reconnect Google" : "Connect Google"
-    }
-
-    private var futureConnectors: [FutureConnector] {
-        [
-            FutureConnector(id: "microsoft", title: "Microsoft 365", subtitle: "Calendar + Outlook"),
-            FutureConnector(id: "slack", title: "Slack", subtitle: "Priority message alerts"),
-            FutureConnector(id: "notion", title: "Notion", subtitle: "Tasks and project status")
-        ]
+    private var pendingConsentURL: URL? {
+        let trimmedURL = model.googleAuthURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedURL.isEmpty else {
+            return nil
+        }
+        return URL(string: trimmedURL)
     }
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: AppTheme.Layout.sectionSpacing) {
-                summarySection
-                if let banner = connectorsErrorBanner {
-                    errorSection(banner: banner)
-                }
-                googleSection
-                futureSection
+            VStack(spacing: AppTheme.Layout.sectionSpacing) {
+                googleConnectorCard
             }
             .padding(.horizontal, AppTheme.Layout.screenPadding)
             .padding(.vertical, AppTheme.Layout.sectionSpacing)
         }
         .appScreenBackground()
-    }
-
-    private var summarySection: some View {
-        AppCard {
-            AppSectionHeader("Connectors Hub", subtitle: "Connection health and provider controls") {
-                AppStatusBadge(title: hubStatusBadge.title, style: hubStatusBadge.style)
+        .alert("Continue signing in with Google?", isPresented: $showConnectConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Continue") {
+                startGoogleConnect()
             }
-
-            ConnectorSignalRow(title: "Connected providers", value: hasConnector ? "1 of 1 live" : "0 of 1 live")
-            ConnectorSignalRow(
-                title: "Google health",
-                value: googleHealthBadge.title,
-                valueStyle: googleHealthBadge.style
-            )
-            ConnectorSignalRow(
-                title: "Expansion readiness",
-                value: "Future providers can be added without redesign"
-            )
+        } message: {
+            Text("Hey do you want to continue signing in with Google?")
         }
     }
 
-    private func errorSection(banner: AppModel.ErrorBanner) -> some View {
+    private var googleConnectorCard: some View {
         AppCard {
-            AppSectionHeader("Connector issue", subtitle: "Review and retry") {
-                AppStatusBadge(title: "Needs attention", style: .danger)
-            }
+            VStack(alignment: .leading, spacing: 12) {
+                AppSectionHeader("Google Connector", subtitle: "Simple browser-based sign-in")
 
-            Text(banner.message)
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.Colors.textPrimary)
+                Toggle(isOn: googleConnectToggle) {
+                    HStack(spacing: 8) {
+                        Text("Google")
+                            .font(.headline)
+                            .foregroundStyle(AppTheme.Colors.textPrimary)
 
-            Text("If this looks transient or network-related, retry first. If it persists, reconnect Google.")
-                .font(.footnote)
-                .foregroundStyle(AppTheme.Colors.textSecondary)
-
-            HStack(spacing: 12) {
-                if banner.retryAction != nil {
-                    Button("Retry") {
-                        Task {
-                            await model.retryLastAction()
+                        if hasConnector {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(AppTheme.Colors.success)
+                                .font(.subheadline.weight(.bold))
                         }
                     }
-                    .buttonStyle(.appPrimary)
                 }
+                .toggleStyle(.switch)
+                .disabled(shouldDisableToggle)
 
-                Button("Dismiss") {
-                    model.dismissError()
-                }
-                .buttonStyle(.appSecondary)
-            }
-        }
-    }
-
-    private var googleSection: some View {
-        AppCard {
-            AppSectionHeader("Google Connect", subtitle: "Calendar + Gmail permissions") {
-                AppStatusBadge(title: model.googleStatusBadge.title, style: model.googleStatusBadge.style)
-            }
-
-            ConnectorSignalRow(
-                title: "Connector health",
-                value: googleHealthBadge.title,
-                valueStyle: googleHealthBadge.style
-            )
-
-            Button(googleActionTitle) {
-                Task {
-                    await model.startGoogleOAuth()
-                }
-            }
-            .buttonStyle(.appPrimary)
-            .disabled(isGoogleActionInFlight)
-
-            if let authURL = URL(string: model.googleAuthURL), hasConsentURL {
-                Link("Open Google Consent Screen", destination: authURL)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(AppTheme.Colors.accent)
-            }
-
-            if hasPendingConsent {
-                Text("Consent is pending. Return here after Google approval and Alfred will finish setup automatically.")
+                Text(helperText)
                     .font(.footnote)
                     .foregroundStyle(AppTheme.Colors.textSecondary)
-            } else if !hasConnector {
-                Text("No active Google connector yet. Connect to enable reminders and assistant signals.")
-                    .font(.footnote)
-                    .foregroundStyle(AppTheme.Colors.textSecondary)
-            }
 
-            if hasConnector {
-                Button("Revoke Google Access") {
-                    Task {
-                        await model.revokeConnector()
+                if hasPendingConsent, pendingConsentURL != nil {
+                    Button("Open Browser Again") {
+                        openConsentURLIfAvailable()
                     }
+                    .buttonStyle(.appSecondary)
                 }
-                .buttonStyle(.appSecondary)
-                .disabled(isGoogleActionInFlight)
-            }
 
-            if !model.connectorID.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Connector ID")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(AppTheme.Colors.textSecondary)
-
-                    Text(model.connectorID)
-                        .font(.footnote.monospaced())
-                        .foregroundStyle(AppTheme.Colors.textPrimary)
-                        .textSelection(.enabled)
+                if isGoogleActionInFlight {
+                    ProgressView()
+                        .tint(AppTheme.Colors.accent)
                 }
             }
-
-            if !model.revokeStatus.isEmpty {
-                Text(model.revokeStatus)
-                    .font(.footnote)
-                    .foregroundStyle(AppTheme.Colors.textSecondary)
-            }
-
-            Text("Redirect URI: \(model.redirectURI)")
-                .font(.footnote)
-                .foregroundStyle(AppTheme.Colors.textSecondary)
-
-            if isGoogleActionInFlight {
-                ProgressView()
-                    .tint(AppTheme.Colors.accent)
-            }
         }
     }
 
-    private var futureSection: some View {
-        AppCard {
-            AppSectionHeader("More Connectors", subtitle: "Additional providers are coming soon")
-
-            ForEach(futureConnectors) { connector in
-                FutureConnectorRow(title: connector.title, subtitle: connector.subtitle)
+    private func startGoogleConnect() {
+        Task { @MainActor in
+            await model.startGoogleOAuth()
+            if model.errorBanner?.sourceAction == .startGoogleOAuth {
+                AppLogger.warning("Google OAuth start failed; browser handoff skipped.", category: .oauth)
+                return
             }
+            openConsentURLIfAvailable()
         }
     }
-}
 
-private struct ConnectorSignalRow: View {
-    let title: String
-    let value: String
-    var valueStyle: AppStatusBadge.Style?
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(AppTheme.Colors.textPrimary)
-
-            Spacer(minLength: 12)
-
-            if let valueStyle {
-                AppStatusBadge(title: value, style: valueStyle)
-            } else {
-                Text(value)
-                    .font(.footnote)
-                    .foregroundStyle(AppTheme.Colors.textSecondary)
-                    .multilineTextAlignment(.trailing)
-            }
+    private func openConsentURLIfAvailable() {
+        guard let authURL = pendingConsentURL else {
+            AppLogger.warning("Google OAuth URL unavailable for browser handoff.", category: .oauth)
+            return
         }
-        .padding(.vertical, 4)
-    }
-}
-
-private struct FutureConnectorRow: View {
-    let title: String
-    let subtitle: String
-
-    var body: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(AppTheme.Colors.textPrimary)
-
-                Text(subtitle)
-                    .font(.footnote)
-                    .foregroundStyle(AppTheme.Colors.textSecondary)
-            }
-
-            Spacer(minLength: 12)
-
-            AppStatusBadge(title: "Planned", style: .neutral)
-        }
-        .padding(12)
-        .background(AppTheme.Colors.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(AppTheme.Colors.outline, lineWidth: 1)
-        )
+        AppLogger.info("Opening Google OAuth consent in browser.", category: .oauth)
+        openURL(authURL)
     }
 }
 
