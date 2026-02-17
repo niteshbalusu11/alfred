@@ -175,4 +175,21 @@ mod tests {
             Some(AssistantQueryCapability::EmailLookup)
         );
     }
+
+    #[test]
+    fn resolve_capability_switches_between_chat_and_tool_lanes() {
+        assert_eq!(
+            resolve_query_capability(
+                "show my meetings tomorrow",
+                detect_query_capability("show my meetings tomorrow"),
+                Some(AssistantQueryCapability::GeneralChat),
+            ),
+            Some(AssistantQueryCapability::CalendarLookup)
+        );
+
+        assert_eq!(
+            resolve_query_capability("thanks", detect_query_capability("thanks"), None),
+            None
+        );
+    }
 }

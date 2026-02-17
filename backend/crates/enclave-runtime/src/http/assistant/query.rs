@@ -133,6 +133,7 @@ pub(super) async fn process_assistant_query(
         capability: execution.capability.clone(),
         display_text: execution.display_text.clone(),
         payload: execution.payload,
+        response_parts: execution.response_parts,
     };
 
     let encrypted_response = match encrypt_assistant_response(

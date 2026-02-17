@@ -1,6 +1,6 @@
 use axum::response::Response;
 use shared::enclave::AttestedIdentityPayload;
-use shared::models::{AssistantQueryCapability, AssistantStructuredPayload};
+use shared::models::{AssistantQueryCapability, AssistantResponsePart, AssistantStructuredPayload};
 use shared::timezone::DEFAULT_USER_TIME_ZONE;
 use tracing::warn;
 use uuid::Uuid;
@@ -22,6 +22,7 @@ pub(super) struct AssistantOrchestratorResult {
     pub(super) capability: AssistantQueryCapability,
     pub(super) display_text: String,
     pub(super) payload: AssistantStructuredPayload,
+    pub(super) response_parts: Vec<AssistantResponsePart>,
     pub(super) attested_identity: AttestedIdentityPayload,
 }
 
@@ -80,7 +81,9 @@ pub(super) async fn execute_query(
             )
             .await
         }
-        AssistantQueryCapability::GeneralChat => Ok(chat::execute_general_chat(state, query)),
+        AssistantQueryCapability::GeneralChat => {
+            Ok(chat::execute_general_chat(state, query, prior_state))
+        }
     }
 }
 

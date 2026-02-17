@@ -284,6 +284,7 @@ mod tests {
                 key_points: vec!["phase 1 route live".to_string()],
                 follow_ups: vec![],
             },
+            response_parts: vec![],
         };
         let response_envelope = encrypt_assistant_response(
             &keyring.active,
