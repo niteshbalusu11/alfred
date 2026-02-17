@@ -12,6 +12,8 @@ mod calendar_fallback;
 mod calendar_range;
 mod chat;
 mod email;
+mod email_fallback;
+mod email_plan;
 mod mixed;
 
 pub(super) struct AssistantOrchestratorResult {
@@ -50,7 +52,9 @@ pub(super) async fn execute_query(
             )
             .await
         }
-        AssistantQueryCapability::EmailLookup => Ok(email::execute_email_query(state, query)),
+        AssistantQueryCapability::EmailLookup => {
+            email::execute_email_query(state, user_id, request_id, query, prior_state).await
+        }
         AssistantQueryCapability::Mixed => Ok(mixed::execute_mixed_query(state, query)),
         AssistantQueryCapability::GeneralChat => Ok(chat::execute_general_chat(state, query)),
     }
