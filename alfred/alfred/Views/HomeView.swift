@@ -122,8 +122,8 @@ struct HomeView: View {
                     subtitle: "Calendar-driven nudges",
                     status: ("Scheduled", .success),
                     detail: "Remind \(model.meetingReminderMinutes) minutes before meetings.",
-                    actionTitle: "Adjust Preferences",
-                    action: { model.selectedTab = .profile }
+                    actionTitle: "Open Connectors",
+                    action: { model.selectedTab = .connectors }
                 )
 
                 HomeStatusCard(
@@ -131,8 +131,8 @@ struct HomeView: View {
                     subtitle: "Brief and priority-email migration",
                     status: ("Migrating", .warning),
                     detail: "Legacy brief and urgent rule logic is removed while LLM orchestration is being rolled out.",
-                    actionTitle: "Review Settings",
-                    action: { model.selectedTab = .profile }
+                    actionTitle: "View Activity",
+                    action: { model.selectedTab = .activity }
                 )
             }
         }
@@ -160,11 +160,6 @@ struct HomeView: View {
 
             Button("View Activity") {
                 model.selectedTab = .activity
-            }
-            .buttonStyle(.appSecondary)
-
-            Button("Profile & Preferences") {
-                model.selectedTab = .profile
             }
             .buttonStyle(.appSecondary)
 

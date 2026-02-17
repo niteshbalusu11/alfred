@@ -73,6 +73,7 @@ final class AppModel: ObservableObject {
     private let clerk: Clerk
     private let apiClient: AlfredAPIClient
     private var authEventsTask: Task<Void, Never>?
+    private var lastBootstrappedUserID: String?
 
     init(apiBaseURL: URL? = nil, clerk: Clerk? = nil) {
         let clerk = clerk ?? Clerk.shared
@@ -115,8 +116,10 @@ final class AppModel: ObservableObject {
         resetRequestStatusState()
     }
 
-    func retryAuthBootstrap() async {
-        startupRoute = .bootstrapping
+    func retryAuthBootstrap(showLoadingState: Bool = true) async {
+        if showLoadingState {
+            startupRoute = .bootstrapping
+        }
         clearAuthBootstrapErrorBannerIfNeeded()
         await synchronizeAuthenticationState(shouldLoadData: true)
     }
@@ -341,7 +344,15 @@ final class AppModel: ObservableObject {
                         category: .auth
                     )
                     if newSession != nil {
-                        await self.retryAuthBootstrap()
+                        let currentUserID = self.clerk.user?.id
+                        if self.shouldSkipSessionRefresh(for: currentUserID) {
+                            AppLogger.debug(
+                                "Ignored redundant auth session refresh for current user.",
+                                category: .auth
+                            )
+                            continue
+                        }
+                        await self.retryAuthBootstrap(showLoadingState: false)
                     } else {
                         self.resetAuthenticationState()
                         self.resetGoogleOAuthState()
@@ -393,15 +404,24 @@ final class AppModel: ObservableObject {
             }
         }
 
+        lastBootstrappedUserID = clerk.user?.id
         startupRoute = .signedIn
     }
 
     private func resetAuthenticationState() {
         isAuthenticated = false
         startupRoute = .signedOut
+        lastBootstrappedUserID = nil
         connectorID = ""
         auditEvents = []
         nextAuditCursor = nil
+    }
+
+    private func shouldSkipSessionRefresh(for userID: String?) -> Bool {
+        guard case .signedIn = startupRoute else { return false }
+        guard isAuthenticated else { return false }
+        guard !hasAuthBootstrapFailure else { return false }
+        return userID == lastBootstrappedUserID
     }
 
     private func resetGoogleOAuthState() {

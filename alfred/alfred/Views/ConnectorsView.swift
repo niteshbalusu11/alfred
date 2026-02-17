@@ -4,6 +4,7 @@ struct ConnectorsView: View {
     @Environment(\.openURL) private var openURL
     @ObservedObject var model: AppModel
     @State private var showConnectConfirmation = false
+    @State private var showDisconnectConfirmation = false
 
     private var hasConnector: Bool {
         !model.connectorID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -13,9 +14,17 @@ struct ConnectorsView: View {
         !model.googleState.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private var isGoogleActionInFlight: Bool {
+    private var isConnectingGoogle: Bool {
         model.isLoading(.startGoogleOAuth)
             || model.isLoading(.completeGoogleOAuth)
+    }
+
+    private var isDisconnectingGoogle: Bool {
+        model.isLoading(.revokeConnector)
+    }
+
+    private var isGoogleActionInFlight: Bool {
+        isConnectingGoogle || isDisconnectingGoogle
     }
 
     private var isToggleOn: Bool {
@@ -30,18 +39,24 @@ struct ConnectorsView: View {
         Binding(
             get: { isToggleOn },
             set: { wantsOn in
-                guard wantsOn else { return }
                 guard !shouldDisableToggle else { return }
-                showConnectConfirmation = true
+                if wantsOn {
+                    showConnectConfirmation = true
+                } else if hasConnector {
+                    showDisconnectConfirmation = true
+                }
             }
         )
     }
 
     private var helperText: String {
+        if isDisconnectingGoogle {
+            return "Disconnecting Google..."
+        }
         if hasPendingConsent {
             return "Finish sign-in in your browser, then return to Alfred."
         }
-        if isGoogleActionInFlight {
+        if isConnectingGoogle {
             return "Starting Google sign-in..."
         }
         if hasConnector {
@@ -73,7 +88,15 @@ struct ConnectorsView: View {
                 startGoogleConnect()
             }
         } message: {
-            Text("Hey do you want to continue signing in with Google?")
+            Text("You'll continue in your browser to connect your Google account.")
+        }
+        .alert("Disconnect Google?", isPresented: $showDisconnectConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Disconnect", role: .destructive) {
+                disconnectGoogleConnector()
+            }
+        } message: {
+            Text("Alfred will stop fetching Google data and connector-based notifications until you reconnect.")
         }
     }
 
@@ -114,6 +137,12 @@ struct ConnectorsView: View {
                     ProgressView()
                         .tint(AppTheme.Colors.accent)
                 }
+
+                if !model.revokeStatus.isEmpty {
+                    Text(model.revokeStatus)
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.Colors.textSecondary)
+                }
             }
         }
     }
@@ -136,6 +165,12 @@ struct ConnectorsView: View {
         }
         AppLogger.info("Opening Google OAuth consent in browser.", category: .oauth)
         openURL(authURL)
+    }
+
+    private func disconnectGoogleConnector() {
+        Task { @MainActor in
+            await model.revokeConnector()
+        }
     }
 }
 

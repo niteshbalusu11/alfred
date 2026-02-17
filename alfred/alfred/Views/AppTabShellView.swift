@@ -52,8 +52,6 @@ struct AppTabShellView: View {
             ActivityView(model: model)
         case .connectors:
             ConnectorsView(model: model)
-        case .profile:
-            ProfileView(model: model)
         }
     }
 }
