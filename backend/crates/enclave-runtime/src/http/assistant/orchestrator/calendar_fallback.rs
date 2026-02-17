@@ -161,7 +161,7 @@ mod tests {
     #[test]
     fn deterministic_fallback_uses_window_label_for_no_events() {
         let now = utc("2026-02-17T10:15:00Z");
-        let window = plan_calendar_query_window("show calendar for next 7 days", now)
+        let window = plan_calendar_query_window("show calendar for next 7 days", now, "UTC")
             .expect("window should resolve");
 
         let payload = deterministic_calendar_fallback_payload(&window, &[]);
@@ -176,8 +176,8 @@ mod tests {
     #[test]
     fn deterministic_fallback_is_grounded_to_event_times() {
         let now = utc("2026-02-17T10:15:00Z");
-        let window =
-            plan_calendar_query_window("what meetings today?", now).expect("window should resolve");
+        let window = plan_calendar_query_window("what meetings today?", now, "UTC")
+            .expect("window should resolve");
 
         let meetings = vec![GoogleCalendarMeetingSource {
             event_id: Some("event-1".to_string()),

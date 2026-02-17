@@ -30,6 +30,7 @@ pub(super) async fn execute_calendar_query(
     request_id: &str,
     query: &str,
     capability: AssistantQueryCapability,
+    user_time_zone: &str,
     prior_state: Option<&EnclaveAssistantSessionState>,
 ) -> Result<AssistantOrchestratorResult, Response> {
     let connector = match state
@@ -45,7 +46,7 @@ pub(super) async fn execute_calendar_query(
         }
     };
 
-    let window = match plan_calendar_query_window(query, chrono::Utc::now()) {
+    let window = match plan_calendar_query_window(query, chrono::Utc::now(), user_time_zone) {
         Some(window) => window,
         None => {
             return Err(rpc::reject(

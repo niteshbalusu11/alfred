@@ -1,6 +1,8 @@
 use axum::response::Response;
 use shared::enclave::AttestedIdentityPayload;
 use shared::models::{AssistantQueryCapability, AssistantStructuredPayload};
+use shared::timezone::DEFAULT_USER_TIME_ZONE;
+use tracing::warn;
 use uuid::Uuid;
 
 use super::memory::{detect_query_capability, resolve_query_capability};
@@ -42,20 +44,42 @@ pub(super) async fn execute_query(
 
     match capability {
         AssistantQueryCapability::MeetingsToday | AssistantQueryCapability::CalendarLookup => {
+            let user_time_zone = resolve_user_time_zone(state, user_id).await;
             calendar::execute_calendar_query(
                 state,
                 user_id,
                 request_id,
                 query,
                 capability,
+                user_time_zone.as_str(),
                 prior_state,
             )
             .await
         }
         AssistantQueryCapability::EmailLookup => {
-            email::execute_email_query(state, user_id, request_id, query, prior_state).await
+            let user_time_zone = resolve_user_time_zone(state, user_id).await;
+            email::execute_email_query(
+                state,
+                user_id,
+                request_id,
+                query,
+                user_time_zone.as_str(),
+                prior_state,
+            )
+            .await
         }
-        AssistantQueryCapability::Mixed => Ok(mixed::execute_mixed_query(state, query)),
+        AssistantQueryCapability::Mixed => {
+            let user_time_zone = resolve_user_time_zone(state, user_id).await;
+            mixed::execute_mixed_query(
+                state,
+                user_id,
+                request_id,
+                query,
+                user_time_zone.as_str(),
+                prior_state,
+            )
+            .await
+        }
         AssistantQueryCapability::GeneralChat => Ok(chat::execute_general_chat(state, query)),
     }
 }
@@ -64,5 +88,22 @@ fn local_attested_identity(state: &RuntimeState) -> AttestedIdentityPayload {
     AttestedIdentityPayload {
         runtime: state.config.runtime_id.clone(),
         measurement: state.config.measurement.clone(),
+    }
+}
+
+async fn resolve_user_time_zone(state: &RuntimeState, user_id: Uuid) -> String {
+    match state
+        .enclave_service
+        .get_or_create_preferences(user_id)
+        .await
+    {
+        Ok(preferences) => preferences.time_zone,
+        Err(err) => {
+            warn!(
+                user_id = %user_id,
+                "assistant preferences lookup failed; defaulting to UTC timezone: {err}"
+            );
+            DEFAULT_USER_TIME_ZONE.to_string()
+        }
     }
 }

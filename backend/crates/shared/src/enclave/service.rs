@@ -1,5 +1,6 @@
 use reqwest::{RequestBuilder, StatusCode};
 use serde::de::DeserializeOwned;
+use uuid::Uuid;
 
 use crate::repos::{ConnectorKeyMetadata as PersistedConnectorKeyMetadata, Store};
 use crate::security::{ConnectorKeyMetadata as AuthorizedConnectorKeyMetadata, SecretRuntime};
@@ -313,7 +314,7 @@ impl EnclaveOperationService {
 
     pub async fn resolve_active_google_connector_request(
         &self,
-        user_id: uuid::Uuid,
+        user_id: Uuid,
     ) -> Result<ConnectorSecretRequest, EnclaveRpcError> {
         let connector = self
             .store
@@ -353,6 +354,13 @@ impl EnclaveOperationService {
             user_id,
             connector_id: connector.connector_id,
         })
+    }
+
+    pub async fn get_or_create_preferences(
+        &self,
+        user_id: Uuid,
+    ) -> Result<crate::models::Preferences, crate::repos::StoreError> {
+        self.store.get_or_create_preferences(user_id).await
     }
 
     async fn exchange_access_token(&self, refresh_token: &str) -> Result<String, EnclaveRpcError> {
