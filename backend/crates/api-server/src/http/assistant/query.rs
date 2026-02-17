@@ -8,6 +8,8 @@ use shared::assistant_crypto::{
 };
 use shared::enclave::EnclaveRpcError;
 use shared::models::{AssistantQueryRequest, AssistantQueryResponse};
+use tracing::warn;
+use uuid::Uuid;
 
 use super::super::errors::{bad_gateway_response, bad_request_response, store_error_response};
 use super::super::{AppState, AuthUser};
@@ -41,12 +43,13 @@ pub(crate) async fn query_assistant(
         state.enclave_rpc.auth.clone(),
         state.http_client.clone(),
     );
+    let assistant_request_id = request.envelope.request_id.clone();
     let response = match enclave_client
         .process_assistant_query(user.user_id, request, prior_session_state)
         .await
     {
         Ok(response) => response,
-        Err(err) => return map_assistant_enclave_error(err),
+        Err(err) => return map_assistant_enclave_error(err, user.user_id, &assistant_request_id),
     };
 
     if let Some(session_state) = &response.session_state {
@@ -157,21 +160,113 @@ fn validate_envelope_shape(request: &AssistantQueryRequest) -> Option<Response> 
     None
 }
 
-fn map_assistant_enclave_error(err: EnclaveRpcError) -> Response {
+fn map_assistant_enclave_error(
+    err: EnclaveRpcError,
+    user_id: Uuid,
+    assistant_request_id: &str,
+) -> Response {
     match err {
-        EnclaveRpcError::RpcContractRejected { .. } => bad_request_response(
-            "invalid_enclave_request",
-            "Encrypted assistant request rejected",
-        ),
-        EnclaveRpcError::RpcUnauthorized { .. }
-        | EnclaveRpcError::RpcTransportUnavailable { .. }
-        | EnclaveRpcError::RpcResponseInvalid { .. }
-        | EnclaveRpcError::DecryptNotAuthorized { .. }
-        | EnclaveRpcError::ConnectorTokenDecryptFailed { .. }
-        | EnclaveRpcError::ConnectorTokenUnavailable
-        | EnclaveRpcError::ProviderRequestUnavailable { .. }
-        | EnclaveRpcError::ProviderRequestFailed { .. }
-        | EnclaveRpcError::ProviderResponseInvalid { .. } => {
+        EnclaveRpcError::RpcContractRejected { code } => {
+            warn!(
+                %user_id,
+                assistant_request_id,
+                code = %code,
+                "assistant query rejected by enclave contract"
+            );
+            bad_request_response(
+                "invalid_enclave_request",
+                "Encrypted assistant request rejected",
+            )
+        }
+        EnclaveRpcError::RpcUnauthorized { code } => {
+            warn!(
+                %user_id,
+                assistant_request_id,
+                code = %code,
+                "assistant query unauthorized by enclave RPC"
+            );
+            bad_gateway_response("enclave_rpc_failed", "Secure enclave RPC request failed")
+        }
+        EnclaveRpcError::RpcTransportUnavailable { message } => {
+            warn!(
+                %user_id,
+                assistant_request_id,
+                message = %message,
+                "assistant query enclave RPC transport unavailable"
+            );
+            bad_gateway_response("enclave_rpc_failed", "Secure enclave RPC request failed")
+        }
+        EnclaveRpcError::RpcResponseInvalid { message } => {
+            warn!(
+                %user_id,
+                assistant_request_id,
+                message = %message,
+                "assistant query enclave RPC response invalid"
+            );
+            bad_gateway_response("enclave_rpc_failed", "Secure enclave RPC request failed")
+        }
+        EnclaveRpcError::DecryptNotAuthorized { message } => {
+            warn!(
+                %user_id,
+                assistant_request_id,
+                message = %message,
+                "assistant query token decrypt not authorized"
+            );
+            bad_gateway_response("enclave_rpc_failed", "Secure enclave RPC request failed")
+        }
+        EnclaveRpcError::ConnectorTokenDecryptFailed { message } => {
+            warn!(
+                %user_id,
+                assistant_request_id,
+                message = %message,
+                "assistant query connector token decrypt failed"
+            );
+            bad_gateway_response("enclave_rpc_failed", "Secure enclave RPC request failed")
+        }
+        EnclaveRpcError::ConnectorTokenUnavailable => {
+            warn!(
+                %user_id,
+                assistant_request_id,
+                "assistant query connector token unavailable"
+            );
+            bad_request_response(
+                "connector_token_unavailable",
+                "Google connector is not active for this account; reconnect Google and retry",
+            )
+        }
+        EnclaveRpcError::ProviderRequestUnavailable { operation, message } => {
+            warn!(
+                %user_id,
+                assistant_request_id,
+                operation = %operation,
+                message = %message,
+                "assistant query provider request unavailable"
+            );
+            bad_gateway_response("enclave_rpc_failed", "Secure enclave RPC request failed")
+        }
+        EnclaveRpcError::ProviderRequestFailed {
+            operation,
+            status,
+            oauth_error,
+        } => {
+            warn!(
+                %user_id,
+                assistant_request_id,
+                operation = %operation,
+                status,
+                oauth_error = ?oauth_error,
+                "assistant query provider request failed"
+            );
+            bad_gateway_response("enclave_rpc_failed", "Secure enclave RPC request failed")
+        }
+        EnclaveRpcError::ProviderResponseInvalid { operation, message } => {
+            warn!(
+                %user_id,
+                assistant_request_id,
+                operation = %operation,
+                message = %message,
+                "assistant query provider response invalid"
+            );
             bad_gateway_response("enclave_rpc_failed", "Secure enclave RPC request failed")
         }
     }

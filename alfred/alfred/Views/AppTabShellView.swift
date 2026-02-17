@@ -53,7 +53,7 @@ struct AppTabShellView: View {
     private func tabContent(for tab: AppTab) -> some View {
         switch tab {
         case .home:
-            HomeView()
+            HomeView(model: model)
         case .activity:
             ActivityView(model: model)
         case .connectors:

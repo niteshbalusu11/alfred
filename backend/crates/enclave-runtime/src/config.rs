@@ -41,6 +41,7 @@ pub(crate) struct RuntimeConfig {
     pub(crate) oauth: GoogleEnclaveOauthConfig,
     pub(crate) enclave_rpc_auth: EnclaveRpcAuthConfig,
     pub(crate) assistant_ingress_keys: AssistantIngressKeyring,
+    pub(crate) assistant_ingress_key_ttl_seconds: u64,
     pub(crate) assistant_session_ttl_seconds: u64,
     attestation_source: AttestationSource,
     attestation_signing_private_key: [u8; 32],
@@ -278,6 +279,7 @@ impl RuntimeConfig {
                 active: active_key,
                 previous: previous_key,
             },
+            assistant_ingress_key_ttl_seconds: assistant_key_ttl_seconds,
             assistant_session_ttl_seconds,
             attestation_source,
             attestation_signing_private_key,
@@ -387,7 +389,7 @@ impl RuntimeConfig {
             key_id: self.assistant_ingress_keys.active.key_id.clone(),
             algorithm: ASSISTANT_ENCRYPTION_ALGORITHM_X25519_CHACHA20POLY1305.to_string(),
             public_key: self.assistant_ingress_keys.active.public_key.clone(),
-            key_expires_at: self.assistant_ingress_keys.active.key_expires_at,
+            key_expires_at: self.active_key_expires_at(now),
             signature: None,
         };
 
@@ -398,6 +400,15 @@ impl RuntimeConfig {
             Some(base64::engine::general_purpose::STANDARD.encode(signature.to_bytes().as_ref()));
 
         Ok(response)
+    }
+
+    fn active_key_expires_at(&self, now: i64) -> i64 {
+        let ttl = if self.assistant_ingress_key_ttl_seconds > i64::MAX as u64 {
+            i64::MAX
+        } else {
+            self.assistant_ingress_key_ttl_seconds as i64
+        };
+        now.saturating_add(ttl)
     }
 
     fn attestation_identity(&self) -> Result<(String, String), String> {

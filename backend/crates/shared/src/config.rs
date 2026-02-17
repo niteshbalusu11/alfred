@@ -18,6 +18,7 @@ use crate::enclave_runtime::EnclaveRuntimeMode;
 #[derive(Debug, Clone)]
 pub struct ApiConfig {
     pub bind_addr: String,
+    pub api_http_timeout_ms: u64,
     pub database_url: String,
     pub database_max_connections: u32,
     pub migrations_dir: PathBuf,
@@ -157,6 +158,12 @@ impl ApiConfig {
                 "ENCLAVE_RUNTIME_PROBE_TIMEOUT_MS must be greater than 0".to_string(),
             ));
         }
+        let api_http_timeout_ms = parse_u64_env("API_HTTP_TIMEOUT_MS", 60000)?;
+        if api_http_timeout_ms == 0 {
+            return Err(ConfigError::InvalidConfiguration(
+                "API_HTTP_TIMEOUT_MS must be greater than 0".to_string(),
+            ));
+        }
         let enclave_rpc_auth_max_skew_seconds =
             parse_u64_env("ENCLAVE_RPC_AUTH_MAX_SKEW_SECONDS", 30)?;
         if enclave_rpc_auth_max_skew_seconds == 0 {
@@ -208,6 +215,7 @@ impl ApiConfig {
 
         Ok(Self {
             bind_addr: env::var("API_BIND_ADDR").unwrap_or_else(|_| "127.0.0.1:8080".to_string()),
+            api_http_timeout_ms,
             database_url: require_env("DATABASE_URL")?,
             database_max_connections: parse_u32_env("DATABASE_MAX_CONNECTIONS", 10)?,
             migrations_dir: env::var("MIGRATIONS_DIR")

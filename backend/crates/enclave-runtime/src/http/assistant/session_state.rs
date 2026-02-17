@@ -36,7 +36,8 @@ pub(super) fn decrypt_session_state(
         .assistant_ingress_keys
         .key_for_id(envelope.key_id.as_str())
         .ok_or_else(|| "session state key is not recognized".to_string())?;
-    if key.key_expires_at < now.timestamp() {
+    let is_active_key = key.key_id == state.config.assistant_ingress_keys.active.key_id;
+    if !is_active_key && key.key_expires_at < now.timestamp() {
         return Err("session state key has expired".to_string());
     }
 

@@ -71,7 +71,7 @@ async fn main() {
         }
     };
     let http_client = match reqwest::Client::builder()
-        .timeout(Duration::from_secs(15))
+        .timeout(Duration::from_millis(config.api_http_timeout_ms))
         .build()
     {
         Ok(http_client) => http_client,
