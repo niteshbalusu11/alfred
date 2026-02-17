@@ -66,7 +66,7 @@ final class AssistantConversationMapperTests: XCTestCase {
             """
         )
 
-        XCTAssertEqual(response.capability, .calendarLookup)
+        XCTAssertEqual(response.capability, .mixed)
         XCTAssertEqual(response.displayText, "Here is your calendar and inbox summary.")
         XCTAssertEqual(response.responseParts.count, 3)
 
@@ -96,6 +96,32 @@ final class AssistantConversationMapperTests: XCTestCase {
 
         let assistantMessage = AssistantConversationMapper.assistantMessage(from: response)
         XCTAssertTrue(assistantMessage.toolSummaries.isEmpty)
+    }
+
+    func testAssistantMapperFallsBackToPayloadSummaryWhenDisplayTextIsMissing() throws {
+        let response = try decodeAssistantResponse(
+            """
+            {
+              "session_id": "f6fe77db-e7ae-4011-9653-8b9d82cc8eff",
+              "response_parts": [
+                {
+                  "type": "tool_summary",
+                  "capability": "calendar_lookup",
+                  "payload": {
+                    "title": "Calendar",
+                    "summary": "You have one meeting in the next hour.",
+                    "key_points": ["2:00 PM Product review"],
+                    "follow_ups": []
+                  }
+                }
+              ]
+            }
+            """
+        )
+
+        let assistantMessage = AssistantConversationMapper.assistantMessage(from: response)
+        XCTAssertEqual(assistantMessage.text, "You have one meeting in the next hour.")
+        XCTAssertEqual(assistantMessage.toolSummaries.count, 1)
     }
 
     func testLegacyGeneralChatResponseDoesNotProduceToolSummaryCard() throws {

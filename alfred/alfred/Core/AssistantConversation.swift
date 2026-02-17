@@ -45,7 +45,14 @@ enum AssistantConversationMapper {
             .flatMap(\.text)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        let displayText = (normalizedText?.isEmpty == false) ? normalizedText! : response.displayText
+        let displayText: String
+        if let normalizedText, !normalizedText.isEmpty {
+            displayText = normalizedText
+        } else if !response.displayText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            displayText = response.displayText
+        } else {
+            displayText = response.payload.summary
+        }
         return AssistantConversationMessage(
             id: UUID(),
             role: .assistant,

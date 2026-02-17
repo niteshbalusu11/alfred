@@ -166,20 +166,22 @@ public struct AssistantPlaintextQueryResponse: Codable, Sendable {
 
         let responseParts = try container.decodeIfPresent([AssistantResponsePart].self, forKey: .responseParts)
         if let responseParts {
+            let decodedDisplayText = try container.decodeIfPresent(String.self, forKey: .displayText)
+                ?? responseParts
+                .first(where: { $0.type == .chatText })
+                .flatMap(\.text)
+                ?? ""
             let decodedCapability =
                 try container.decodeIfPresent(AssistantQueryCapability.self, forKey: .capability)
-                ?? responseParts.compactMap(\.capability).first
+                ?? Self.inferCapability(from: responseParts)
                 ?? .generalChat
             let decodedPayload =
                 try container.decodeIfPresent(AssistantStructuredPayload.self, forKey: .payload)
                 ?? responseParts.compactMap(\.payload).first
-                ?? Self.fallbackPayload(displayText: "")
-
-            let displayText = try container.decodeIfPresent(String.self, forKey: .displayText)
-                ?? responseParts
-                .first(where: { $0.type == .chatText })
-                .flatMap(\.text)
-                ?? decodedPayload.summary
+                ?? Self.fallbackPayload(displayText: decodedDisplayText)
+            let displayText = decodedDisplayText.isEmpty
+                ? decodedPayload.summary
+                : decodedDisplayText
 
             self.sessionId = sessionId
             self.capability = decodedCapability
@@ -217,6 +219,21 @@ public struct AssistantPlaintextQueryResponse: Codable, Sendable {
         if !responseParts.isEmpty {
             try container.encode(responseParts, forKey: .responseParts)
         }
+    }
+
+    private static func inferCapability(
+        from responseParts: [AssistantResponsePart]
+    ) -> AssistantQueryCapability? {
+        let capabilities = Set(
+            responseParts
+                .filter { $0.type == .toolSummary }
+                .compactMap(\.capability)
+        )
+
+        if capabilities.count > 1 {
+            return .mixed
+        }
+        return capabilities.first
     }
 
     private static func normalizeResponseParts(
