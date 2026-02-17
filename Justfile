@@ -5,6 +5,7 @@ ios_project := "alfred/alfred.xcodeproj"
 ios_scheme := "alfred"
 ios_package_dir := "alfred/Packages/AlfredAPIClient"
 backend_dir := "backend"
+default_database_url := "postgres://postgres:postgres@127.0.0.1:5432/alfred"
 
 default:
     @just --list
@@ -68,7 +69,30 @@ backend-build:
 
 # Run Rust backend tests.
 backend-test:
-    cd {{ backend_dir }} && cargo test
+    cd {{ backend_dir }} && cargo test --workspace --exclude integration-tests
+
+# Run full backend test workflow with local infra and migrations.
+backend-tests:
+    @set -euo pipefail; \
+      trap 'just infra-stop >/dev/null 2>&1 || true' EXIT; \
+      just check-infra-tools; \
+      just infra-up; \
+      attempts=0; \
+      until just backend-migrate; do \
+        attempts=$((attempts + 1)); \
+        if [ $attempts -ge 20 ]; then \
+          echo "backend-tests failed: database did not become ready for migrations"; \
+          exit 1; \
+        fi; \
+        sleep 1; \
+      done; \
+      just backend-test; \
+      just backend-integration-test; \
+      just backend-eval
+
+# Run backend integration tests (uses default DATABASE_URL when unset).
+backend-integration-test:
+    cd {{ backend_dir }} && DATABASE_URL="${DATABASE_URL:-{{ default_database_url }}}" cargo test -p integration-tests
 
 # Run deterministic LLM eval/regression checks with mocked outputs.
 backend-eval:
@@ -88,11 +112,11 @@ install-sqlx-cli:
 
 # Apply SQL migrations to the configured Postgres database.
 backend-migrate: install-sqlx-cli
-    cd {{ backend_dir }} && sqlx migrate run --source ../db/migrations
+    cd {{ backend_dir }} && DATABASE_URL="${DATABASE_URL:-{{ default_database_url }}}" sqlx migrate run --source ../db/migrations
 
 # Show migration state for the configured Postgres database.
 backend-migrate-check: install-sqlx-cli
-    cd {{ backend_dir }} && sqlx migrate info --source ../db/migrations
+    cd {{ backend_dir }} && DATABASE_URL="${DATABASE_URL:-{{ default_database_url }}}" sqlx migrate info --source ../db/migrations
 
 # Format Rust code.
 backend-fmt:
@@ -110,14 +134,15 @@ backend-clippy:
 backend-verify:
     cd {{ backend_dir }} && cargo fmt --all
     cd {{ backend_dir }} && cargo clippy --workspace --all-targets -- -D warnings
-    cd {{ backend_dir }} && cargo test
+    just backend-tests
     cd {{ backend_dir }} && cargo build --workspace
 
 # CI backend gate (non-mutating).
 backend-ci:
     cd {{ backend_dir }} && cargo fmt --all --check
     cd {{ backend_dir }} && cargo clippy --workspace --all-targets -- -D warnings
-    cd {{ backend_dir }} && cargo test
+    cd {{ backend_dir }} && cargo test --workspace --exclude integration-tests
+    cd {{ backend_dir }} && cargo test -p integration-tests
     cd {{ backend_dir }} && cargo build --workspace
 
 # Security-focused dependency audit for backend.
@@ -127,7 +152,7 @@ backend-security-audit:
 
 # Bug-focused checks for backend code quality.
 backend-bug-check:
-    cd {{ backend_dir }} && cargo test
+    cd {{ backend_dir }} && cargo test --workspace --exclude integration-tests
     @if rg -n "todo!\\(|unimplemented!\\(|dbg!\\(|panic!\\(" {{ backend_dir }}/crates; then \
       echo "Bug check failed: remove debug or placeholder macros (todo!/unimplemented!/dbg!/panic!)."; \
       exit 1; \

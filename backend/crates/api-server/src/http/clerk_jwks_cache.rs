@@ -10,22 +10,22 @@ const MIN_CACHE_CONTROL_TTL_SECONDS: u64 = 60;
 const MAX_CACHE_CONTROL_TTL_SECONDS: u64 = 3600;
 
 #[derive(Debug, Clone)]
-pub(crate) struct ClerkJwksCacheConfig {
-    pub(crate) redis_url: String,
-    pub(crate) cache_key: String,
-    pub(crate) default_ttl_seconds: u64,
-    pub(crate) stale_ttl_seconds: u64,
+pub struct ClerkJwksCacheConfig {
+    pub redis_url: String,
+    pub cache_key: String,
+    pub default_ttl_seconds: u64,
+    pub stale_ttl_seconds: u64,
 }
 
 #[derive(Clone)]
-pub(crate) struct ClerkJwksCache {
+pub struct ClerkJwksCache {
     connection: ConnectionManager,
     config: ClerkJwksCacheConfig,
     refresh_lock: Arc<tokio::sync::Mutex<()>>,
 }
 
 #[derive(Debug)]
-pub(crate) enum ClerkJwksCacheError {
+pub enum ClerkJwksCacheError {
     UnknownKeyId,
     UpstreamUnavailable,
 }
@@ -50,7 +50,7 @@ struct JwksKey {
 }
 
 impl ClerkJwksCache {
-    pub(crate) async fn new(config: ClerkJwksCacheConfig) -> Result<Self, String> {
+    pub async fn new(config: ClerkJwksCacheConfig) -> Result<Self, String> {
         if config.default_ttl_seconds == 0 {
             return Err("clerk jwks cache default ttl must be greater than 0".to_string());
         }
@@ -80,7 +80,7 @@ impl ClerkJwksCache {
         })
     }
 
-    pub(crate) async fn load_jwks_for_key(
+    pub async fn load_jwks_for_key(
         &self,
         http_client: &reqwest::Client,
         jwks_url: &str,

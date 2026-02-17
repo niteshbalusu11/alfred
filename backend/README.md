@@ -20,6 +20,15 @@ just infra-up
 just backend-migrate
 ```
 
+One-shot local backend test workflow:
+
+```bash
+just backend-tests
+```
+
+This command runs infra checks, starts Postgres/Redis, applies migrations,
+runs backend tests + mocked evals, then stops infra.
+
 ## Local Environment File (`.env`)
 
 From repository root, create local runtime config:

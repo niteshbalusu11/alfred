@@ -8,7 +8,7 @@ use shared::repos::Store;
 use shared::security::{KmsDecryptPolicy, SecretRuntime, TeeAttestationPolicy};
 use tracing::{error, info};
 
-mod http;
+use api_server::http;
 
 #[tokio::main]
 async fn main() {
