@@ -46,7 +46,7 @@ struct ContentView: View {
         .sheet(isPresented: $authIsPresented) {
             AuthView()
         }
-        .onChange(of: model.startupRoute) { route in
+        .onChange(of: model.startupRoute, initial: false) { _, route in
             if case .signedIn = route {
                 authIsPresented = false
             }

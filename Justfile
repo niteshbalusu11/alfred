@@ -184,11 +184,11 @@ worker: backend-worker
 
 # Run API server.
 backend-api:
-    cd {{ backend_dir }} && cargo run -p api-server
+    bacon --project {{ backend_dir }} --job api
 
 # Run background worker.
 backend-worker:
-    cd {{ backend_dir }} && cargo run -p worker
+    bacon --project {{ backend_dir }} --job worker
 
 # Run API and worker together in one terminal session.
 dev:
@@ -204,7 +204,7 @@ enclave-runtime: backend-enclave-runtime
 
 # Run enclave runtime baseline service.
 backend-enclave-runtime:
-    cd {{ backend_dir }} && cargo run -p enclave-runtime
+    bacon --project {{ backend_dir }} --job enclave-runtime
 
 # Show key project docs.
 docs:
