@@ -1,5 +1,6 @@
 use axum::response::Response;
-use shared::models::{AssistantQueryCapability, AssistantStructuredPayload};
+use shared::llm::safety::sanitize_untrusted_text;
+use shared::models::{AssistantQueryCapability, AssistantResponsePart, AssistantStructuredPayload};
 use tracing::warn;
 use uuid::Uuid;
 
@@ -12,6 +13,7 @@ use crate::RuntimeState;
 const MIXED_MAX_CALENDAR_KEY_POINTS: usize = 2;
 const MIXED_MAX_EMAIL_KEY_POINTS: usize = 2;
 const MIXED_MAX_FOLLOW_UPS: usize = 4;
+const MIXED_QUERY_SNIPPET_MAX_CHARS: usize = 120;
 
 pub(super) async fn execute_mixed_query(
     state: &RuntimeState,
@@ -43,13 +45,21 @@ pub(super) async fn execute_mixed_query(
 
     match (calendar_result, email_result) {
         (Ok(calendar), Ok(email)) => {
-            let payload = compose_full_mixed_payload(&calendar.payload, &email.payload);
+            let payload = compose_full_mixed_payload(query, &calendar.payload, &email.payload);
             let display_text = payload.summary.clone();
+            let response_parts = compose_full_response_parts(
+                display_text.clone(),
+                &calendar.capability,
+                &calendar.payload,
+                &email.capability,
+                &email.payload,
+            );
 
             Ok(AssistantOrchestratorResult {
                 capability: AssistantQueryCapability::Mixed,
                 display_text,
                 payload,
+                response_parts,
                 attested_identity: calendar.attested_identity,
             })
         }
@@ -58,13 +68,19 @@ pub(super) async fn execute_mixed_query(
                 user_id = %user_id,
                 "mixed assistant query returned partial results: email lane failed"
             );
-            let payload = compose_partial_payload(&calendar.payload, "email");
+            let payload = compose_partial_payload(query, &calendar.payload, "email");
             let display_text = payload.summary.clone();
+            let response_parts = compose_partial_response_parts(
+                display_text.clone(),
+                &calendar.capability,
+                &calendar.payload,
+            );
 
             Ok(AssistantOrchestratorResult {
                 capability: AssistantQueryCapability::Mixed,
                 display_text,
                 payload,
+                response_parts,
                 attested_identity: calendar.attested_identity,
             })
         }
@@ -73,13 +89,19 @@ pub(super) async fn execute_mixed_query(
                 user_id = %user_id,
                 "mixed assistant query returned partial results: calendar lane failed"
             );
-            let payload = compose_partial_payload(&email.payload, "calendar");
+            let payload = compose_partial_payload(query, &email.payload, "calendar");
             let display_text = payload.summary.clone();
+            let response_parts = compose_partial_response_parts(
+                display_text.clone(),
+                &email.capability,
+                &email.payload,
+            );
 
             Ok(AssistantOrchestratorResult {
                 capability: AssistantQueryCapability::Mixed,
                 display_text,
                 payload,
+                response_parts,
                 attested_identity: email.attested_identity,
             })
         }
@@ -94,6 +116,7 @@ pub(super) async fn execute_mixed_query(
 }
 
 fn compose_full_mixed_payload(
+    query: &str,
     calendar: &AssistantStructuredPayload,
     email: &AssistantStructuredPayload,
 ) -> AssistantStructuredPayload {
@@ -118,15 +141,26 @@ fn compose_full_mixed_payload(
         key_points.push(format!("Email: {}", email.summary));
     }
 
+    let query_snippet = sanitize_untrusted_text(query)
+        .chars()
+        .take(MIXED_QUERY_SNIPPET_MAX_CHARS)
+        .collect::<String>();
+    let summary = if query_snippet.is_empty() {
+        "Here is a combined summary from your calendar and inbox.".to_string()
+    } else {
+        format!("For \"{query_snippet}\", here is a combined summary from your calendar and inbox.")
+    };
+
     AssistantStructuredPayload {
         title: "Calendar and inbox summary".to_string(),
-        summary: "Here is a combined summary from your calendar and inbox.".to_string(),
+        summary,
         key_points,
         follow_ups: combine_follow_ups(&calendar.follow_ups, &email.follow_ups),
     }
 }
 
 fn compose_partial_payload(
+    query: &str,
     successful_payload: &AssistantStructuredPayload,
     unavailable_lane: &str,
 ) -> AssistantStructuredPayload {
@@ -137,15 +171,53 @@ fn compose_partial_payload(
     ));
     follow_ups.truncate(MIXED_MAX_FOLLOW_UPS);
 
-    AssistantStructuredPayload {
-        title: "Partial combined summary".to_string(),
-        summary: format!(
+    let query_snippet = sanitize_untrusted_text(query)
+        .chars()
+        .take(MIXED_QUERY_SNIPPET_MAX_CHARS)
+        .collect::<String>();
+    let summary = if query_snippet.is_empty() {
+        format!(
             "I could only retrieve part of your request this turn; {} details were unavailable.",
             unavailable_lane
-        ),
+        )
+    } else {
+        format!(
+            "For \"{query_snippet}\", I could only retrieve part of your request this turn; {} details were unavailable.",
+            unavailable_lane
+        )
+    };
+
+    AssistantStructuredPayload {
+        title: "Partial combined summary".to_string(),
+        summary,
         key_points: successful_payload.key_points.clone(),
         follow_ups,
     }
+}
+
+fn compose_full_response_parts(
+    display_text: String,
+    calendar_capability: &AssistantQueryCapability,
+    calendar_payload: &AssistantStructuredPayload,
+    email_capability: &AssistantQueryCapability,
+    email_payload: &AssistantStructuredPayload,
+) -> Vec<AssistantResponsePart> {
+    vec![
+        AssistantResponsePart::chat_text(display_text),
+        AssistantResponsePart::tool_summary(calendar_capability.clone(), calendar_payload.clone()),
+        AssistantResponsePart::tool_summary(email_capability.clone(), email_payload.clone()),
+    ]
+}
+
+fn compose_partial_response_parts(
+    display_text: String,
+    capability: &AssistantQueryCapability,
+    payload: &AssistantStructuredPayload,
+) -> Vec<AssistantResponsePart> {
+    vec![
+        AssistantResponsePart::chat_text(display_text),
+        AssistantResponsePart::tool_summary(capability.clone(), payload.clone()),
+    ]
 }
 
 fn combine_follow_ups(calendar: &[String], email: &[String]) -> Vec<String> {
@@ -168,67 +240,4 @@ fn combine_follow_ups(calendar: &[String], email: &[String]) -> Vec<String> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{combine_follow_ups, compose_full_mixed_payload};
-    use shared::models::AssistantStructuredPayload;
-
-    #[test]
-    fn compose_full_mixed_payload_prefixes_calendar_and_email_points() {
-        let calendar = AssistantStructuredPayload {
-            title: "Calendar".to_string(),
-            summary: "Calendar summary".to_string(),
-            key_points: vec!["10:00 Team sync".to_string()],
-            follow_ups: vec!["Ask for tomorrow.".to_string()],
-        };
-        let email = AssistantStructuredPayload {
-            title: "Email".to_string(),
-            summary: "Email summary".to_string(),
-            key_points: vec!["finance@example.com - Invoice".to_string()],
-            follow_ups: vec!["Filter by sender.".to_string()],
-        };
-
-        let payload = compose_full_mixed_payload(&calendar, &email);
-        assert_eq!(payload.title, "Calendar and inbox summary");
-        assert_eq!(
-            payload.key_points,
-            vec![
-                "Calendar: 10:00 Team sync".to_string(),
-                "Email: finance@example.com - Invoice".to_string(),
-            ]
-        );
-        assert_eq!(
-            payload.follow_ups,
-            vec![
-                "Ask for tomorrow.".to_string(),
-                "Filter by sender.".to_string()
-            ]
-        );
-    }
-
-    #[test]
-    fn combine_follow_ups_deduplicates_and_limits_results() {
-        let follow_ups = combine_follow_ups(
-            &[
-                "Ask for tomorrow.".to_string(),
-                "Filter by sender.".to_string(),
-                "Filter by sender.".to_string(),
-            ],
-            &[
-                "Ask for tomorrow.".to_string(),
-                "Show this week.".to_string(),
-                "Show next week.".to_string(),
-                "Extra item".to_string(),
-            ],
-        );
-
-        assert_eq!(
-            follow_ups,
-            vec![
-                "Ask for tomorrow.".to_string(),
-                "Filter by sender.".to_string(),
-                "Show this week.".to_string(),
-                "Show next week.".to_string(),
-            ]
-        );
-    }
-}
+mod mixed_tests;

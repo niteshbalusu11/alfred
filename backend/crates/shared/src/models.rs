@@ -83,12 +83,54 @@ pub enum AssistantQueryCapability {
     Mixed,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AssistantResponsePartType {
+    ChatText,
+    ToolSummary,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AssistantStructuredPayload {
     pub title: String,
     pub summary: String,
     pub key_points: Vec<String>,
     pub follow_ups: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssistantResponsePart {
+    #[serde(rename = "type")]
+    pub part_type: AssistantResponsePartType,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capability: Option<AssistantQueryCapability>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub payload: Option<AssistantStructuredPayload>,
+}
+
+impl AssistantResponsePart {
+    pub fn chat_text(text: impl Into<String>) -> Self {
+        Self {
+            part_type: AssistantResponsePartType::ChatText,
+            text: Some(text.into()),
+            capability: None,
+            payload: None,
+        }
+    }
+
+    pub fn tool_summary(
+        capability: AssistantQueryCapability,
+        payload: AssistantStructuredPayload,
+    ) -> Self {
+        Self {
+            part_type: AssistantResponsePartType::ToolSummary,
+            text: None,
+            capability: Some(capability),
+            payload: Some(payload),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -110,6 +152,8 @@ pub struct AssistantPlaintextQueryResponse {
     pub capability: AssistantQueryCapability,
     pub display_text: String,
     pub payload: AssistantStructuredPayload,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub response_parts: Vec<AssistantResponsePart>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

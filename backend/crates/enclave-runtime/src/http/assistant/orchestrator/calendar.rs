@@ -6,7 +6,7 @@ use shared::llm::{
     SafeOutputSource, generate_with_telemetry, resolve_safe_output, sanitize_context_payload,
     template_for_capability,
 };
-use shared::models::AssistantQueryCapability;
+use shared::models::{AssistantQueryCapability, AssistantResponsePart};
 use tracing::warn;
 use uuid::Uuid;
 
@@ -160,11 +160,16 @@ pub(super) async fn execute_calendar_query(
     let display_text = super::super::notifications::non_empty(payload.summary.as_str())
         .unwrap_or(default_display_for_window(&capability, &window))
         .to_string();
+    let response_parts = vec![
+        AssistantResponsePart::chat_text(display_text.clone()),
+        AssistantResponsePart::tool_summary(capability.clone(), payload.clone()),
+    ];
 
     Ok(AssistantOrchestratorResult {
         capability,
         display_text,
         payload,
+        response_parts,
         attested_identity: fetch_response.attested_identity,
     })
 }

@@ -7,7 +7,7 @@ use shared::llm::{
     SafeOutputSource, assemble_urgent_email_candidates_context, generate_with_telemetry,
     output_schema, resolve_safe_output, sanitize_context_payload,
 };
-use shared::models::{AssistantQueryCapability, AssistantStructuredPayload};
+use shared::models::{AssistantQueryCapability, AssistantResponsePart, AssistantStructuredPayload};
 use tracing::warn;
 use uuid::Uuid;
 
@@ -196,11 +196,16 @@ pub(super) async fn execute_email_query(
     let display_text = non_empty(payload.summary.as_str())
         .unwrap_or("Here is your inbox summary.")
         .to_string();
+    let response_parts = vec![
+        AssistantResponsePart::chat_text(display_text.clone()),
+        AssistantResponsePart::tool_summary(AssistantQueryCapability::EmailLookup, payload.clone()),
+    ];
 
     Ok(AssistantOrchestratorResult {
         capability: AssistantQueryCapability::EmailLookup,
         display_text,
         payload,
+        response_parts,
         attested_identity: fetch_response.attested_identity,
     })
 }

@@ -223,6 +223,7 @@ async fn start_assistant_mock_enclave(
                                     key_points: vec!["Enclave-only decrypt path".to_string()],
                                     follow_ups: vec![],
                                 },
+                                response_parts: vec![],
                             };
 
                             let response_envelope = encrypt_assistant_response(
