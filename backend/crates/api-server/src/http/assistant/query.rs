@@ -187,38 +187,34 @@ fn map_assistant_enclave_error(
             );
             bad_gateway_response("enclave_rpc_failed", "Secure enclave RPC request failed")
         }
-        EnclaveRpcError::RpcTransportUnavailable { message } => {
+        EnclaveRpcError::RpcTransportUnavailable { message: _ } => {
             warn!(
                 %user_id,
                 assistant_request_id,
-                message = %message,
                 "assistant query enclave RPC transport unavailable"
             );
             bad_gateway_response("enclave_rpc_failed", "Secure enclave RPC request failed")
         }
-        EnclaveRpcError::RpcResponseInvalid { message } => {
+        EnclaveRpcError::RpcResponseInvalid { message: _ } => {
             warn!(
                 %user_id,
                 assistant_request_id,
-                message = %message,
                 "assistant query enclave RPC response invalid"
             );
             bad_gateway_response("enclave_rpc_failed", "Secure enclave RPC request failed")
         }
-        EnclaveRpcError::DecryptNotAuthorized { message } => {
+        EnclaveRpcError::DecryptNotAuthorized { message: _ } => {
             warn!(
                 %user_id,
                 assistant_request_id,
-                message = %message,
                 "assistant query token decrypt not authorized"
             );
             bad_gateway_response("enclave_rpc_failed", "Secure enclave RPC request failed")
         }
-        EnclaveRpcError::ConnectorTokenDecryptFailed { message } => {
+        EnclaveRpcError::ConnectorTokenDecryptFailed { message: _ } => {
             warn!(
                 %user_id,
                 assistant_request_id,
-                message = %message,
                 "assistant query connector token decrypt failed"
             );
             bad_gateway_response("enclave_rpc_failed", "Secure enclave RPC request failed")
@@ -234,12 +230,14 @@ fn map_assistant_enclave_error(
                 "Google connector is not active for this account; reconnect Google and retry",
             )
         }
-        EnclaveRpcError::ProviderRequestUnavailable { operation, message } => {
+        EnclaveRpcError::ProviderRequestUnavailable {
+            operation,
+            message: _,
+        } => {
             warn!(
                 %user_id,
                 assistant_request_id,
                 operation = %operation,
-                message = %message,
                 "assistant query provider request unavailable"
             );
             bad_gateway_response("enclave_rpc_failed", "Secure enclave RPC request failed")
@@ -247,24 +245,25 @@ fn map_assistant_enclave_error(
         EnclaveRpcError::ProviderRequestFailed {
             operation,
             status,
-            oauth_error,
+            oauth_error: _,
         } => {
             warn!(
                 %user_id,
                 assistant_request_id,
                 operation = %operation,
                 status,
-                oauth_error = ?oauth_error,
                 "assistant query provider request failed"
             );
             bad_gateway_response("enclave_rpc_failed", "Secure enclave RPC request failed")
         }
-        EnclaveRpcError::ProviderResponseInvalid { operation, message } => {
+        EnclaveRpcError::ProviderResponseInvalid {
+            operation,
+            message: _,
+        } => {
             warn!(
                 %user_id,
                 assistant_request_id,
                 operation = %operation,
-                message = %message,
                 "assistant query provider response invalid"
             );
             bad_gateway_response("enclave_rpc_failed", "Secure enclave RPC request failed")

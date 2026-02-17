@@ -1,0 +1,12 @@
+{
+  "case_id": "assistant_email_lookup",
+  "description": "Email-focused query resolves to email tool lane.",
+  "detected_capability": "email_lookup",
+  "prior_capability": null,
+  "query": "Any emails from finance that need attention?",
+  "resolved_capability": "email_lookup",
+  "response_part_types": [
+    "chat_text",
+    "tool_summary"
+  ]
+}

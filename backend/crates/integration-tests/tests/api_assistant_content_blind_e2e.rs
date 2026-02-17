@@ -26,7 +26,8 @@ use shared::enclave::{
 use shared::models::{
     AssistantAttestedKeyResponse, AssistantEncryptedRequestEnvelope,
     AssistantPlaintextQueryRequest, AssistantPlaintextQueryResponse, AssistantQueryCapability,
-    AssistantQueryRequest, AssistantQueryResponse, AssistantSessionStateEnvelope,
+    AssistantQueryRequest, AssistantQueryResponse, AssistantResponsePart,
+    AssistantSessionStateEnvelope, AssistantStructuredPayload,
 };
 use tokio::sync::Mutex;
 use tower::ServiceExt;
@@ -36,6 +37,10 @@ use x25519_dalek::{PublicKey, StaticSecret};
 use support::api_app::{build_test_router_with_enclave_base_url, user_id_for_subject};
 use support::clerk::TestClerkAuth;
 use support::enclave_mock::MockEnclaveServer;
+
+const MOCK_DISPLAY_TEXT: &str = "Encrypted response from enclave for assistant-v2-round-trip";
+const MOCK_TOOL_SUMMARY_TEXT: &str =
+    "Tool summary token assistant-v2-cal-email should never leak to host state";
 
 #[tokio::test]
 #[serial]
@@ -110,15 +115,39 @@ async fn mock_ios_encrypted_query_round_trip_keeps_host_content_blind() {
 
     let api_response: AssistantQueryResponse = serde_json::from_value(assistant_query.body)
         .expect("assistant query response should decode");
+    let raw_host_response = serde_json::to_string(&api_response)
+        .expect("assistant query response should serialize for plaintext leak check");
     let decrypted_response = decrypt_mock_ios_response(
         api_response.envelope.request_id.as_str(),
         &api_response.envelope,
         &client_private_key,
         attested_key.public_key.as_str(),
     );
+    assert_eq!(decrypted_response.display_text, MOCK_DISPLAY_TEXT);
+    assert_eq!(decrypted_response.response_parts.len(), 2);
     assert_eq!(
-        decrypted_response.display_text,
-        "Encrypted response from enclave"
+        decrypted_response.response_parts[0],
+        AssistantResponsePart::chat_text(MOCK_DISPLAY_TEXT.to_string())
+    );
+    assert_eq!(
+        decrypted_response.response_parts[1],
+        AssistantResponsePart::tool_summary(
+            AssistantQueryCapability::CalendarLookup,
+            AssistantStructuredPayload {
+                title: "calendar".to_string(),
+                summary: MOCK_TOOL_SUMMARY_TEXT.to_string(),
+                key_points: vec!["window: 2026-02-17/2026-02-19".to_string()],
+                follow_ups: vec!["items_count: 2".to_string()],
+            },
+        )
+    );
+    assert!(
+        !raw_host_response.contains(MOCK_DISPLAY_TEXT),
+        "host API response payload must remain ciphertext-only"
+    );
+    assert!(
+        !raw_host_response.contains(MOCK_TOOL_SUMMARY_TEXT),
+        "host API response payload must not expose plaintext response_parts content"
     );
 
     let captured_query = captured_plaintext_query.lock().await.clone();
@@ -159,6 +188,20 @@ async fn mock_ios_encrypted_query_round_trip_keeps_host_content_blind() {
     .await
     .expect("leak check query should succeed");
     assert_eq!(plaintext_leak_count, 0);
+
+    let response_plaintext_leak_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)::bigint
+         FROM assistant_encrypted_sessions
+         WHERE user_id = $1
+           AND (state_json ILIKE $2 OR state_json ILIKE $3)",
+    )
+    .bind(user_id)
+    .bind(format!("%{MOCK_DISPLAY_TEXT}%"))
+    .bind(format!("%{MOCK_TOOL_SUMMARY_TEXT}%"))
+    .fetch_one(store.pool())
+    .await
+    .expect("response plaintext leak check query should succeed");
+    assert_eq!(response_plaintext_leak_count, 0);
 }
 
 async fn start_assistant_mock_enclave(
@@ -216,14 +259,27 @@ async fn start_assistant_mock_enclave(
                             let response_payload = AssistantPlaintextQueryResponse {
                                 session_id: Uuid::new_v4(),
                                 capability: AssistantQueryCapability::GeneralChat,
-                                display_text: "Encrypted response from enclave".to_string(),
+                                display_text: MOCK_DISPLAY_TEXT.to_string(),
                                 payload: shared::models::AssistantStructuredPayload {
                                     title: "Encrypted".to_string(),
                                     summary: "Host cannot read plaintext".to_string(),
                                     key_points: vec!["Enclave-only decrypt path".to_string()],
                                     follow_ups: vec![],
                                 },
-                                response_parts: vec![],
+                                response_parts: vec![
+                                    AssistantResponsePart::chat_text(MOCK_DISPLAY_TEXT.to_string()),
+                                    AssistantResponsePart::tool_summary(
+                                        AssistantQueryCapability::CalendarLookup,
+                                        AssistantStructuredPayload {
+                                            title: "calendar".to_string(),
+                                            summary: MOCK_TOOL_SUMMARY_TEXT.to_string(),
+                                            key_points: vec![
+                                                "window: 2026-02-17/2026-02-19".to_string(),
+                                            ],
+                                            follow_ups: vec!["items_count: 2".to_string()],
+                                        },
+                                    ),
+                                ],
                             };
 
                             let response_envelope = encrypt_assistant_response(

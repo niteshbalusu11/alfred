@@ -5,6 +5,7 @@ use serde::Serialize;
 use serde_json::Value;
 use thiserror::Error;
 
+use crate::assistant_case::AssistantRoutingEvalCaseFixture;
 use crate::case::EvalCaseFixture;
 
 #[derive(Debug, Error)]
@@ -42,7 +43,7 @@ pub enum FixtureIoError {
 }
 
 pub fn load_cases() -> Result<Vec<EvalCaseFixture>, FixtureIoError> {
-    let mut files = list_case_files()?;
+    let mut files = list_case_files("cases")?;
     files.sort();
 
     let mut cases = Vec::with_capacity(files.len());
@@ -57,6 +58,30 @@ pub fn load_cases() -> Result<Vec<EvalCaseFixture>, FixtureIoError> {
                 source,
             }
         })?;
+        cases.push(case);
+    }
+
+    Ok(cases)
+}
+
+pub fn load_assistant_routing_cases() -> Result<Vec<AssistantRoutingEvalCaseFixture>, FixtureIoError>
+{
+    let mut files = list_case_files("assistant_cases")?;
+    files.sort();
+
+    let mut cases = Vec::with_capacity(files.len());
+    for file in files {
+        let raw = fs::read_to_string(&file).map_err(|source| FixtureIoError::ReadFile {
+            path: file.display().to_string(),
+            source,
+        })?;
+        let case =
+            serde_json::from_str::<AssistantRoutingEvalCaseFixture>(&raw).map_err(|source| {
+                FixtureIoError::ParseJson {
+                    path: file.display().to_string(),
+                    source,
+                }
+            })?;
         cases.push(case);
     }
 
@@ -101,8 +126,8 @@ pub fn write_pretty_json<T: Serialize>(path: &Path, value: &T) -> Result<(), Fix
     })
 }
 
-fn list_case_files() -> Result<Vec<PathBuf>, FixtureIoError> {
-    let cases_dir = fixture_root().join("cases");
+fn list_case_files(directory_name: &str) -> Result<Vec<PathBuf>, FixtureIoError> {
+    let cases_dir = fixture_root().join(directory_name);
     let entries = fs::read_dir(&cases_dir).map_err(|source| FixtureIoError::ReadDir {
         path: cases_dir.display().to_string(),
         source,

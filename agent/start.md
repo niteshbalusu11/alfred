@@ -21,6 +21,10 @@ Use this template for required AI review reporting before merge:
 
 `docs/ai-review-template.md`
 
+Assistant v2 privacy/eval guardrails and verification checklist:
+
+`docs/assistant-v2-privacy-eval.md`
+
 ## Project Summary
 
 Alfred is a privacy-first iOS assistant product with a hosted backend.

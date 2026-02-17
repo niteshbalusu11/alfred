@@ -1,3 +1,4 @@
+mod assistant_case;
 mod case;
 mod cli;
 mod engine;

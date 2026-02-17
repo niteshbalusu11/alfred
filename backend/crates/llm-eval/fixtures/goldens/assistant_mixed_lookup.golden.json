@@ -1,0 +1,13 @@
+{
+  "case_id": "assistant_mixed_lookup",
+  "description": "Query that asks for both calendar and inbox resolves to mixed lane.",
+  "detected_capability": "mixed",
+  "prior_capability": null,
+  "query": "Check my calendar and inbox for tomorrow afternoon",
+  "resolved_capability": "mixed",
+  "response_part_types": [
+    "chat_text",
+    "tool_summary",
+    "tool_summary"
+  ]
+}
