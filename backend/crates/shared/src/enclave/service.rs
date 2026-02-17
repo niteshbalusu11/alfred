@@ -253,21 +253,36 @@ impl EnclaveOperationService {
         request: ConnectorSecretRequest,
         max_results: usize,
     ) -> Result<FetchGoogleUrgentEmailCandidatesResponse, EnclaveRpcError> {
+        self.fetch_google_email_candidates(request, Some("newer_than:2d".to_string()), max_results)
+            .await
+    }
+
+    pub async fn fetch_google_email_candidates(
+        &self,
+        request: ConnectorSecretRequest,
+        gmail_query: Option<String>,
+        max_results: usize,
+    ) -> Result<FetchGoogleUrgentEmailCandidatesResponse, EnclaveRpcError> {
         let (refresh_token, attested_identity) =
             self.load_authorized_refresh_token(&request).await?;
         let access_token = self.exchange_access_token(&refresh_token).await?;
         let max_results = max_results.clamp(1, MAX_GMAIL_CANDIDATES).to_string();
+        let mut query_params = vec![
+            ("labelIds".to_string(), "INBOX".to_string()),
+            ("maxResults".to_string(), max_results),
+        ];
+        if let Some(gmail_query) = gmail_query.map(|value| value.trim().to_string())
+            && !gmail_query.is_empty()
+        {
+            query_params.push(("q".to_string(), gmail_query));
+        }
 
         let payload: GmailMessagesResponse = self
             .send_google_json_request(
                 self.http_client
                     .get(GMAIL_MESSAGES_URL)
                     .bearer_auth(&access_token)
-                    .query(&[
-                        ("labelIds", "INBOX"),
-                        ("q", "newer_than:2d"),
-                        ("maxResults", max_results.as_str()),
-                    ]),
+                    .query(&query_params),
                 ProviderOperation::GmailFetch,
             )
             .await?;
