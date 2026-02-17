@@ -25,6 +25,13 @@ final class AppModel: ObservableObject {
         case loadAuditEvents(reset: Bool)
     }
 
+    enum StartupRoute: Equatable {
+        case bootstrapping
+        case signedOut
+        case signedIn
+        case authBootstrapFailed(message: String)
+    }
+
     struct ErrorBanner {
         let message: String
         let retryAction: RetryAction?
@@ -32,6 +39,7 @@ final class AppModel: ObservableObject {
     }
 
     @Published private(set) var isAuthenticated = false
+    @Published private(set) var startupRoute: StartupRoute = .bootstrapping
     @Published var selectedTab: AppTab = .home
     @Published private(set) var inFlightActions: Set<Action> = []
     @Published var errorBanner: ErrorBanner?
@@ -103,6 +111,12 @@ final class AppModel: ObservableObject {
         resetAuthenticationState()
         resetGoogleOAuthState()
         resetRequestStatusState()
+    }
+
+    func retryAuthBootstrap() async {
+        startupRoute = .bootstrapping
+        clearAuthBootstrapErrorBannerIfNeeded()
+        await synchronizeAuthenticationState(shouldLoadData: true)
     }
 
     func startGoogleOAuth() async {
@@ -286,18 +300,24 @@ final class AppModel: ObservableObject {
         authEventsTask = Task { [weak self] in
             guard let self else { return }
 
-            await self.synchronizeAuthenticationState(shouldLoadData: false)
+            await self.retryAuthBootstrap()
             for await event in self.clerk.auth.events {
                 switch event {
                 case .signInCompleted, .signUpCompleted:
                     AppLogger.info("Authentication completed.", category: .auth)
-                    await self.synchronizeAuthenticationState(shouldLoadData: true)
+                    await self.retryAuthBootstrap()
                 case .sessionChanged(_, let newSession):
                     AppLogger.debug(
                         "Auth session changed. Active session: \(newSession != nil).",
                         category: .auth
                     )
-                    await self.synchronizeAuthenticationState(shouldLoadData: newSession != nil)
+                    if newSession != nil {
+                        await self.retryAuthBootstrap()
+                    } else {
+                        self.resetAuthenticationState()
+                        self.resetGoogleOAuthState()
+                        self.resetRequestStatusState()
+                    }
                 case .signedOut:
                     AppLogger.info("Signed out.", category: .auth)
                     self.resetAuthenticationState()
@@ -321,18 +341,34 @@ final class AppModel: ObservableObject {
                 resetAuthenticationState()
                 resetGoogleOAuthState()
                 resetRequestStatusState()
+            } else {
+                startupRoute = .signedOut
             }
             return
         }
 
         if shouldLoadData || !wasAuthenticated {
+            clearAuthBootstrapErrorBannerIfNeeded()
             await loadPreferences()
             await loadAuditEvents(reset: true)
+
+            if clerk.user == nil {
+                startupRoute = .signedOut
+                return
+            }
+
+            if hasAuthBootstrapFailure {
+                startupRoute = .authBootstrapFailed(message: errorBanner?.message ?? "Authentication bootstrap failed.")
+                return
+            }
         }
+
+        startupRoute = .signedIn
     }
 
     private func resetAuthenticationState() {
         isAuthenticated = false
+        startupRoute = .signedOut
         auditEvents = []
         nextAuditCursor = nil
     }
@@ -349,5 +385,17 @@ final class AppModel: ObservableObject {
         deleteAllStatus = ""
         revokeStatus = ""
         preferencesStatus = ""
+    }
+
+    private func clearAuthBootstrapErrorBannerIfNeeded() {
+        guard let sourceAction = errorBanner?.sourceAction else { return }
+        if sourceAction == .loadPreferences || sourceAction == .loadAuditEvents {
+            errorBanner = nil
+        }
+    }
+
+    private var hasAuthBootstrapFailure: Bool {
+        guard let sourceAction = errorBanner?.sourceAction else { return false }
+        return sourceAction == .loadPreferences || sourceAction == .loadAuditEvents
     }
 }

@@ -184,14 +184,13 @@ impl ApiConfig {
                 "CLERK_SECRET_KEY must not be empty".to_string(),
             ));
         }
-        let clerk_backend_api_url = optional_trimmed_env("CLERK_BACKEND_API_URL")
-            .unwrap_or_else(|| "https://api.clerk.com/v1".to_string());
-        if clerk_backend_api_url.trim().is_empty() {
+        let clerk_jwks_url = optional_trimmed_env("CLERK_JWKS_URL")
+            .unwrap_or_else(|| default_clerk_jwks_url(clerk_issuer.as_str()));
+        if clerk_jwks_url.trim().is_empty() {
             return Err(ConfigError::InvalidConfiguration(
-                "CLERK_BACKEND_API_URL must not be empty".to_string(),
+                "CLERK_JWKS_URL must not be empty".to_string(),
             ));
         }
-        let clerk_jwks_url = format!("{}/jwks", clerk_backend_api_url.trim_end_matches('/'));
         let clerk_jwks_cache_default_ttl_seconds =
             parse_u64_env("CLERK_JWKS_CACHE_DEFAULT_TTL_SECONDS", 300)?;
         if clerk_jwks_cache_default_ttl_seconds == 0 {
@@ -257,6 +256,13 @@ impl ApiConfig {
             enclave_rpc_auth_max_skew_seconds,
         })
     }
+}
+
+fn default_clerk_jwks_url(clerk_issuer: &str) -> String {
+    format!(
+        "{}/.well-known/jwks.json",
+        clerk_issuer.trim_end_matches('/')
+    )
 }
 
 impl WorkerConfig {
@@ -409,5 +415,28 @@ impl WorkerConfig {
             redis_url: optional_trimmed_env("REDIS_URL")
                 .unwrap_or_else(|| "redis://127.0.0.1:6379/0".to_string()),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::default_clerk_jwks_url;
+
+    #[test]
+    fn default_clerk_jwks_url_uses_well_known_path() {
+        let issuer = "https://example.clerk.accounts.dev";
+        assert_eq!(
+            default_clerk_jwks_url(issuer),
+            "https://example.clerk.accounts.dev/.well-known/jwks.json"
+        );
+    }
+
+    #[test]
+    fn default_clerk_jwks_url_trims_trailing_slash() {
+        let issuer = "https://example.clerk.accounts.dev/";
+        assert_eq!(
+            default_clerk_jwks_url(issuer),
+            "https://example.clerk.accounts.dev/.well-known/jwks.json"
+        );
     }
 }

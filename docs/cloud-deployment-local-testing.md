@@ -205,7 +205,7 @@ Shared:
 3. `CLERK_ISSUER`
 4. `CLERK_AUDIENCE`
 5. `CLERK_SECRET_KEY`
-6. `CLERK_BACKEND_API_URL` (optional default is `https://api.clerk.com/v1`)
+6. `CLERK_JWKS_URL` (optional override; default is `${CLERK_ISSUER}/.well-known/jwks.json`)
 7. `GOOGLE_OAUTH_CLIENT_ID`
 8. `GOOGLE_OAUTH_CLIENT_SECRET`
 9. `GOOGLE_OAUTH_REDIRECT_URI`
