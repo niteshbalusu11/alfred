@@ -4,7 +4,6 @@ enum AppTab: Hashable, CaseIterable {
     case home
     case activity
     case connectors
-    case profile
 
     var title: String {
         switch self {
@@ -14,8 +13,6 @@ enum AppTab: Hashable, CaseIterable {
             return "Activity"
         case .connectors:
             return "Connectors"
-        case .profile:
-            return "Profile"
         }
     }
 
@@ -27,8 +24,6 @@ enum AppTab: Hashable, CaseIterable {
             return "clock.arrow.circlepath"
         case .connectors:
             return "link"
-        case .profile:
-            return "person.crop.circle"
         }
     }
 }
