@@ -1,0 +1,11 @@
+{
+  "case_id": "assistant_follow_up_prior_email",
+  "description": "Short follow-up query reuses prior email lane when explicit tool intent is absent.",
+  "query": "what about after that",
+  "prior_capability": "email_lookup",
+  "expectations": {
+    "detected_capability": null,
+    "resolved_capability": "email_lookup",
+    "expected_response_part_types": ["chat_text", "tool_summary"]
+  }
+}

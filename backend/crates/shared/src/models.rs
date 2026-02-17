@@ -90,7 +90,7 @@ pub enum AssistantResponsePartType {
     ToolSummary,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AssistantStructuredPayload {
     pub title: String,
     pub summary: String,
@@ -98,7 +98,7 @@ pub struct AssistantStructuredPayload {
     pub follow_ups: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AssistantResponsePart {
     #[serde(rename = "type")]
     pub part_type: AssistantResponsePartType,

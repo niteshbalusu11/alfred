@@ -1,0 +1,12 @@
+{
+  "case_id": "assistant_calendar_lookup",
+  "description": "Calendar-focused query resolves to calendar tool lane.",
+  "detected_capability": "calendar_lookup",
+  "prior_capability": null,
+  "query": "Please check my calendar for next week",
+  "resolved_capability": "calendar_lookup",
+  "response_part_types": [
+    "chat_text",
+    "tool_summary"
+  ]
+}

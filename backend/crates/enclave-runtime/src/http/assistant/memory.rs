@@ -3,6 +3,10 @@ use serde_json::{Value, json};
 use shared::assistant_memory::{
     ASSISTANT_SESSION_MEMORY_VERSION_V1, AssistantSessionMemory, AssistantSessionTurn,
 };
+use shared::assistant_planner::{
+    detect_query_capability as detect_query_capability_shared,
+    resolve_query_capability as resolve_query_capability_shared,
+};
 use shared::llm::safety::sanitize_untrusted_text;
 use shared::models::AssistantQueryCapability;
 
@@ -12,34 +16,7 @@ const SESSION_MEMORY_SUMMARY_MAX_CHARS: usize = 280;
 const SESSION_CONTEXT_QUERY_MAX_CHARS: usize = 280;
 
 pub(super) fn detect_query_capability(query: &str) -> Option<AssistantQueryCapability> {
-    let normalized = query.to_ascii_lowercase();
-    let asks_for_today = normalized.contains("today");
-    let asks_for_calendar = normalized.contains("meeting")
-        || normalized.contains("calendar")
-        || normalized.contains("schedule")
-        || normalized.contains("event");
-    let asks_for_email = normalized.contains("email")
-        || normalized.contains("inbox")
-        || normalized.contains("mail")
-        || normalized.contains("gmail");
-
-    if asks_for_calendar && asks_for_email {
-        return Some(AssistantQueryCapability::Mixed);
-    }
-
-    if asks_for_email {
-        return Some(AssistantQueryCapability::EmailLookup);
-    }
-
-    if asks_for_today && asks_for_calendar {
-        return Some(AssistantQueryCapability::MeetingsToday);
-    }
-
-    if asks_for_calendar {
-        return Some(AssistantQueryCapability::CalendarLookup);
-    }
-
-    None
+    detect_query_capability_shared(query)
 }
 
 pub(super) fn resolve_query_capability(
@@ -47,13 +24,7 @@ pub(super) fn resolve_query_capability(
     detected: Option<AssistantQueryCapability>,
     prior_capability: Option<AssistantQueryCapability>,
 ) -> Option<AssistantQueryCapability> {
-    detected.or_else(|| {
-        if looks_like_follow_up_query(query) {
-            return prior_capability;
-        }
-
-        None
-    })
+    resolve_query_capability_shared(query, detected, prior_capability)
 }
 
 pub(super) fn build_updated_memory(
@@ -107,36 +78,6 @@ pub(super) fn session_memory_context(memory: Option<&AssistantSessionMemory>) ->
 fn redact_and_truncate(value: &str, max_chars: usize) -> String {
     let sanitized = sanitize_untrusted_text(value);
     sanitized.chars().take(max_chars).collect()
-}
-
-fn looks_like_follow_up_query(query: &str) -> bool {
-    let normalized = query.trim().to_ascii_lowercase();
-    if normalized.is_empty() {
-        return false;
-    }
-
-    let token_count = normalized.split_whitespace().count();
-    if token_count > 10 {
-        return false;
-    }
-
-    let follow_up_markers = [
-        "what about",
-        "how about",
-        "and then",
-        "then",
-        "next",
-        "after that",
-        "same",
-        "again",
-        "also",
-        "those",
-        "them",
-    ];
-
-    follow_up_markers
-        .iter()
-        .any(|marker| normalized.contains(marker))
 }
 
 #[cfg(test)]

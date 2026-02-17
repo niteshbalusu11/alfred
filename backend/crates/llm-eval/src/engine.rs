@@ -1,17 +1,21 @@
 use std::path::Path;
 
 use serde_json::{Value, json};
+use shared::assistant_planner::{detect_query_capability, resolve_query_capability};
 use shared::llm::{
     AssistantOutputContract, LlmGateway, LlmGatewayRequest, OpenRouterConfigError,
     OpenRouterGateway, OpenRouterGatewayConfig, SafeOutputSource, resolve_safe_output,
     template_for_capability, validate_output_value,
 };
+use shared::models::{AssistantQueryCapability, AssistantResponsePartType};
 use thiserror::Error;
 
+use crate::assistant_case::{AssistantRoutingEvalCaseFixture, ExpectedResponsePartType};
 use crate::case::{EvalCaseFixture, ExpectedOutputSource};
 use crate::cli::{CliOptions, EvalMode};
 use crate::fixture_io::{
-    FixtureIoError, golden_path, load_cases, read_json_value, write_pretty_json,
+    FixtureIoError, golden_path, load_assistant_routing_cases, load_cases, read_json_value,
+    write_pretty_json,
 };
 use crate::quality::evaluate_quality;
 
@@ -84,12 +88,14 @@ pub enum EvalError {
 }
 
 pub async fn run_eval(options: &CliOptions) -> Result<EvalSummary, EvalError> {
-    let mut cases = load_cases()?;
-    cases.sort_by(|left, right| left.case_id.cmp(&right.case_id));
+    let mut llm_cases = load_cases()?;
+    llm_cases.sort_by(|left, right| left.case_id.cmp(&right.case_id));
+    let mut assistant_routing_cases = load_assistant_routing_cases()?;
+    assistant_routing_cases.sort_by(|left, right| left.case_id.cmp(&right.case_id));
 
     if options.mode == EvalMode::Live {
-        cases.retain(|case| case.include_in_live_smoke);
-        if cases.is_empty() {
+        llm_cases.retain(|case| case.include_in_live_smoke);
+        if llm_cases.is_empty() {
             return Err(EvalError::NoLiveCases);
         }
     }
@@ -100,9 +106,13 @@ pub async fn run_eval(options: &CliOptions) -> Result<EvalSummary, EvalError> {
         None
     };
 
-    let mut results = Vec::with_capacity(cases.len());
-    for case in &cases {
+    let mut results = Vec::with_capacity(llm_cases.len() + assistant_routing_cases.len());
+    for case in &llm_cases {
         let result = run_case(case, options, gateway.as_ref()).await;
+        results.push(result);
+    }
+    for case in &assistant_routing_cases {
+        let result = run_assistant_routing_case(case, options);
         results.push(result);
     }
 
@@ -242,6 +252,73 @@ async fn run_case(
     }
 }
 
+fn run_assistant_routing_case(
+    case: &AssistantRoutingEvalCaseFixture,
+    options: &CliOptions,
+) -> CaseResult {
+    let mut failures = Vec::new();
+    let notes = Vec::new();
+
+    let detected_capability = detect_query_capability(&case.query);
+    if detected_capability != case.expectations.detected_capability {
+        failures.push(format!(
+            "detected_capability: expected={}, actual={}",
+            capability_label(case.expectations.detected_capability.as_ref()),
+            capability_label(detected_capability.as_ref())
+        ));
+    }
+
+    let resolved_capability = resolve_query_capability(
+        &case.query,
+        detected_capability.clone(),
+        case.prior_capability.clone(),
+    )
+    .unwrap_or(AssistantQueryCapability::GeneralChat);
+    if resolved_capability != case.expectations.resolved_capability {
+        failures.push(format!(
+            "resolved_capability: expected={}, actual={}",
+            capability_label(Some(&case.expectations.resolved_capability)),
+            capability_label(Some(&resolved_capability))
+        ));
+    }
+
+    let actual_response_part_types = expected_response_part_types_for(&resolved_capability);
+    if actual_response_part_types != case.expectations.expected_response_part_types {
+        failures.push(format!(
+            "response_part_types: expected={:?}, actual={:?}",
+            case.expectations.expected_response_part_types, actual_response_part_types
+        ));
+    }
+
+    let snapshot = json!({
+        "case_id": case.case_id,
+        "description": case.description,
+        "query": case.query,
+        "prior_capability": case.prior_capability,
+        "detected_capability": detected_capability,
+        "resolved_capability": resolved_capability,
+        "response_part_types": actual_response_part_types,
+    });
+
+    if options.mode == EvalMode::Mocked {
+        let path = golden_path(&case.case_id);
+        if options.update_goldens {
+            if let Err(err) = write_pretty_json(&path, &snapshot) {
+                failures.push(format!("golden_update: {err}"));
+            }
+        } else {
+            compare_golden_snapshot(&path, &snapshot, &mut failures);
+        }
+    }
+
+    CaseResult {
+        case_id: case.case_id.clone(),
+        description: case.description.clone(),
+        failures,
+        notes,
+    }
+}
+
 fn compare_golden_snapshot(path: &Path, actual: &Value, failures: &mut Vec<String>) {
     match read_json_value(path) {
         Ok(expected) => {
@@ -289,5 +366,44 @@ fn expected_source_label(source: ExpectedOutputSource) -> &'static str {
     match source {
         ExpectedOutputSource::ModelOutput => "model_output",
         ExpectedOutputSource::DeterministicFallback => "deterministic_fallback",
+    }
+}
+
+fn capability_label(capability: Option<&AssistantQueryCapability>) -> &'static str {
+    match capability {
+        Some(AssistantQueryCapability::MeetingsToday) => "meetings_today",
+        Some(AssistantQueryCapability::CalendarLookup) => "calendar_lookup",
+        Some(AssistantQueryCapability::EmailLookup) => "email_lookup",
+        Some(AssistantQueryCapability::GeneralChat) => "general_chat",
+        Some(AssistantQueryCapability::Mixed) => "mixed",
+        None => "none",
+    }
+}
+
+fn expected_response_part_types_for(
+    capability: &AssistantQueryCapability,
+) -> Vec<ExpectedResponsePartType> {
+    match capability {
+        AssistantQueryCapability::GeneralChat => {
+            vec![ExpectedResponsePartType::ChatText]
+        }
+        AssistantQueryCapability::MeetingsToday
+        | AssistantQueryCapability::CalendarLookup
+        | AssistantQueryCapability::EmailLookup => vec![
+            expected_part_type_to_fixture(AssistantResponsePartType::ChatText),
+            expected_part_type_to_fixture(AssistantResponsePartType::ToolSummary),
+        ],
+        AssistantQueryCapability::Mixed => vec![
+            expected_part_type_to_fixture(AssistantResponsePartType::ChatText),
+            expected_part_type_to_fixture(AssistantResponsePartType::ToolSummary),
+            expected_part_type_to_fixture(AssistantResponsePartType::ToolSummary),
+        ],
+    }
+}
+
+fn expected_part_type_to_fixture(part_type: AssistantResponsePartType) -> ExpectedResponsePartType {
+    match part_type {
+        AssistantResponsePartType::ChatText => ExpectedResponsePartType::ChatText,
+        AssistantResponsePartType::ToolSummary => ExpectedResponsePartType::ToolSummary,
     }
 }

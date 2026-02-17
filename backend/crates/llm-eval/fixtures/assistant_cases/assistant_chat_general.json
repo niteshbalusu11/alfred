@@ -1,0 +1,10 @@
+{
+  "case_id": "assistant_chat_general",
+  "description": "General chat query resolves to chat lane when no tool intent is detected.",
+  "query": "Can you explain what you can help me with?",
+  "expectations": {
+    "detected_capability": null,
+    "resolved_capability": "general_chat",
+    "expected_response_part_types": ["chat_text"]
+  }
+}

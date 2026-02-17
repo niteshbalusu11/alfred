@@ -81,8 +81,12 @@ fn assistant_query_contracts_do_not_reintroduce_plaintext_query_fields() {
     let openapi_path = shared_root.join("../../../api/openapi.yaml");
     let openapi = fs::read_to_string(&openapi_path)
         .expect("failed to read OpenAPI spec for assistant contract guard");
-    let openapi_block = extract_named_yaml_block(&openapi, "AssistantQueryRequest:")
-        .expect("AssistantQueryRequest block must exist in OpenAPI");
+    let openapi_block = extract_named_yaml_block(
+        &openapi,
+        "AssistantQueryRequest:",
+        "AssistantEncryptedRequestEnvelope:",
+    )
+    .expect("AssistantQueryRequest block must exist in OpenAPI");
     assert!(
         !openapi_block.contains("query:"),
         "OpenAPI AssistantQueryRequest must not include plaintext query field"
@@ -110,6 +114,90 @@ fn assistant_query_contracts_do_not_reintroduce_plaintext_query_fields() {
     assert!(
         !swift_block.contains("query: String"),
         "Swift AssistantQueryRequest must not include plaintext query field"
+    );
+}
+
+#[test]
+fn assistant_query_host_response_contracts_remain_envelope_only() {
+    let shared_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+
+    let openapi_path = shared_root.join("../../../api/openapi.yaml");
+    let openapi = fs::read_to_string(&openapi_path)
+        .expect("failed to read OpenAPI spec for assistant response contract guard");
+    let openapi_block = extract_named_yaml_block(
+        &openapi,
+        "AssistantQueryResponse:",
+        "AssistantAttestedKeyRequest:",
+    )
+    .expect("AssistantQueryResponse block must exist in OpenAPI");
+    assert!(
+        !openapi_block.contains("display_text"),
+        "OpenAPI AssistantQueryResponse must not expose plaintext display_text"
+    );
+    assert!(
+        !openapi_block.contains("response_parts"),
+        "OpenAPI AssistantQueryResponse must not expose plaintext response_parts"
+    );
+    assert!(
+        !openapi_block.contains("payload"),
+        "OpenAPI AssistantQueryResponse must not expose plaintext payload"
+    );
+
+    let rust_models_path = shared_root.join("src/models.rs");
+    let rust_models = fs::read_to_string(&rust_models_path)
+        .expect("failed to read shared models for assistant response guard");
+    let rust_block = extract_rust_struct_block(&rust_models, "pub struct AssistantQueryResponse")
+        .expect("AssistantQueryResponse struct must exist in shared models");
+    assert!(
+        !rust_block.contains("display_text"),
+        "shared AssistantQueryResponse must not expose plaintext display_text"
+    );
+    assert!(
+        !rust_block.contains("response_parts"),
+        "shared AssistantQueryResponse must not expose plaintext response_parts"
+    );
+    assert!(
+        !rust_block.contains("payload"),
+        "shared AssistantQueryResponse must not expose plaintext payload"
+    );
+
+    let swift_models_path =
+        shared_root.join("../../../alfred/Packages/AlfredAPIClient/Sources/AssistantModels.swift");
+    let swift_models = fs::read_to_string(&swift_models_path)
+        .expect("failed to read Swift assistant models for response guard");
+    let swift_block =
+        extract_swift_struct_block(&swift_models, "public struct AssistantQueryResponse")
+            .expect("AssistantQueryResponse struct must exist in Swift models");
+    assert!(
+        !swift_block.contains("displayText"),
+        "Swift AssistantQueryResponse must not expose plaintext displayText"
+    );
+    assert!(
+        !swift_block.contains("responseParts"),
+        "Swift AssistantQueryResponse must not expose plaintext responseParts"
+    );
+    assert!(
+        !swift_block.contains("payload"),
+        "Swift AssistantQueryResponse must not expose plaintext payload"
+    );
+}
+
+#[test]
+fn host_assistant_error_logs_do_not_record_upstream_message_bodies() {
+    let shared_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let path = shared_root.join("../api-server/src/http/assistant/query.rs");
+    let content =
+        fs::read_to_string(&path).expect("failed to read assistant query host mapping source");
+
+    assert!(
+        !content.contains("message = %message"),
+        "{} must not log upstream enclave message content in host assistant error mapping",
+        path.display()
+    );
+    assert!(
+        !content.contains("oauth_error = ?oauth_error"),
+        "{} must not log upstream oauth_error details in host assistant error mapping",
+        path.display()
     );
 }
 
@@ -232,11 +320,15 @@ fn collect_rust_guard_files(paths: &[&str]) -> Vec<PathBuf> {
     files.into_iter().collect()
 }
 
-fn extract_named_yaml_block<'a>(content: &'a str, marker: &str) -> Option<&'a str> {
+fn extract_named_yaml_block<'a>(
+    content: &'a str,
+    marker: &str,
+    next_marker: &str,
+) -> Option<&'a str> {
     let start = content.find(marker)?;
     let remaining = &content[start..];
     let end = remaining
-        .find("\n    AssistantQueryCapability:")
+        .find(&format!("\n    {next_marker}"))
         .unwrap_or(remaining.len());
     Some(&remaining[..end])
 }
