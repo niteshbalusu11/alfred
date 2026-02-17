@@ -2,6 +2,7 @@
 members = [
   "crates/api-server",
   "crates/enclave-runtime",
+  "crates/integration-tests",
   "crates/llm-eval",
   "crates/shared",
   "crates/worker",

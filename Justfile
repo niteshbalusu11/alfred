@@ -70,6 +70,10 @@ backend-build:
 backend-test:
     cd {{ backend_dir }} && cargo test
 
+# Run backend integration tests (requires Postgres at DATABASE_URL).
+backend-integration-test:
+    cd {{ backend_dir }} && cargo test -p integration-tests
+
 # Run deterministic LLM eval/regression checks with mocked outputs.
 backend-eval:
     cd {{ backend_dir }} && cargo run -p llm-eval -- --mode mocked
