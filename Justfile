@@ -71,7 +71,18 @@ backend-build:
 backend-test:
     cd {{ backend_dir }} && cargo test
 
-# Run backend integration tests (requires Postgres at DATABASE_URL).
+# Run full backend test workflow with local infra and migrations.
+backend-tests:
+    @set -euo pipefail; \
+      trap 'just infra-stop >/dev/null 2>&1 || true' EXIT; \
+      just check-tools; \
+      just check-infra-tools; \
+      just infra-up; \
+      just backend-migrate; \
+      just backend-test; \
+      just backend-eval
+
+# Run backend integration tests (uses default DATABASE_URL when unset).
 backend-integration-test:
     cd {{ backend_dir }} && DATABASE_URL="${DATABASE_URL:-{{ default_database_url }}}" cargo test -p integration-tests
 

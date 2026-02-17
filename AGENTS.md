@@ -45,14 +45,15 @@ This file is intentionally at repository root so coding agents can auto-discover
 ## Required Workflow
 
 1. Run `just check-tools`.
-2. Run `just backend-check`.
+2. For backend-impacting work, run `just backend-tests`.
 3. Run `just ios-build`.
 4. Make scoped changes.
 5. Re-run relevant checks before finishing:
    1. `just ios-build`
-   2. `just backend-verify` when backend behavior changes
-   3. `just backend-eval` when AI backend prompt/contract/safety behavior changes
-   4. `just ios-test` when iOS core logic changed
+   2. `just backend-tests` when backend behavior changes
+   3. `just backend-verify` when backend behavior changes
+   4. `just backend-eval` when AI backend prompt/contract/safety behavior changes
+   5. `just ios-test` when iOS core logic changed
 
 ## Local Infrastructure (Postgres for Backend Work)
 
@@ -73,6 +74,10 @@ Default local DB:
 5. Password: `postgres`
 6. `DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/alfred`
 
+One-shot backend testing workflow:
+
+1. `just backend-tests` (runs infra checks, starts DB/Redis, applies migrations, runs backend tests + eval, then stops infra)
+
 ## Backend Quality Gate (Non-Negotiable)
 
 For backend code changes, task is done only when all pass:
@@ -87,6 +92,7 @@ Notes:
 1. `cargo fmt` only formats code.
 2. `cargo fmt` does not ensure clippy passes.
 3. Preferred command: `just backend-verify`
+4. Preferred local backend test workflow: `just backend-tests`
 
 ## Deep Review Gate (Non-Negotiable)
 

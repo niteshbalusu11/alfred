@@ -191,6 +191,12 @@ just infra-up
 just backend-migrate
 ```
 
+One-shot backend testing:
+
+```bash
+just backend-tests
+```
+
 ## For Contributors
 
 Use these docs as the source of truth:

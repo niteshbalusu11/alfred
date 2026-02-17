@@ -218,41 +218,45 @@ Primary commands:
    1. Runs Rust compile checks.
 13. `just backend-build`
    1. Builds Rust backend workspace.
-14. `just backend-test`
+14. `just backend-tests`
+   1. One-shot local backend test workflow (infra checks + infra up + migrate + tests + mocked eval + infra stop).
+15. `just backend-test`
    1. Runs Rust tests.
-15. `just backend-eval`
+16. `just backend-integration-test`
+   1. Runs integration test crate (`integration-tests`) with default local `DATABASE_URL` fallback.
+17. `just backend-eval`
    1. Runs deterministic LLM eval/regression checks in mocked mode.
-16. `just backend-eval-update`
+18. `just backend-eval-update`
    1. Intentionally refreshes mocked-mode eval goldens after reviewed behavior changes.
-17. `just backend-eval-live`
+19. `just backend-eval-live`
    1. Runs optional live-provider LLM smoke checks (requires `OPENROUTER_*` env vars).
-18. `just backend-fmt`
+20. `just backend-fmt`
    1. Formats Rust code.
-19. `just backend-clippy`
+21. `just backend-clippy`
     1. Runs lint checks with warnings denied.
-20. `just backend-verify`
+22. `just backend-verify`
     1. Runs backend completion gate: fmt + clippy + tests + build.
-21. `just backend-security-audit`
+23. `just backend-security-audit`
     1. Runs dependency vulnerability audit (`cargo audit`).
-22. `just backend-bug-check`
+24. `just backend-bug-check`
     1. Runs backend tests and fails on placeholder/debug macros.
-23. `just backend-architecture-check`
+25. `just backend-architecture-check`
     1. Enforces DB/HTTP layer boundaries for scalability.
-24. `just backend-deep-review`
+26. `just backend-deep-review`
     1. Runs backend verify + security audit + bug check + architecture checks.
-25. `just backend-api`
+27. `just backend-api`
     1. Runs REST API server.
-26. `just backend-worker`
+28. `just backend-worker`
     1. Runs background worker.
-27. `just api` (pending issue `#48`)
+29. `just api` (pending issue `#48`)
     1. Planned alias for `just backend-api` once `.env` startup support lands.
-28. `just worker` (pending issue `#48`)
+30. `just worker` (pending issue `#48`)
     1. Planned alias for `just backend-worker` once `.env` startup support lands.
-29. `just dev`
+31. `just dev`
     1. Runs API server + worker together.
-30. `just docs`
+32. `just docs`
     1. Prints key project documentation paths.
-31. `just sync-master`
+33. `just sync-master`
     1. Fetches remote, checks out `master`, and fast-forward pulls latest.
 
 ## Test and Quality Policy (Strict)
@@ -275,6 +279,8 @@ Important:
 3. Backend task is not done until linting, tests, and build all pass.
 4. Preferred one-shot command:
    1. `just backend-verify`
+5. Preferred local backend test workflow:
+   1. `just backend-tests`
 
 ### Frontend (iOS)
 
@@ -299,10 +305,7 @@ Important:
 Use this sequence for most engineering tasks:
 
 1. `just check-tools`
-2. If backend work needs local DB:
-   1. `just check-infra-tools`
-   2. `just infra-up`
-   3. `just backend-migrate`
+2. For backend-impacting work, run `just backend-tests`.
 3. `just backend-check`
 4. `just ios-package-build`
 5. `just ios-build`
@@ -310,20 +313,22 @@ Use this sequence for most engineering tasks:
 7. Re-run:
    1. `just ios-build`
 8. If backend behavior changed, also run:
+   1. `just backend-tests`
+9. If backend behavior changed, also run:
    1. `just backend-deep-review`
-9. If AI backend prompt/contract/safety behavior changed, also run:
+10. If AI backend prompt/contract/safety behavior changed, also run:
    1. `just backend-eval`
-10. If frontend core logic changed, also run:
+11. If frontend core logic changed, also run:
    1. `just ios-test`
-11. If API contract changed:
+12. If API contract changed:
    1. Update `api/openapi.yaml`
    2. Ensure model updates in shared/server/client code.
-12. If persistence changed:
+13. If persistence changed:
    1. Add a new migration under `db/migrations`.
-13. If issue state changed:
+14. If issue state changed:
     1. Update GitHub issue comments/checklist
     2. Keep `docs/phase1-master-todo.md` status consistent where relevant
-14. Before PR merge (mandatory for backend-impacting issues):
+15. Before PR merge (mandatory for backend-impacting issues):
     1. Produce AI review report (security audit + bug check + scalability/cleanliness review)
     2. Use `docs/ai-review-template.md`
     3. Default: hand off to maintainer for manual merge after report is documented in issue/PR

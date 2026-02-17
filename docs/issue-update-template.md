@@ -70,7 +70,7 @@ Acceptance criteria mapping:
 Validation:
 - `just backend-check` => <pass/fail>
 - `just ios-build` => <pass/fail>
-- `just backend-test` => <pass/fail or n/a>
+- `just backend-tests` => <pass/fail or n/a>
 - `just backend-deep-review` => <pass/fail or n/a>
 
 Follow-ups:
@@ -99,7 +99,7 @@ AI review summary:
 ## Validation
 - `just backend-check`
 - `just ios-build`
-- `just backend-test` (if backend behavior changed)
+- `just backend-tests` (if backend behavior changed)
 
 ## Issue
 Closes #<issue-number>
