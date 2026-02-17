@@ -123,9 +123,13 @@ public struct AssistantPlaintextQueryRequest: Codable, Sendable {
 
 public enum AssistantQueryCapability: String, Codable, Sendable {
     case meetingsToday = "meetings_today"
+    case calendarLookup = "calendar_lookup"
+    case emailLookup = "email_lookup"
+    case generalChat = "general_chat"
+    case mixed = "mixed"
 }
 
-public struct AssistantMeetingsTodayPayload: Codable, Sendable {
+public struct AssistantStructuredPayload: Codable, Sendable {
     public let title: String
     public let summary: String
     public let keyPoints: [String]
@@ -143,7 +147,7 @@ public struct AssistantPlaintextQueryResponse: Codable, Sendable {
     public let sessionId: UUID
     public let capability: AssistantQueryCapability
     public let displayText: String
-    public let payload: AssistantMeetingsTodayPayload
+    public let payload: AssistantStructuredPayload
 
     enum CodingKeys: String, CodingKey {
         case sessionId = "session_id"

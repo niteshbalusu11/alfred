@@ -77,10 +77,14 @@ pub struct AssistantSessionStateEnvelope {
 #[serde(rename_all = "snake_case")]
 pub enum AssistantQueryCapability {
     MeetingsToday,
+    CalendarLookup,
+    EmailLookup,
+    GeneralChat,
+    Mixed,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AssistantMeetingsTodayPayload {
+pub struct AssistantStructuredPayload {
     pub title: String,
     pub summary: String,
     pub key_points: Vec<String>,
@@ -105,7 +109,7 @@ pub struct AssistantPlaintextQueryResponse {
     pub session_id: Uuid,
     pub capability: AssistantQueryCapability,
     pub display_text: String,
-    pub payload: AssistantMeetingsTodayPayload,
+    pub payload: AssistantStructuredPayload,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

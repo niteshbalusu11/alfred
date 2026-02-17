@@ -14,12 +14,29 @@ const SESSION_CONTEXT_QUERY_MAX_CHARS: usize = 280;
 pub(super) fn detect_query_capability(query: &str) -> Option<AssistantQueryCapability> {
     let normalized = query.to_ascii_lowercase();
     let asks_for_today = normalized.contains("today");
-    let asks_for_meetings = normalized.contains("meeting")
+    let asks_for_calendar = normalized.contains("meeting")
         || normalized.contains("calendar")
-        || normalized.contains("schedule");
+        || normalized.contains("schedule")
+        || normalized.contains("event");
+    let asks_for_email = normalized.contains("email")
+        || normalized.contains("inbox")
+        || normalized.contains("mail")
+        || normalized.contains("gmail");
 
-    if asks_for_today && asks_for_meetings {
+    if asks_for_calendar && asks_for_email {
+        return Some(AssistantQueryCapability::Mixed);
+    }
+
+    if asks_for_email {
+        return Some(AssistantQueryCapability::EmailLookup);
+    }
+
+    if asks_for_today && asks_for_calendar {
         return Some(AssistantQueryCapability::MeetingsToday);
+    }
+
+    if asks_for_calendar {
+        return Some(AssistantQueryCapability::CalendarLookup);
     }
 
     None
@@ -120,4 +137,42 @@ fn looks_like_follow_up_query(query: &str) -> bool {
     follow_up_markers
         .iter()
         .any(|marker| normalized.contains(marker))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{detect_query_capability, resolve_query_capability};
+    use shared::models::AssistantQueryCapability;
+
+    #[test]
+    fn detect_capability_classifies_calendar_and_email_queries() {
+        assert_eq!(
+            detect_query_capability("What meetings do I have today?"),
+            Some(AssistantQueryCapability::MeetingsToday)
+        );
+        assert_eq!(
+            detect_query_capability("Show my schedule next week"),
+            Some(AssistantQueryCapability::CalendarLookup)
+        );
+        assert_eq!(
+            detect_query_capability("Any emails from finance?"),
+            Some(AssistantQueryCapability::EmailLookup)
+        );
+        assert_eq!(
+            detect_query_capability("Check calendar and inbox for this afternoon"),
+            Some(AssistantQueryCapability::Mixed)
+        );
+    }
+
+    #[test]
+    fn resolve_capability_uses_prior_for_follow_up_queries() {
+        assert_eq!(
+            resolve_query_capability(
+                "what about after that",
+                None,
+                Some(AssistantQueryCapability::EmailLookup),
+            ),
+            Some(AssistantQueryCapability::EmailLookup)
+        );
+    }
 }
