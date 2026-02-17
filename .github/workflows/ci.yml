@@ -100,8 +100,11 @@ jobs:
       - name: Secret Logging Guard Tests
         run: cargo test -p shared boundary_guards
 
-      - name: Test
-        run: cargo test
+      - name: Unit and Module Tests
+        run: cargo test --workspace --exclude integration-tests
+
+      - name: Integration Tests (Auth/Privacy)
+        run: cargo test -p integration-tests
 
       - name: LLM Eval (mocked)
         run: cargo run -p llm-eval -- --mode mocked
