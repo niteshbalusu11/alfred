@@ -6,11 +6,13 @@ use axum::response::{IntoResponse, Response};
 use serde::Serialize;
 use serde_json::{Value, json};
 use shared::enclave::{
-    ENCLAVE_RPC_CONTRACT_VERSION, ENCLAVE_RPC_PATH_EXCHANGE_GOOGLE_TOKEN,
-    ENCLAVE_RPC_PATH_FETCH_ASSISTANT_ATTESTED_KEY, ENCLAVE_RPC_PATH_FETCH_GOOGLE_CALENDAR_EVENTS,
+    ENCLAVE_RPC_CONTRACT_VERSION, ENCLAVE_RPC_PATH_COMPLETE_GOOGLE_CONNECT,
+    ENCLAVE_RPC_PATH_EXCHANGE_GOOGLE_TOKEN, ENCLAVE_RPC_PATH_FETCH_ASSISTANT_ATTESTED_KEY,
+    ENCLAVE_RPC_PATH_FETCH_GOOGLE_CALENDAR_EVENTS,
     ENCLAVE_RPC_PATH_FETCH_GOOGLE_URGENT_EMAIL_CANDIDATES, ENCLAVE_RPC_PATH_GENERATE_MORNING_BRIEF,
     ENCLAVE_RPC_PATH_GENERATE_URGENT_EMAIL_SUMMARY, ENCLAVE_RPC_PATH_PROCESS_ASSISTANT_QUERY,
-    ENCLAVE_RPC_PATH_REVOKE_GOOGLE_TOKEN, EnclaveRpcExchangeGoogleTokenRequest,
+    ENCLAVE_RPC_PATH_REVOKE_GOOGLE_TOKEN, EnclaveRpcCompleteGoogleConnectRequest,
+    EnclaveRpcCompleteGoogleConnectResponse, EnclaveRpcExchangeGoogleTokenRequest,
     EnclaveRpcExchangeGoogleTokenResponse, EnclaveRpcFetchAssistantAttestedKeyRequest,
     EnclaveRpcFetchAssistantAttestedKeyResponse, EnclaveRpcFetchGoogleCalendarEventsRequest,
     EnclaveRpcFetchGoogleCalendarEventsResponse, EnclaveRpcFetchGoogleUrgentEmailCandidatesRequest,
@@ -111,6 +113,38 @@ pub(crate) async fn exchange_google_access_token(
             request_id: request.request_id,
             access_token: token_response.access_token,
             attested_identity: token_response.attested_identity,
+        })
+        .into_response(),
+        Err(err) => rpc::map_rpc_service_error(err, Some(request.request_id)).into_response(),
+    }
+}
+
+pub(crate) async fn complete_google_connect(
+    State(state): State<RuntimeState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    let request = match validate_request::<EnclaveRpcCompleteGoogleConnectRequest>(
+        &state,
+        &headers,
+        ENCLAVE_RPC_PATH_COMPLETE_GOOGLE_CONNECT,
+        &body,
+    ) {
+        Ok(request) => request,
+        Err(rejection) => return rejection.into_response(),
+    };
+
+    let result = state
+        .enclave_service
+        .complete_google_connect(request.user_id, request.code, request.redirect_uri)
+        .await;
+
+    match result {
+        Ok(connect_response) => Json(EnclaveRpcCompleteGoogleConnectResponse {
+            contract_version: ENCLAVE_RPC_CONTRACT_VERSION.to_string(),
+            request_id: request.request_id,
+            connector_id: connect_response.connector_id,
+            granted_scopes: connect_response.granted_scopes,
         })
         .into_response(),
         Err(err) => rpc::map_rpc_service_error(err, Some(request.request_id)).into_response(),
@@ -331,6 +365,16 @@ trait RpcEnvelope {
 }
 
 impl RpcEnvelope for EnclaveRpcExchangeGoogleTokenRequest {
+    fn contract_version(&self) -> &str {
+        &self.contract_version
+    }
+
+    fn request_id(&self) -> &str {
+        &self.request_id
+    }
+}
+
+impl RpcEnvelope for EnclaveRpcCompleteGoogleConnectRequest {
     fn contract_version(&self) -> &str {
         &self.contract_version
     }

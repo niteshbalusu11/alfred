@@ -111,6 +111,56 @@ fn assistant_query_contracts_do_not_reintroduce_plaintext_query_fields() {
     );
 }
 
+#[test]
+fn host_connector_paths_do_not_exchange_oauth_codes_directly() {
+    for file in oauth_exchange_guard_files() {
+        let content = fs::read_to_string(&file)
+            .expect("failed to read source file for oauth exchange boundary guard");
+        assert!(
+            !content.contains("grant_type\", \"authorization_code\""),
+            "{} must not perform direct OAuth code exchange in host runtime",
+            file.display()
+        );
+        assert!(
+            !content.contains(".post(&oauth.token_url)"),
+            "{} must not call Google token endpoint directly from host runtime",
+            file.display()
+        );
+    }
+}
+
+#[test]
+fn redis_reliability_state_does_not_store_plaintext_llm_response_payloads() {
+    let shared_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let path = shared_root.join("src/llm/reliability/redis_state.rs");
+    let content = fs::read_to_string(&path).expect("failed to read redis reliability state source");
+
+    assert!(
+        !content.contains("serde_json::to_string(response)"),
+        "{} must not serialize plaintext LLM responses for Redis cache persistence",
+        path.display()
+    );
+    assert!(
+        !content.contains("serde_json::from_str::<LlmGatewayResponse>"),
+        "{} must not deserialize plaintext LLM responses from Redis cache persistence",
+        path.display()
+    );
+}
+
+#[test]
+fn callback_job_enqueue_does_not_write_trace_payload() {
+    let shared_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let path = shared_root.join("../api-server/src/http/connectors/callback.rs");
+    let content = fs::read_to_string(&path)
+        .expect("failed to read connector callback source for payload guard");
+
+    assert!(
+        !content.contains("request_trace_payload("),
+        "{} must not enqueue callback trace payload bytes into jobs table",
+        path.display()
+    );
+}
+
 fn assert_no_sensitive_tracing_args(path: &str, content: &str) {
     const TRACING_MACROS: [&str; 5] = ["trace!(", "debug!(", "info!(", "warn!(", "error!("];
     const SENSITIVE_TERMS: [&str; 9] = [
@@ -256,4 +306,8 @@ fn host_llm_orchestration_guard_files() -> Vec<PathBuf> {
         "../worker/src/job_actions/google/morning_brief.rs",
         "../worker/src/job_actions/google/urgent_email.rs",
     ])
+}
+
+fn oauth_exchange_guard_files() -> Vec<PathBuf> {
+    collect_rust_guard_files(&["../api-server/src/http/connectors/callback.rs"])
 }

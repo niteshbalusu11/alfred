@@ -52,14 +52,14 @@ Ship a private beta where iOS users can:
 3. Rule-based urgent-email logic has been removed from production worker paths (`#91`).
 4. Execution queue for this migration is GitHub issues `#91` through `#103` (`ai-backend` label).
 
-## Content Blindness Privacy Boundary Update (2026-02-16)
+## Content Blindness Privacy Boundary Update (2026-02-17)
 
-1. Current state: connector provider fetch/decrypt paths are enclave-protected, but assistant message-body content is not yet fully server-blind.
+1. Current state: connector provider fetch/decrypt paths and assistant message-body flows are enclave-plaintext-only with ciphertext host transit/storage.
 2. Privacy goal: server can observe routing/operational metadata, while message content remains ciphertext outside enclave memory.
 3. Migration source of truth is tracker issue `#146` with phases `#147`, `#148`, and `#149`.
 4. Labels for this line of work: `phase-1`, `P0`, `backend`, `content-blindness`.
 5. Breaking protocol/contract changes are explicitly acceptable pre-launch for this migration.
-6. Until completion of `#149`, treat message-content visibility in server-control-plane surfaces as an active privacy gap and avoid expanding that surface area.
+6. `#149` hardening completed: OAuth code exchange moved to enclave path, job payload storage is encrypted-at-write, Redis reliability state is metadata-only, and privacy guard tests/docs were expanded.
 
 ## 5) Execution Board
 
@@ -237,7 +237,7 @@ Ship a private beta where iOS users can:
 |---|---|---|---|---|---|---|---|
 | CB-001 | P0 | Define enclave-only message-content architecture and attested key agreement (`#147`) | BE | 2026-02-20 | DONE | SEC-006, AI-004 | Approved protocol/spec defines ciphertext-only server relay and enclave-only plaintext boundary (`docs/assistant-attested-encryption-v1.md`) |
 | CB-002 | P0 | Implement encrypted message transport + enclave decryption/processing path (`#148`) | BE | 2026-02-27 | DONE | CB-001 | `/v1/assistant/query`-class flows carry ciphertext through control plane; plaintext exists only in enclave runtime |
-| CB-003 | P0 | Add privacy verification gates, redaction tests, and rollout hardening (`#149`) | BE | 2026-03-03 | TODO | CB-002 | Automated checks and audit evidence confirm message-body server blindness with metadata-only server observability |
+| CB-003 | P0 | Add privacy verification gates, redaction tests, and rollout hardening (`#149`) | BE | 2026-03-03 | DONE | CB-002 | Automated checks and audit evidence confirm message-body server blindness with metadata-only server observability (`docs/content-blindness-invariants.md`, boundary guard tests) |
 
 ---
 

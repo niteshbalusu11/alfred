@@ -9,6 +9,12 @@ pub(super) struct GoogleRefreshTokenResponse {
 }
 
 #[derive(Debug, Deserialize)]
+pub(super) struct GoogleOAuthCodeExchangeResponse {
+    pub(super) refresh_token: Option<String>,
+    pub(super) scope: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
 pub(super) struct GoogleCalendarEventsResponse {
     #[serde(default)]
     pub(super) items: Vec<GoogleCalendarEvent>,

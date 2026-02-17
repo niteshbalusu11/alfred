@@ -141,6 +141,10 @@ async fn main() {
             post(http::exchange_google_access_token),
         )
         .route(
+            "/v1/rpc/google/connect/complete",
+            post(http::complete_google_connect),
+        )
+        .route(
             "/v1/rpc/google/token/revoke",
             post(http::revoke_google_connector_token),
         )

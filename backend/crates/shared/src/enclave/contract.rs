@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 pub const ENCLAVE_RPC_CONTRACT_VERSION: &str = "v1";
 pub const ENCLAVE_RPC_PATH_EXCHANGE_GOOGLE_TOKEN: &str = "/v1/rpc/google/token/exchange";
+pub const ENCLAVE_RPC_PATH_COMPLETE_GOOGLE_CONNECT: &str = "/v1/rpc/google/connect/complete";
 pub const ENCLAVE_RPC_PATH_REVOKE_GOOGLE_TOKEN: &str = "/v1/rpc/google/token/revoke";
 pub const ENCLAVE_RPC_PATH_FETCH_GOOGLE_CALENDAR_EVENTS: &str = "/v1/rpc/google/calendar/events";
 pub const ENCLAVE_RPC_PATH_FETCH_GOOGLE_URGENT_EMAIL_CANDIDATES: &str =
@@ -32,6 +33,23 @@ pub struct EnclaveRpcExchangeGoogleTokenResponse {
     pub request_id: String,
     pub access_token: String,
     pub attested_identity: AttestedIdentityPayload,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnclaveRpcCompleteGoogleConnectRequest {
+    pub contract_version: String,
+    pub request_id: String,
+    pub user_id: uuid::Uuid,
+    pub code: String,
+    pub redirect_uri: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnclaveRpcCompleteGoogleConnectResponse {
+    pub contract_version: String,
+    pub request_id: String,
+    pub connector_id: uuid::Uuid,
+    pub granted_scopes: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,4 +1,6 @@
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use base64::{
+    Engine as _, engine::general_purpose::STANDARD, engine::general_purpose::URL_SAFE_NO_PAD,
+};
 use chrono::{DateTime, Duration, Utc};
 use sha2::{Digest, Sha256};
 use sqlx::Row;
@@ -38,7 +40,17 @@ impl Store {
 
         let job_id: Uuid = sqlx::query_scalar(
             "INSERT INTO jobs (user_id, type, due_at, state, payload_ciphertext, idempotency_key)
-             VALUES ($1, $2, $3, 'PENDING', $4, $5)
+             VALUES (
+               $1,
+               $2,
+               $3,
+               'PENDING',
+               CASE
+                 WHEN $4::bytea IS NULL THEN NULL
+                 ELSE pgp_sym_encrypt(encode($4, 'base64'), $6)
+               END,
+               $5
+             )
              ON CONFLICT (user_id, type, idempotency_key)
              DO UPDATE SET
                due_at = LEAST(jobs.due_at, EXCLUDED.due_at),
@@ -51,6 +63,7 @@ impl Store {
         .bind(due_at)
         .bind(payload_ciphertext)
         .bind(idempotency_key)
+        .bind(&self.data_encryption_key)
         .fetch_one(&self.pool)
         .await?;
 
@@ -195,7 +208,10 @@ impl Store {
                   j.user_id,
                   j.type,
                   j.due_at,
-                  j.payload_ciphertext,
+                  CASE
+                    WHEN j.payload_ciphertext IS NULL THEN NULL
+                    ELSE pgp_sym_decrypt(j.payload_ciphertext, $6)
+                  END AS payload_encoded,
                   j.attempts,
                   j.max_attempts,
                   j.idempotency_key
@@ -205,7 +221,7 @@ impl Store {
                user_id,
                type,
                due_at,
-               payload_ciphertext,
+               payload_encoded,
                attempts,
                max_attempts,
                idempotency_key
@@ -217,6 +233,7 @@ impl Store {
         .bind(max_jobs)
         .bind(worker_id)
         .bind(lease_until)
+        .bind(&self.data_encryption_key)
         .fetch_all(&self.pool)
         .await?;
 
@@ -328,7 +345,19 @@ impl Store {
                 reason_code,
                 reason_message,
                 payload_ciphertext
-             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+             ) VALUES (
+                $1,
+                $2,
+                $3,
+                $4,
+                $5,
+                $6,
+                $7,
+                CASE
+                  WHEN $8::bytea IS NULL THEN NULL
+                  ELSE pgp_sym_encrypt(encode($8, 'base64'), $9)
+                END
+             )
              ON CONFLICT (job_id)
              DO UPDATE SET
                attempts = EXCLUDED.attempts,
@@ -343,7 +372,8 @@ impl Store {
         .bind(attempts)
         .bind(reason_code)
         .bind(reason_message)
-        .bind(&job.payload_ciphertext)
+        .bind(job.payload_ciphertext.as_deref())
+        .bind(&self.data_encryption_key)
         .execute(&mut *tx)
         .await?;
 
@@ -409,12 +439,21 @@ impl Store {
 
 fn claimed_job_from_row(row: sqlx::postgres::PgRow) -> Result<ClaimedJob, StoreError> {
     let job_type: String = row.try_get("type")?;
+    let payload_encoded: Option<String> = row.try_get("payload_encoded")?;
+    let payload_ciphertext = payload_encoded
+        .map(|encoded| {
+            STANDARD
+                .decode(encoded.as_bytes())
+                .map_err(|_| StoreError::InvalidData("job payload decode failed".to_string()))
+        })
+        .transpose()?;
+
     Ok(ClaimedJob {
         id: row.try_get("id")?,
         user_id: row.try_get("user_id")?,
         job_type: JobType::from_db(&job_type)?,
         due_at: row.try_get("due_at")?,
-        payload_ciphertext: row.try_get("payload_ciphertext")?,
+        payload_ciphertext,
         attempts: row.try_get("attempts")?,
         max_attempts: row.try_get("max_attempts")?,
         idempotency_key: row.try_get("idempotency_key")?,

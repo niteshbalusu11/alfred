@@ -11,15 +11,13 @@ use shared::models::{
 use shared::repos::{AuditResult, JobType};
 
 use super::super::errors::{bad_request_response, store_error_response};
-use super::super::observability::RequestContext;
 use super::super::tokens::hash_token;
 use super::super::{AppState, AuthUser};
-use super::helpers::exchange_google_code;
+use super::helpers::{build_enclave_client, map_complete_connect_enclave_error};
 
 pub(crate) async fn complete_google_connect(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
-    Extension(request_context): Extension<RequestContext>,
     Json(req): Json<CompleteGoogleConnectRequest>,
 ) -> Response {
     let Some(redirect_uri) = (match state
@@ -64,61 +62,28 @@ pub(crate) async fn complete_google_connect(
         }
     };
 
-    let token_response =
-        match exchange_google_code(&state.http_client, &state.oauth, code, &redirect_uri).await {
-            Ok(token_response) => token_response,
-            Err(response) => return response,
-        };
-
-    let Some(refresh_token) = token_response.refresh_token else {
-        return bad_request_response(
-            "missing_refresh_token",
-            "Google did not return a refresh token",
-        );
+    let enclave_client = build_enclave_client(&state);
+    let connect_result = enclave_client
+        .complete_google_connect(user.user_id, code.to_string(), redirect_uri)
+        .await;
+    let connect_result = match connect_result {
+        Ok(response) => response,
+        Err(err) => return map_complete_connect_enclave_error(err),
     };
 
-    let granted_scopes = token_response
-        .scope
-        .map(|scope| {
-            scope
-                .split_whitespace()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_else(|| state.oauth.scopes.clone());
-
-    let connector_id = match state
-        .store
-        .upsert_google_connector(
-            user.user_id,
-            &refresh_token,
-            &granted_scopes,
-            state.secret_runtime.kms_key_id(),
-            state.secret_runtime.kms_key_version(),
-        )
-        .await
-    {
-        Ok(connector_id) => connector_id,
-        Err(err) => return store_error_response(err),
-    };
-
-    let trace_payload =
-        super::super::observability::request_trace_payload(&request_context.request_id);
     if let Err(err) = state
         .store
-        .enqueue_job(
-            user.user_id,
-            JobType::UrgentEmailCheck,
-            Utc::now(),
-            Some(&trace_payload),
-        )
+        .enqueue_job(user.user_id, JobType::UrgentEmailCheck, Utc::now(), None)
         .await
     {
         return store_error_response(err);
     }
 
     let mut metadata = HashMap::new();
-    metadata.insert("connector_id".to_string(), connector_id.to_string());
+    metadata.insert(
+        "connector_id".to_string(),
+        connect_result.connector_id.to_string(),
+    );
 
     if let Err(err) = state
         .store
@@ -135,9 +100,9 @@ pub(crate) async fn complete_google_connect(
     }
 
     let response = CompleteGoogleConnectResponse {
-        connector_id: connector_id.to_string(),
+        connector_id: connect_result.connector_id.to_string(),
         status: ConnectorStatus::Active,
-        granted_scopes,
+        granted_scopes: connect_result.granted_scopes,
     };
 
     (StatusCode::OK, Json(response)).into_response()

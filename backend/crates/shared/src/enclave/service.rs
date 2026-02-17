@@ -8,13 +8,13 @@ mod google_types;
 
 use self::google_types::{
     GmailMessageMetadataResponse, GmailMessagesResponse, GoogleCalendarEventsResponse,
-    GoogleRefreshTokenResponse, parse_google_error_code,
+    GoogleOAuthCodeExchangeResponse, GoogleRefreshTokenResponse, parse_google_error_code,
 };
 
 use super::{
-    AttestedIdentityPayload, ConnectorSecretRequest, EnclaveGoogleCalendarAttendee,
-    EnclaveGoogleCalendarEvent, EnclaveGoogleCalendarEventDateTime, EnclaveRpcError,
-    ExchangeGoogleTokenResponse, FetchGoogleCalendarEventsResponse,
+    AttestedIdentityPayload, CompleteGoogleConnectResponse, ConnectorSecretRequest,
+    EnclaveGoogleCalendarAttendee, EnclaveGoogleCalendarEvent, EnclaveGoogleCalendarEventDateTime,
+    EnclaveRpcError, ExchangeGoogleTokenResponse, FetchGoogleCalendarEventsResponse,
     FetchGoogleUrgentEmailCandidatesResponse, GoogleEnclaveOauthConfig, ProviderOperation,
     RevokeGoogleTokenResponse,
 };
@@ -23,6 +23,10 @@ const GOOGLE_CALENDAR_EVENTS_URL: &str =
     "https://www.googleapis.com/calendar/v3/calendars/primary/events";
 const GMAIL_MESSAGES_URL: &str = "https://gmail.googleapis.com/gmail/v1/users/me/messages";
 const MAX_GMAIL_CANDIDATES: usize = 50;
+const DEFAULT_GOOGLE_CONNECT_SCOPES: [&str; 2] = [
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/calendar.readonly",
+];
 
 #[derive(Clone)]
 pub struct EnclaveOperationService {
@@ -58,6 +62,94 @@ impl EnclaveOperationService {
         Ok(ExchangeGoogleTokenResponse {
             access_token,
             attested_identity,
+        })
+    }
+
+    pub async fn complete_google_connect(
+        &self,
+        user_id: uuid::Uuid,
+        code: String,
+        redirect_uri: String,
+    ) -> Result<CompleteGoogleConnectResponse, EnclaveRpcError> {
+        let response = self
+            .http_client
+            .post(&self.oauth.token_url)
+            .form(&[
+                ("code", code.as_str()),
+                ("client_id", self.oauth.client_id.as_str()),
+                ("client_secret", self.oauth.client_secret.as_str()),
+                ("redirect_uri", redirect_uri.as_str()),
+                ("grant_type", "authorization_code"),
+            ])
+            .send()
+            .await
+            .map_err(|err| EnclaveRpcError::ProviderRequestUnavailable {
+                operation: ProviderOperation::OAuthCodeExchange,
+                message: err.to_string(),
+            })?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            let oauth_error = parse_google_error_code(&body)
+                .filter(|value| matches!(value.as_str(), "invalid_grant" | "access_denied"));
+            return Err(EnclaveRpcError::ProviderRequestFailed {
+                operation: ProviderOperation::OAuthCodeExchange,
+                status: status.as_u16(),
+                oauth_error,
+            });
+        }
+
+        let payload = response
+            .json::<GoogleOAuthCodeExchangeResponse>()
+            .await
+            .map_err(|err| EnclaveRpcError::ProviderResponseInvalid {
+                operation: ProviderOperation::OAuthCodeExchange,
+                message: err.to_string(),
+            })?;
+
+        let refresh_token = payload
+            .refresh_token
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| EnclaveRpcError::ProviderResponseInvalid {
+                operation: ProviderOperation::OAuthCodeExchange,
+                message: "oauth code exchange response missing refresh token".to_string(),
+            })?;
+
+        let granted_scopes = payload
+            .scope
+            .map(|scope| {
+                scope
+                    .split_whitespace()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+            })
+            .filter(|scopes| !scopes.is_empty())
+            .unwrap_or_else(|| {
+                DEFAULT_GOOGLE_CONNECT_SCOPES
+                    .iter()
+                    .map(|scope| (*scope).to_string())
+                    .collect::<Vec<_>>()
+            });
+
+        let connector_id = self
+            .store
+            .upsert_google_connector(
+                user_id,
+                &refresh_token,
+                &granted_scopes,
+                self.secret_runtime.kms_key_id(),
+                self.secret_runtime.kms_key_version(),
+            )
+            .await
+            .map_err(|err| EnclaveRpcError::ConnectorTokenDecryptFailed {
+                message: err.to_string(),
+            })?;
+
+        Ok(CompleteGoogleConnectResponse {
+            connector_id,
+            granted_scopes,
         })
     }
 

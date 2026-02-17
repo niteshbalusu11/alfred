@@ -4,6 +4,7 @@ use axum::response::{IntoResponse, Response};
 use chrono::{Duration, Utc};
 use serde_json::Value;
 use shared::assistant_crypto::{decrypt_assistant_request, encrypt_assistant_response};
+use shared::assistant_memory::ASSISTANT_SESSION_MEMORY_VERSION_V1;
 use shared::enclave::{
     ENCLAVE_RPC_CONTRACT_VERSION, EnclaveRpcProcessAssistantQueryRequest,
     EnclaveRpcProcessAssistantQueryResponse,
@@ -14,7 +15,6 @@ use shared::llm::{
     sanitize_context_payload, template_for_capability,
 };
 use shared::models::{AssistantMeetingsTodayPayload, AssistantPlaintextQueryResponse};
-use shared::repos::ASSISTANT_SESSION_MEMORY_VERSION_V1;
 use tracing::warn;
 use uuid::Uuid;
 

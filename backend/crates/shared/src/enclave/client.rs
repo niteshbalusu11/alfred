@@ -3,14 +3,16 @@ use chrono::Utc;
 mod conversions;
 
 use super::{
-    ENCLAVE_RPC_AUTH_NONCE_HEADER, ENCLAVE_RPC_AUTH_SIGNATURE_HEADER,
-    ENCLAVE_RPC_AUTH_TIMESTAMP_HEADER, ENCLAVE_RPC_CONTRACT_VERSION,
-    ENCLAVE_RPC_CONTRACT_VERSION_HEADER, ENCLAVE_RPC_PATH_EXCHANGE_GOOGLE_TOKEN,
+    CompleteGoogleConnectResponse, ENCLAVE_RPC_AUTH_NONCE_HEADER,
+    ENCLAVE_RPC_AUTH_SIGNATURE_HEADER, ENCLAVE_RPC_AUTH_TIMESTAMP_HEADER,
+    ENCLAVE_RPC_CONTRACT_VERSION, ENCLAVE_RPC_CONTRACT_VERSION_HEADER,
+    ENCLAVE_RPC_PATH_COMPLETE_GOOGLE_CONNECT, ENCLAVE_RPC_PATH_EXCHANGE_GOOGLE_TOKEN,
     ENCLAVE_RPC_PATH_FETCH_ASSISTANT_ATTESTED_KEY, ENCLAVE_RPC_PATH_FETCH_GOOGLE_CALENDAR_EVENTS,
     ENCLAVE_RPC_PATH_FETCH_GOOGLE_URGENT_EMAIL_CANDIDATES, ENCLAVE_RPC_PATH_GENERATE_MORNING_BRIEF,
     ENCLAVE_RPC_PATH_GENERATE_URGENT_EMAIL_SUMMARY, ENCLAVE_RPC_PATH_PROCESS_ASSISTANT_QUERY,
-    ENCLAVE_RPC_PATH_REVOKE_GOOGLE_TOKEN, EnclaveRpcAuthConfig, EnclaveRpcError,
-    EnclaveRpcErrorEnvelope, EnclaveRpcExchangeGoogleTokenRequest,
+    ENCLAVE_RPC_PATH_REVOKE_GOOGLE_TOKEN, EnclaveRpcAuthConfig,
+    EnclaveRpcCompleteGoogleConnectRequest, EnclaveRpcCompleteGoogleConnectResponse,
+    EnclaveRpcError, EnclaveRpcErrorEnvelope, EnclaveRpcExchangeGoogleTokenRequest,
     EnclaveRpcExchangeGoogleTokenResponse, EnclaveRpcFetchAssistantAttestedKeyRequest,
     EnclaveRpcFetchAssistantAttestedKeyResponse, EnclaveRpcFetchGoogleCalendarEventsRequest,
     EnclaveRpcFetchGoogleCalendarEventsResponse, EnclaveRpcFetchGoogleUrgentEmailCandidatesRequest,
@@ -62,6 +64,38 @@ impl EnclaveRpcClient {
         if response.request_id != payload.request_id {
             return Err(EnclaveRpcError::RpcResponseInvalid {
                 message: "enclave rpc response request_id mismatch for exchange".to_string(),
+            });
+        }
+
+        response.try_into()
+    }
+
+    pub async fn complete_google_connect(
+        &self,
+        user_id: uuid::Uuid,
+        code: String,
+        redirect_uri: String,
+    ) -> Result<CompleteGoogleConnectResponse, EnclaveRpcError> {
+        let payload = EnclaveRpcCompleteGoogleConnectRequest {
+            contract_version: ENCLAVE_RPC_CONTRACT_VERSION.to_string(),
+            request_id: uuid::Uuid::new_v4().to_string(),
+            user_id,
+            code,
+            redirect_uri,
+        };
+
+        let response: EnclaveRpcCompleteGoogleConnectResponse = self
+            .send_enclave_rpc(
+                ProviderOperation::OAuthCodeExchange,
+                ENCLAVE_RPC_PATH_COMPLETE_GOOGLE_CONNECT,
+                &payload,
+            )
+            .await?;
+
+        if response.request_id != payload.request_id {
+            return Err(EnclaveRpcError::RpcResponseInvalid {
+                message: "enclave rpc response request_id mismatch for oauth code exchange"
+                    .to_string(),
             });
         }
 

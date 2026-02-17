@@ -1,8 +1,8 @@
 # Phase I STRIDE Threat Model
 
-- Last Updated: 2026-02-16
+- Last Updated: 2026-02-17
 - Reviewed For Issue: `#19`
-- Scope: iOS session auth, OAuth connector lifecycle, TEE decrypt path, worker processing, LLM/OpenRouter orchestration, privacy delete flow
+- Scope: iOS session auth, OAuth connector lifecycle, TEE decrypt path, worker processing, LLM/OpenRouter orchestration, privacy delete flow, content-blind assistant boundaries
 
 Canonical TEE provider/trust contract reference:
 `docs/adr-0001-tee-provider-trust-boundary.md` (SEC-001)
@@ -47,6 +47,10 @@ Canonical TEE provider/trust contract reference:
 4. Security hardening checklist completion is tracked in `docs/security-hardening-checklist.md`.
 5. Host direct decrypt path was removed from API/worker and replaced with enclave RPC operations for token refresh/revoke.
 6. Automated source-guard test verifies sensitive API/worker tracing macros do not log token/secret fields in enclave-sensitive paths.
+7. OAuth authorization-code exchange for Google connect now executes through enclave RPC; host API no longer performs direct token endpoint exchange.
+8. Job payload writes now use encryption-at-write semantics; unnecessary callback trace payload writes were removed.
+9. Redis reliability state no longer persists plaintext LLM response payloads.
+10. Content-blind invariants and CI guardrails are codified in `docs/content-blindness-invariants.md`.
 
 ## 5) Review Outcome
 

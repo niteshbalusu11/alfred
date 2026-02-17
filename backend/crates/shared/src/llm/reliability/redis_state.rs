@@ -1,11 +1,9 @@
 use std::time::Duration;
 
+use crate::llm::LlmGatewayResponse;
 use redis::AsyncCommands;
 use redis::aio::ConnectionManager;
 use sha2::{Digest, Sha256};
-use tracing::warn;
-
-use crate::llm::LlmGatewayResponse;
 
 use super::LlmReliabilityConfig;
 use super::state::RateLimitRejection;
@@ -91,44 +89,19 @@ impl RedisReliabilityState {
     ) -> redis::RedisResult<Option<LlmGatewayResponse>> {
         let cache_key = self.cache_data_key(key);
         let mut connection = self.connection.clone();
-        let raw: Option<String> = connection.get(&cache_key).await?;
-
-        let Some(payload) = raw else {
-            return Ok(None);
-        };
-
-        match serde_json::from_str::<LlmGatewayResponse>(&payload) {
-            Ok(response) => Ok(Some(response)),
-            Err(err) => {
-                warn!(error = %err, "failed to parse cached LLM response from redis");
-                let _: redis::RedisResult<i64> = connection.del(cache_key).await;
-                Ok(None)
-            }
-        }
+        let _: i64 = connection.del(cache_key).await?;
+        Ok(None)
     }
 
     pub(crate) async fn store_cached_response(
         &self,
         key: &str,
-        response: &LlmGatewayResponse,
-        config: &LlmReliabilityConfig,
+        _response: &LlmGatewayResponse,
+        _config: &LlmReliabilityConfig,
     ) -> redis::RedisResult<()> {
-        let serialized = match serde_json::to_string(response) {
-            Ok(serialized) => serialized,
-            Err(err) => {
-                warn!(error = %err, "failed to serialize cached LLM response");
-                return Ok(());
-            }
-        };
-
         let mut connection = self.connection.clone();
-        connection
-            .set_ex::<_, _, ()>(
-                self.cache_data_key(key),
-                serialized,
-                config.cache_ttl_seconds.max(1),
-            )
-            .await
+        let _: i64 = connection.del(self.cache_data_key(key)).await?;
+        Ok(())
     }
 
     pub(crate) async fn circuit_breaker_retry_after(

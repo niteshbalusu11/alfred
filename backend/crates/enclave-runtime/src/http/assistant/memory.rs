@@ -1,10 +1,10 @@
 use chrono::{DateTime, Utc};
 use serde_json::{Value, json};
-use shared::llm::safety::sanitize_untrusted_text;
-use shared::models::AssistantQueryCapability;
-use shared::repos::{
+use shared::assistant_memory::{
     ASSISTANT_SESSION_MEMORY_VERSION_V1, AssistantSessionMemory, AssistantSessionTurn,
 };
+use shared::llm::safety::sanitize_untrusted_text;
+use shared::models::AssistantQueryCapability;
 
 const SESSION_MEMORY_MAX_TURNS: usize = 6;
 const SESSION_MEMORY_QUERY_MAX_CHARS: usize = 180;

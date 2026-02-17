@@ -96,10 +96,6 @@ pub(super) async fn request_observability_middleware(mut req: Request, next: Nex
     response
 }
 
-pub(super) fn request_trace_payload(request_id: &str) -> Vec<u8> {
-    attach_request_trace(Value::Object(Map::new()), request_id)
-}
-
 pub(super) fn attach_request_trace(payload: Value, request_id: &str) -> Vec<u8> {
     let mut root = match payload {
         Value::Object(map) => map,
@@ -133,7 +129,7 @@ fn normalize_request_id(raw: &str) -> Option<String> {
 mod tests {
     use serde_json::Value;
 
-    use super::{attach_request_trace, normalize_request_id, request_trace_payload};
+    use super::{attach_request_trace, normalize_request_id};
 
     #[test]
     fn normalizes_valid_request_ids() {
@@ -151,8 +147,8 @@ mod tests {
     }
 
     #[test]
-    fn trace_payload_includes_request_id() {
-        let raw = request_trace_payload("req-123");
+    fn attaches_request_trace_when_payload_root_is_empty() {
+        let raw = attach_request_trace(Value::Null, "req-123");
         let value: Value = serde_json::from_slice(&raw).expect("valid payload");
         assert_eq!(value["trace"]["request_id"], "req-123");
     }

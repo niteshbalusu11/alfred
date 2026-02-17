@@ -3,8 +3,8 @@ use chacha20poly1305::aead::Aead;
 use chacha20poly1305::{ChaCha20Poly1305, KeyInit, Nonce};
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
+use shared::assistant_memory::AssistantSessionMemory;
 use shared::models::{AssistantQueryCapability, AssistantSessionStateEnvelope};
-use shared::repos::AssistantSessionMemory;
 use uuid::Uuid;
 
 use crate::RuntimeState;
