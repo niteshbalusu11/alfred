@@ -77,7 +77,8 @@ pub fn decrypt_assistant_request(
         .key_for_id(envelope.key_id.as_str())
         .ok_or(AssistantCryptoError::UnknownKeyId)?
         .clone();
-    if key.key_expires_at < chrono::Utc::now().timestamp() {
+    let is_active_key = key.key_id == keyring.active.key_id;
+    if !is_active_key && key.key_expires_at < chrono::Utc::now().timestamp() {
         return Err(AssistantCryptoError::ExpiredKeyId);
     }
 
@@ -335,10 +336,46 @@ mod tests {
     fn decrypt_rejects_expired_key_id() {
         let server_private_key = [9_u8; 32];
         let client_private_key = StaticSecret::from([5_u8; 32]);
+        let mut request_envelope = encrypt_request_for_test(
+            [6_u8; 32],
+            &client_private_key,
+            "req-expired",
+            &AssistantPlaintextQueryRequest {
+                query: "meetings today".to_string(),
+                session_id: None,
+            },
+        );
+        request_envelope.key_id = "assistant-ingress-v0".to_string();
+
+        let keyring = AssistantIngressKeyring {
+            active: AssistantIngressKeyMaterial {
+                key_id: "assistant-ingress-v1".to_string(),
+                private_key: server_private_key,
+                public_key: derive_public_key_b64(server_private_key),
+                key_expires_at: chrono::Utc::now().timestamp() + 3600,
+            },
+            previous: Some(AssistantIngressKeyMaterial {
+                key_id: "assistant-ingress-v0".to_string(),
+                private_key: [6_u8; 32],
+                public_key: derive_public_key_b64([6_u8; 32]),
+                key_expires_at: chrono::Utc::now().timestamp() - 1,
+            }),
+        };
+
+        assert!(matches!(
+            decrypt_assistant_request(&keyring, &request_envelope),
+            Err(super::AssistantCryptoError::ExpiredKeyId)
+        ));
+    }
+
+    #[test]
+    fn decrypt_accepts_active_key_even_when_bootstrap_expiry_has_passed() {
+        let server_private_key = [9_u8; 32];
+        let client_private_key = StaticSecret::from([5_u8; 32]);
         let request_envelope = encrypt_request_for_test(
             server_private_key,
             &client_private_key,
-            "req-expired",
+            "req-active",
             &AssistantPlaintextQueryRequest {
                 query: "meetings today".to_string(),
                 session_id: None,
@@ -355,10 +392,8 @@ mod tests {
             previous: None,
         };
 
-        assert!(matches!(
-            decrypt_assistant_request(&keyring, &request_envelope),
-            Err(super::AssistantCryptoError::ExpiredKeyId)
-        ));
+        let result = decrypt_assistant_request(&keyring, &request_envelope);
+        assert!(result.is_ok(), "active key should remain usable");
     }
 
     fn encrypt_request_for_test(

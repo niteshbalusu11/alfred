@@ -362,7 +362,11 @@ impl EnclaveRpcClient {
             .send()
             .await
             .map_err(|err| EnclaveRpcError::RpcTransportUnavailable {
-                message: err.to_string(),
+                message: format!(
+                    "{err} (is_timeout={}, is_connect={})",
+                    err.is_timeout(),
+                    err.is_connect()
+                ),
             })?;
 
         let status = response.status().as_u16();

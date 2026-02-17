@@ -14,6 +14,7 @@ final class AppModel: ObservableObject {
         case revokeConnector
         case requestDeleteAll
         case loadAuditEvents
+        case queryAssistant
     }
 
     enum RetryAction {
@@ -25,6 +26,7 @@ final class AppModel: ObservableObject {
         case revokeConnector(connectorID: String)
         case requestDeleteAll
         case loadAuditEvents(reset: Bool)
+        case queryAssistant(query: String)
     }
 
     enum StartupRoute: Equatable {
@@ -67,6 +69,7 @@ final class AppModel: ObservableObject {
 
     @Published private(set) var auditEvents: [AuditEvent] = []
     @Published private(set) var nextAuditCursor: String?
+    @Published private(set) var assistantResponseText = ""
 
     let apiBaseURL: URL
 
@@ -74,6 +77,7 @@ final class AppModel: ObservableObject {
     private let apiClient: AlfredAPIClient
     private var authEventsTask: Task<Void, Never>?
     private var lastBootstrappedUserID: String?
+    private var assistantSessionID: UUID?
 
     init(apiBaseURL: URL? = nil, clerk: Clerk? = nil) {
         let clerk = clerk ?? Clerk.shared
@@ -278,6 +282,33 @@ final class AppModel: ObservableObject {
         }
     }
 
+    func queryAssistant(query: String) async {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else {
+            errorBanner = ErrorBanner(
+                message: "Voice transcript is empty. Record something first.",
+                retryAction: nil,
+                sourceAction: nil
+            )
+            return
+        }
+
+        await run(action: .queryAssistant, retryAction: .queryAssistant(query: trimmedQuery)) { [self] in
+            let response = try await apiClient.queryAssistantEncrypted(
+                query: trimmedQuery,
+                sessionId: assistantSessionID,
+                attestationConfig: AppConfiguration.assistantAttestationVerificationConfig
+            )
+            assistantSessionID = response.sessionId
+            assistantResponseText = response.displayText
+        }
+    }
+
+    func clearAssistantConversation() {
+        assistantResponseText = ""
+        assistantSessionID = nil
+    }
+
     private func run(action: Action, retryAction: RetryAction?, operation: () async throws -> Void) async {
         guard !inFlightActions.contains(action) else {
             AppLogger.debug("Skipped duplicate action \(String(describing: action)).", category: .app)
@@ -436,6 +467,8 @@ final class AppModel: ObservableObject {
         deleteAllStatus = ""
         revokeStatus = ""
         preferencesStatus = ""
+        assistantResponseText = ""
+        assistantSessionID = nil
     }
 
     private func clearAuthBootstrapErrorBannerIfNeeded() {

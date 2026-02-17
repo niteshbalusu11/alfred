@@ -50,6 +50,7 @@ fn build_config(mode: EnclaveRuntimeMode) -> RuntimeConfig {
             },
             previous: None,
         },
+        assistant_ingress_key_ttl_seconds: 900,
         assistant_session_ttl_seconds: 3600,
         attestation_source: AttestationSource::Missing,
         attestation_signing_private_key: [7_u8; 32],
@@ -105,7 +106,8 @@ fn challenge_response_is_signed_and_echoes_challenge_fields() {
 
 #[test]
 fn assistant_attested_key_response_is_signed_and_binds_key_fields() {
-    let config = build_config(EnclaveRuntimeMode::DevShim);
+    let mut config = build_config(EnclaveRuntimeMode::DevShim);
+    config.assistant_ingress_keys.active.key_expires_at = chrono::Utc::now().timestamp() - 10;
     let challenge = AssistantAttestedKeyChallengeRequest {
         challenge_nonce: "nonce-key-1".to_string(),
         issued_at: chrono::Utc::now().timestamp() - 2,
@@ -124,6 +126,7 @@ fn assistant_attested_key_response_is_signed_and_binds_key_fields() {
         ASSISTANT_ENCRYPTION_ALGORITHM_X25519_CHACHA20POLY1305
     );
     assert_eq!(response.key_id, "assistant-ingress-v1");
+    assert!(response.key_expires_at > chrono::Utc::now().timestamp());
     assert!(response.signature.is_some());
 }
 

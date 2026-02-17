@@ -29,6 +29,8 @@ extension AppModel {
             await requestDeleteAll()
         case .loadAuditEvents(let reset):
             await loadAuditEvents(reset: reset)
+        case .queryAssistant(let query):
+            await queryAssistant(query: query)
         }
     }
 

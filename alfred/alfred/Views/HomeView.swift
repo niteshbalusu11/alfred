@@ -1,6 +1,9 @@
+import ClerkKit
 import SwiftUI
 
 struct HomeView: View {
+    @ObservedObject var model: AppModel
+
     var body: some View {
         GeometryReader { geometry in
             let horizontalPadding = AppTheme.Layout.screenPadding
@@ -12,7 +15,7 @@ struct HomeView: View {
                 VStack {
                     HStack(spacing: 0) {
                         Spacer(minLength: 0)
-                        HomeVoiceTranscriptionSection()
+                        HomeVoiceTranscriptionSection(model: model)
                             .frame(width: contentWidth)
                         Spacer(minLength: 0)
                     }
@@ -45,5 +48,6 @@ private struct HomeVoiceBackdrop: View {
 }
 
 #Preview {
-    HomeView()
+    let clerk = Clerk.preview()
+    HomeView(model: AppModel(clerk: clerk))
 }

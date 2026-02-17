@@ -28,6 +28,8 @@ just backend-tests
 
 This command runs infra checks, starts Postgres/Redis, applies migrations,
 runs backend tests + mocked evals, then stops infra.
+It uses an isolated `alfred_test` Postgres database by default so test resets
+do not wipe local app-development data in `alfred`.
 
 ## Local Environment File (`.env`)
 
@@ -42,6 +44,7 @@ Security notes:
 1. `.env` is ignored by git and must never contain production secrets.
 2. `.env.example` contains only safe placeholders for local development.
 3. Explicit shell environment variables override `.env` values.
+4. `API_HTTP_TIMEOUT_MS` controls API upstream request timeout (including enclave RPC); default is `60000`.
 
 ## Run Services (Local Quick Start)
 
@@ -133,7 +136,7 @@ These vars control TEE/KMS-bound decrypt policy for connector refresh tokens:
 25. `ASSISTANT_INGRESS_PREVIOUS_KEY_ID` (optional previous key id accepted for decrypt during key rotation grace windows)
 26. `ASSISTANT_INGRESS_PREVIOUS_PRIVATE_KEY` (optional previous base64 X25519 private key paired with previous key id)
 27. `ASSISTANT_INGRESS_PREVIOUS_KEY_EXPIRES_AT` (unix timestamp for previous key expiry; required outside local when previous key is configured)
-28. `ASSISTANT_INGRESS_KEY_TTL_SECONDS` (default: `900`; attested key expiry horizon returned to clients)
+28. `ASSISTANT_INGRESS_KEY_TTL_SECONDS` (default: `900`; rolling attested-key expiry horizon returned to clients for the active ingress key)
 29. `ASSISTANT_INGRESS_SESSION_TTL_SECONDS` (default: `3600`; encrypted assistant session-state persistence TTL)
 
 Non-local (`ALFRED_ENV=staging|production`) security guards:

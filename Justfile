@@ -6,6 +6,8 @@ ios_scheme := "alfred"
 ios_package_dir := "alfred/Packages/AlfredAPIClient"
 backend_dir := "backend"
 default_database_url := "postgres://postgres:postgres@127.0.0.1:5432/alfred"
+test_database_name := "alfred_test"
+test_database_url := "postgres://postgres:postgres@127.0.0.1:5432/alfred_test"
 
 default:
     @just --list
@@ -47,6 +49,7 @@ backend-check:
 infra-up:
     docker compose up -d postgres redis
     @echo "Postgres is starting on 127.0.0.1:5432 (DB: alfred, user: postgres)."
+    @echo "Integration test DB: alfred_test (created automatically by backend-tests/backend-integration-test)."
     @echo "Redis is starting on 127.0.0.1:6379."
     @echo "Export DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/alfred"
     @echo "Export REDIS_URL=redis://127.0.0.1:6379/0"
@@ -76,22 +79,27 @@ backend-tests:
     @set -euo pipefail; \
       just check-infra-tools; \
       just infra-up; \
+      docker compose exec -T postgres psql -U postgres -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='{{ test_database_name }}'" | grep -q 1 || docker compose exec -T postgres psql -U postgres -d postgres -c "CREATE DATABASE {{ test_database_name }}"; \
       attempts=0; \
-      until just backend-migrate; do \
+      until DATABASE_URL="{{ test_database_url }}" just backend-migrate; do \
         attempts=$((attempts + 1)); \
         if [ $attempts -ge 20 ]; then \
-          echo "backend-tests failed: database did not become ready for migrations"; \
+          echo "backend-tests failed: integration test database did not become ready for migrations"; \
           exit 1; \
         fi; \
         sleep 1; \
       done; \
-      just backend-test; \
-      just backend-integration-test; \
-      just backend-eval
+      DATABASE_URL="{{ test_database_url }}" just backend-test; \
+      DATABASE_URL="{{ test_database_url }}" just backend-integration-test; \
+      DATABASE_URL="{{ test_database_url }}" just backend-eval
 
-# Run backend integration tests (uses default DATABASE_URL when unset).
+# Run backend integration tests (uses isolated test DATABASE_URL when unset).
 backend-integration-test:
-    cd {{ backend_dir }} && DATABASE_URL="${DATABASE_URL:-{{ default_database_url }}}" cargo test -p integration-tests
+    @set -euo pipefail; \
+      just check-infra-tools; \
+      just infra-up; \
+      docker compose exec -T postgres psql -U postgres -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='{{ test_database_name }}'" | grep -q 1 || docker compose exec -T postgres psql -U postgres -d postgres -c "CREATE DATABASE {{ test_database_name }}"; \
+      cd {{ backend_dir }} && DATABASE_URL="${DATABASE_URL:-{{ test_database_url }}}" cargo test -p integration-tests
 
 # Run deterministic LLM eval/regression checks with mocked outputs.
 backend-eval:
