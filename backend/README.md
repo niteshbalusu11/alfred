@@ -121,8 +121,9 @@ These vars control TEE/KMS-bound decrypt policy for connector refresh tokens:
 24. `ASSISTANT_INGRESS_ACTIVE_PRIVATE_KEY` (base64 X25519 private key for active assistant ingress decryption key; required outside local)
 25. `ASSISTANT_INGRESS_PREVIOUS_KEY_ID` (optional previous key id accepted for decrypt during key rotation grace windows)
 26. `ASSISTANT_INGRESS_PREVIOUS_PRIVATE_KEY` (optional previous base64 X25519 private key paired with previous key id)
-27. `ASSISTANT_INGRESS_KEY_TTL_SECONDS` (default: `900`; attested key expiry horizon returned to clients)
-28. `ASSISTANT_INGRESS_SESSION_TTL_SECONDS` (default: `3600`; encrypted assistant session-state persistence TTL)
+27. `ASSISTANT_INGRESS_PREVIOUS_KEY_EXPIRES_AT` (unix timestamp for previous key expiry; required outside local when previous key is configured)
+28. `ASSISTANT_INGRESS_KEY_TTL_SECONDS` (default: `900`; attested key expiry horizon returned to clients)
+29. `ASSISTANT_INGRESS_SESSION_TTL_SECONDS` (default: `3600`; encrypted assistant session-state persistence TTL)
 
 Non-local (`ALFRED_ENV=staging|production`) security guards:
 

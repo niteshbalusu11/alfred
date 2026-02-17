@@ -47,6 +47,8 @@ pub enum AssistantCryptoError {
     MissingRequestId,
     #[error("assistant ingress key_id is not recognized")]
     UnknownKeyId,
+    #[error("assistant ingress key_id has expired")]
+    ExpiredKeyId,
     #[error("assistant envelope field is invalid base64: {field}")]
     InvalidBase64Field { field: &'static str },
     #[error("assistant envelope nonce must be exactly 12 bytes")]
@@ -75,6 +77,9 @@ pub fn decrypt_assistant_request(
         .key_for_id(envelope.key_id.as_str())
         .ok_or(AssistantCryptoError::UnknownKeyId)?
         .clone();
+    if key.key_expires_at < chrono::Utc::now().timestamp() {
+        return Err(AssistantCryptoError::ExpiredKeyId);
+    }
 
     let client_public_key_bytes = decode_base64_field(
         envelope.client_ephemeral_public_key.as_str(),
@@ -324,6 +329,36 @@ mod tests {
         };
 
         assert!(decrypt_assistant_request(&keyring, &envelope).is_err());
+    }
+
+    #[test]
+    fn decrypt_rejects_expired_key_id() {
+        let server_private_key = [9_u8; 32];
+        let client_private_key = StaticSecret::from([5_u8; 32]);
+        let request_envelope = encrypt_request_for_test(
+            server_private_key,
+            &client_private_key,
+            "req-expired",
+            &AssistantPlaintextQueryRequest {
+                query: "meetings today".to_string(),
+                session_id: None,
+            },
+        );
+
+        let keyring = AssistantIngressKeyring {
+            active: AssistantIngressKeyMaterial {
+                key_id: "assistant-ingress-v1".to_string(),
+                private_key: server_private_key,
+                public_key: derive_public_key_b64(server_private_key),
+                key_expires_at: chrono::Utc::now().timestamp() - 1,
+            },
+            previous: None,
+        };
+
+        assert!(matches!(
+            decrypt_assistant_request(&keyring, &request_envelope),
+            Err(super::AssistantCryptoError::ExpiredKeyId)
+        ));
     }
 
     fn encrypt_request_for_test(

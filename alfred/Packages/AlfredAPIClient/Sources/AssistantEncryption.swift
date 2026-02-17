@@ -154,6 +154,11 @@ enum AssistantEnvelopeCrypto {
             throw AlfredAPIClientError.assistantEncryptionFailed(reason: "request encryption failed")
         }
 
+        // Wire format carries nonce separately, so ciphertext must be only encrypted bytes + auth tag.
+        var ciphertextWithTag = Data()
+        ciphertextWithTag.append(sealedBox.ciphertext)
+        ciphertextWithTag.append(sealedBox.tag)
+
         return EncryptedAssistantRequestPayload(
             envelope: AssistantEncryptedRequestEnvelope(
                 version: versionV1,
@@ -162,7 +167,7 @@ enum AssistantEnvelopeCrypto {
                 requestId: requestID,
                 clientEphemeralPublicKey: clientEphemeralPrivateKey.publicKey.rawRepresentation.base64EncodedString(),
                 nonce: requestNonce.base64EncodedString(),
-                ciphertext: sealedBox.combined.base64EncodedString()
+                ciphertext: ciphertextWithTag.base64EncodedString()
             ),
             clientEphemeralPrivateKey: clientEphemeralPrivateKey.rawRepresentation
         )
@@ -233,7 +238,16 @@ enum AssistantEnvelopeCrypto {
 
         let sealedBox: ChaChaPoly.SealedBox
         do {
-            sealedBox = try ChaChaPoly.SealedBox(combined: ciphertext)
+            guard ciphertext.count >= 16 else {
+                throw AlfredAPIClientError.assistantDecryptionFailed(reason: "ciphertext is too short")
+            }
+            let encryptedBytes = ciphertext.prefix(ciphertext.count - 16)
+            let tag = ciphertext.suffix(16)
+            sealedBox = try ChaChaPoly.SealedBox(
+                nonce: nonce,
+                ciphertext: Data(encryptedBytes),
+                tag: Data(tag)
+            )
         } catch {
             throw AlfredAPIClientError.assistantDecryptionFailed(reason: "sealed box parse failed")
         }

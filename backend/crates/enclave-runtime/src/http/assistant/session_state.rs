@@ -1,5 +1,5 @@
 use base64::Engine as _;
-use chacha20poly1305::aead::Aead;
+use chacha20poly1305::aead::{Aead, Payload};
 use chacha20poly1305::{ChaCha20Poly1305, KeyInit, Nonce};
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
@@ -23,12 +23,22 @@ pub(super) struct EnclaveAssistantSessionState {
 pub(super) fn decrypt_session_state(
     state: &RuntimeState,
     envelope: &AssistantSessionStateEnvelope,
+    user_id: Uuid,
+    session_id: Uuid,
+    now: DateTime<Utc>,
 ) -> Result<EnclaveAssistantSessionState, String> {
+    if envelope.expires_at <= now {
+        return Err("session state has expired".to_string());
+    }
+
     let key = state
         .config
         .assistant_ingress_keys
         .key_for_id(envelope.key_id.as_str())
         .ok_or_else(|| "session state key is not recognized".to_string())?;
+    if key.key_expires_at < now.timestamp() {
+        return Err("session state key has expired".to_string());
+    }
 
     if envelope.version != SESSION_STATE_VERSION {
         return Err("session state version is unsupported".to_string());
@@ -49,8 +59,15 @@ pub(super) fn decrypt_session_state(
         .map_err(|_| "session state ciphertext is invalid base64".to_string())?;
 
     let cipher = ChaCha20Poly1305::new((&key.private_key).into());
+    let aad = session_state_aad(user_id, session_id, envelope.expires_at);
     let plaintext = cipher
-        .decrypt(Nonce::from_slice(nonce.as_slice()), ciphertext.as_ref())
+        .decrypt(
+            Nonce::from_slice(nonce.as_slice()),
+            Payload {
+                msg: ciphertext.as_ref(),
+                aad: aad.as_bytes(),
+            },
+        )
         .map_err(|_| "session state decrypt failed".to_string())?;
 
     serde_json::from_slice::<EnclaveAssistantSessionState>(&plaintext)
@@ -60,6 +77,8 @@ pub(super) fn decrypt_session_state(
 pub(super) fn encrypt_session_state(
     state: &RuntimeState,
     session_state: &EnclaveAssistantSessionState,
+    user_id: Uuid,
+    session_id: Uuid,
     now: DateTime<Utc>,
 ) -> Result<AssistantSessionStateEnvelope, String> {
     let key = &state.config.assistant_ingress_keys.active;
@@ -69,8 +88,16 @@ pub(super) fn encrypt_session_state(
     let plaintext = serde_json::to_vec(session_state)
         .map_err(|_| "failed to serialize assistant session state".to_string())?;
     let cipher = ChaCha20Poly1305::new((&key.private_key).into());
+    let expires_at = now + Duration::seconds(state.config.assistant_session_ttl_seconds as i64);
+    let aad = session_state_aad(user_id, session_id, expires_at);
     let ciphertext = cipher
-        .encrypt(Nonce::from_slice(nonce_bytes), plaintext.as_ref())
+        .encrypt(
+            Nonce::from_slice(nonce_bytes),
+            Payload {
+                msg: plaintext.as_ref(),
+                aad: aad.as_bytes(),
+            },
+        )
         .map_err(|_| "failed to encrypt assistant session state".to_string())?;
 
     Ok(AssistantSessionStateEnvelope {
@@ -79,6 +106,16 @@ pub(super) fn encrypt_session_state(
         key_id: key.key_id.clone(),
         nonce: base64::engine::general_purpose::STANDARD.encode(nonce_bytes),
         ciphertext: base64::engine::general_purpose::STANDARD.encode(ciphertext),
-        expires_at: now + Duration::seconds(state.config.assistant_session_ttl_seconds as i64),
+        expires_at,
     })
+}
+
+fn session_state_aad(user_id: Uuid, session_id: Uuid, expires_at: DateTime<Utc>) -> String {
+    format!(
+        "{}|{}|{}|{}",
+        SESSION_STATE_VERSION,
+        user_id,
+        session_id,
+        expires_at.timestamp()
+    )
 }

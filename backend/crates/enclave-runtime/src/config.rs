@@ -208,11 +208,32 @@ impl RuntimeConfig {
                     previous_key_encoded.as_str(),
                     "ASSISTANT_INGRESS_PREVIOUS_PRIVATE_KEY",
                 )?;
+                let previous_key_expires_at = match optional_trimmed_env(
+                    "ASSISTANT_INGRESS_PREVIOUS_KEY_EXPIRES_AT",
+                ) {
+                    Some(raw) => raw.parse::<i64>().map_err(|_| {
+                        "ASSISTANT_INGRESS_PREVIOUS_KEY_EXPIRES_AT must be a valid unix timestamp"
+                            .to_string()
+                    })?,
+                    None if matches!(environment, AlfredEnvironment::Local) => assistant_key_expires_at,
+                    None => {
+                        return Err(
+                            "ASSISTANT_INGRESS_PREVIOUS_KEY_EXPIRES_AT is required outside local environment when previous key id is set"
+                                .to_string(),
+                        )
+                    }
+                };
+                if previous_key_expires_at <= Utc::now().timestamp() {
+                    return Err(
+                        "ASSISTANT_INGRESS_PREVIOUS_KEY_EXPIRES_AT must be in the future"
+                            .to_string(),
+                    );
+                }
                 Some(AssistantIngressKeyMaterial {
                     key_id: previous_key_id,
                     private_key: previous_private_key,
                     public_key: derive_public_key_b64(previous_private_key),
-                    key_expires_at: assistant_key_expires_at,
+                    key_expires_at: previous_key_expires_at,
                 })
             }
             None => None,
