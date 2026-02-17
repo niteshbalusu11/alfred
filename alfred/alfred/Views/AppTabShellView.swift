@@ -10,19 +10,25 @@ struct AppTabShellView: View {
     var body: some View {
         TabView(selection: $model.selectedTab) {
             ForEach(AppTab.allCases, id: \.self) { tab in
-                NavigationStack(path: binding(for: tab)) {
-                    tabContent(for: tab)
-                        .navigationTitle(tab.title)
-                        .toolbarBackground(AppTheme.Colors.background, for: .navigationBar)
-                        .toolbarBackground(.visible, for: .navigationBar)
-                        .toolbar {
-                            ToolbarItem(placement: .topBarTrailing) {
-                                if clerk.user != nil {
-                                    UserButton()
-                                        .frame(width: 36, height: 36)
+                Group {
+                    if tab == .home {
+                        tabContent(for: tab)
+                    } else {
+                        NavigationStack(path: binding(for: tab)) {
+                            tabContent(for: tab)
+                                .navigationTitle(tab.title)
+                                .toolbarBackground(AppTheme.Colors.background, for: .navigationBar)
+                                .toolbarBackground(.visible, for: .navigationBar)
+                                .toolbar {
+                                    ToolbarItem(placement: .topBarTrailing) {
+                                        if clerk.user != nil {
+                                            UserButton()
+                                                .frame(width: 36, height: 36)
+                                        }
+                                    }
                                 }
-                            }
                         }
+                    }
                 }
                 .tabItem {
                     Label(tab.title, systemImage: tab.systemImage)
@@ -47,7 +53,7 @@ struct AppTabShellView: View {
     private func tabContent(for tab: AppTab) -> some View {
         switch tab {
         case .home:
-            HomeView(model: model)
+            HomeView()
         case .activity:
             ActivityView(model: model)
         case .connectors:
