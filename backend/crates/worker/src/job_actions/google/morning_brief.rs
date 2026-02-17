@@ -84,10 +84,12 @@ fn map_enclave_orchestration_error(err: shared::enclave::EnclaveRpcError) -> Job
             "refresh token was unavailable for active connector",
         ),
         EnclaveRpcError::ProviderRequestUnavailable { operation, .. } => match operation {
-            ProviderOperation::TokenRefresh => JobExecutionError::transient(
-                "GOOGLE_TOKEN_REFRESH_UNAVAILABLE",
-                "google token refresh request failed",
-            ),
+            ProviderOperation::TokenRefresh | ProviderOperation::OAuthCodeExchange => {
+                JobExecutionError::transient(
+                    "GOOGLE_TOKEN_REFRESH_UNAVAILABLE",
+                    "google token refresh request failed",
+                )
+            }
             ProviderOperation::CalendarFetch | ProviderOperation::GmailFetch => {
                 JobExecutionError::transient(
                     "GOOGLE_PROVIDER_UNAVAILABLE",
@@ -108,7 +110,7 @@ fn map_enclave_orchestration_error(err: shared::enclave::EnclaveRpcError) -> Job
         } => {
             let message = format!("provider request failed with HTTP {status}");
             match operation {
-                ProviderOperation::TokenRefresh => {
+                ProviderOperation::TokenRefresh | ProviderOperation::OAuthCodeExchange => {
                     JobExecutionError::transient("GOOGLE_TOKEN_REFRESH_FAILED", message)
                 }
                 ProviderOperation::CalendarFetch | ProviderOperation::GmailFetch => {
@@ -124,10 +126,12 @@ fn map_enclave_orchestration_error(err: shared::enclave::EnclaveRpcError) -> Job
             }
         }
         EnclaveRpcError::ProviderResponseInvalid { operation, .. } => match operation {
-            ProviderOperation::TokenRefresh => JobExecutionError::transient(
-                "GOOGLE_TOKEN_REFRESH_PARSE_FAILED",
-                "google token refresh response was invalid",
-            ),
+            ProviderOperation::TokenRefresh | ProviderOperation::OAuthCodeExchange => {
+                JobExecutionError::transient(
+                    "GOOGLE_TOKEN_REFRESH_PARSE_FAILED",
+                    "google token refresh response was invalid",
+                )
+            }
             ProviderOperation::CalendarFetch | ProviderOperation::GmailFetch => {
                 JobExecutionError::transient(
                     "GOOGLE_PROVIDER_PARSE_FAILED",

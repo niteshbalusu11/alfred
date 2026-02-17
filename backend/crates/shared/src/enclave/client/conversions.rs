@@ -26,6 +26,32 @@ impl TryFrom<EnclaveRpcExchangeGoogleTokenResponse> for ExchangeGoogleTokenRespo
     }
 }
 
+impl TryFrom<EnclaveRpcCompleteGoogleConnectResponse> for CompleteGoogleConnectResponse {
+    type Error = EnclaveRpcError;
+
+    fn try_from(value: EnclaveRpcCompleteGoogleConnectResponse) -> Result<Self, Self::Error> {
+        if value.contract_version != ENCLAVE_RPC_CONTRACT_VERSION {
+            return Err(EnclaveRpcError::RpcResponseInvalid {
+                message: format!(
+                    "enclave rpc contract mismatch: expected={}, got={}",
+                    ENCLAVE_RPC_CONTRACT_VERSION, value.contract_version
+                ),
+            });
+        }
+
+        if value.request_id.trim().is_empty() {
+            return Err(EnclaveRpcError::RpcResponseInvalid {
+                message: "missing request_id in oauth code exchange response".to_string(),
+            });
+        }
+
+        Ok(Self {
+            connector_id: value.connector_id,
+            granted_scopes: value.granted_scopes,
+        })
+    }
+}
+
 impl TryFrom<EnclaveRpcRevokeGoogleTokenResponse> for RevokeGoogleTokenResponse {
     type Error = EnclaveRpcError;
 

@@ -99,10 +99,8 @@ async fn main() {
         store,
         oauth: http::OAuthConfig {
             client_id: config.google_client_id,
-            client_secret: config.google_client_secret,
             redirect_uri: config.google_redirect_uri,
             auth_url: config.google_auth_url,
-            token_url: config.google_token_url,
             scopes: vec![
                 "https://www.googleapis.com/auth/gmail.readonly".to_string(),
                 "https://www.googleapis.com/auth/calendar.readonly".to_string(),

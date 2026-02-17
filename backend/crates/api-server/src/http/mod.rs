@@ -28,10 +28,8 @@ pub use rate_limit::RateLimiter;
 #[derive(Clone)]
 pub struct OAuthConfig {
     pub client_id: String,
-    pub client_secret: String,
     pub redirect_uri: String,
     pub auth_url: String,
-    pub token_url: String,
     pub scopes: Vec<String>,
 }
 

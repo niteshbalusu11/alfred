@@ -65,10 +65,12 @@ fn map_enclave_fetch_error(
             "refresh token was unavailable for active connector",
         ),
         EnclaveRpcError::ProviderRequestUnavailable { operation, .. } => match operation {
-            ProviderOperation::TokenRefresh => JobExecutionError::transient(
-                "GOOGLE_TOKEN_REFRESH_UNAVAILABLE",
-                "google token refresh request failed",
-            ),
+            ProviderOperation::TokenRefresh | ProviderOperation::OAuthCodeExchange => {
+                JobExecutionError::transient(
+                    "GOOGLE_TOKEN_REFRESH_UNAVAILABLE",
+                    "google token refresh request failed",
+                )
+            }
             ProviderOperation::CalendarFetch | ProviderOperation::GmailFetch => {
                 JobExecutionError::transient(provider_unavailable_code, "provider request failed")
             }
@@ -89,7 +91,7 @@ fn map_enclave_fetch_error(
             let message = format!("provider request failed with HTTP {}", status.as_u16());
 
             match operation {
-                ProviderOperation::TokenRefresh => {
+                ProviderOperation::TokenRefresh | ProviderOperation::OAuthCodeExchange => {
                     classified_http_error(status, "GOOGLE_TOKEN_REFRESH_FAILED", message)
                 }
                 ProviderOperation::CalendarFetch
@@ -104,10 +106,12 @@ fn map_enclave_fetch_error(
             }
         }
         EnclaveRpcError::ProviderResponseInvalid { operation, .. } => match operation {
-            ProviderOperation::TokenRefresh => JobExecutionError::transient(
-                "GOOGLE_TOKEN_REFRESH_PARSE_FAILED",
-                "google token refresh response was invalid",
-            ),
+            ProviderOperation::TokenRefresh | ProviderOperation::OAuthCodeExchange => {
+                JobExecutionError::transient(
+                    "GOOGLE_TOKEN_REFRESH_PARSE_FAILED",
+                    "google token refresh response was invalid",
+                )
+            }
             ProviderOperation::CalendarFetch
             | ProviderOperation::GmailFetch
             | ProviderOperation::TokenRevoke

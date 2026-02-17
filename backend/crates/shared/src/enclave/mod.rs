@@ -14,13 +14,15 @@ use uuid::Uuid;
 
 pub use client::EnclaveRpcClient;
 pub use contract::{
-    AttestedIdentityPayload, ENCLAVE_RPC_CONTRACT_VERSION, ENCLAVE_RPC_PATH_EXCHANGE_GOOGLE_TOKEN,
+    AttestedIdentityPayload, ENCLAVE_RPC_CONTRACT_VERSION,
+    ENCLAVE_RPC_PATH_COMPLETE_GOOGLE_CONNECT, ENCLAVE_RPC_PATH_EXCHANGE_GOOGLE_TOKEN,
     ENCLAVE_RPC_PATH_FETCH_ASSISTANT_ATTESTED_KEY, ENCLAVE_RPC_PATH_FETCH_GOOGLE_CALENDAR_EVENTS,
     ENCLAVE_RPC_PATH_FETCH_GOOGLE_URGENT_EMAIL_CANDIDATES, ENCLAVE_RPC_PATH_GENERATE_MORNING_BRIEF,
     ENCLAVE_RPC_PATH_GENERATE_URGENT_EMAIL_SUMMARY, ENCLAVE_RPC_PATH_PROCESS_ASSISTANT_QUERY,
     ENCLAVE_RPC_PATH_REVOKE_GOOGLE_TOKEN, EnclaveGeneratedNotificationPayload,
     EnclaveGoogleCalendarAttendee, EnclaveGoogleCalendarEvent, EnclaveGoogleCalendarEventDateTime,
-    EnclaveGoogleEmailCandidate, EnclaveRpcErrorEnvelope, EnclaveRpcErrorPayload,
+    EnclaveGoogleEmailCandidate, EnclaveRpcCompleteGoogleConnectRequest,
+    EnclaveRpcCompleteGoogleConnectResponse, EnclaveRpcErrorEnvelope, EnclaveRpcErrorPayload,
     EnclaveRpcExchangeGoogleTokenRequest, EnclaveRpcExchangeGoogleTokenResponse,
     EnclaveRpcFetchAssistantAttestedKeyRequest, EnclaveRpcFetchAssistantAttestedKeyResponse,
     EnclaveRpcFetchGoogleCalendarEventsRequest, EnclaveRpcFetchGoogleCalendarEventsResponse,
@@ -56,6 +58,12 @@ pub struct ConnectorSecretRequest {
 pub struct ExchangeGoogleTokenResponse {
     pub access_token: String,
     pub attested_identity: AttestedIdentityPayload,
+}
+
+#[derive(Debug, Clone)]
+pub struct CompleteGoogleConnectResponse {
+    pub connector_id: Uuid,
+    pub granted_scopes: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -123,6 +131,7 @@ pub struct GenerateUrgentEmailSummaryResponse {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProviderOperation {
     TokenRefresh,
+    OAuthCodeExchange,
     TokenRevoke,
     CalendarFetch,
     GmailFetch,
@@ -136,6 +145,7 @@ impl fmt::Display for ProviderOperation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::TokenRefresh => write!(f, "token_refresh"),
+            Self::OAuthCodeExchange => write!(f, "oauth_code_exchange"),
             Self::TokenRevoke => write!(f, "token_revoke"),
             Self::CalendarFetch => write!(f, "calendar_fetch"),
             Self::GmailFetch => write!(f, "gmail_fetch"),
