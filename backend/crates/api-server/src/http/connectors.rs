@@ -1,8 +1,10 @@
 mod callback;
 mod helpers;
+mod list;
 mod revoke;
 mod start;
 
 pub(super) use callback::complete_google_connect;
+pub(super) use list::list_connectors;
 pub(super) use revoke::revoke_connector;
 pub(super) use start::start_google_connect;

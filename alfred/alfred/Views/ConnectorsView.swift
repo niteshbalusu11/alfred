@@ -96,6 +96,7 @@ struct ConnectorsView: View {
                     }
                 }
                 .toggleStyle(.switch)
+                .tint(Color(uiColor: .systemGreen))
                 .disabled(shouldDisableToggle)
 
                 Text(helperText)

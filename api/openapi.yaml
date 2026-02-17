@@ -115,6 +115,22 @@ paths:
           $ref: "#/components/responses/TooManyRequests"
         "502":
           $ref: "#/components/responses/BadGateway"
+  /v1/connectors:
+    get:
+      tags: [Connectors]
+      summary: List connector states for the current user
+      operationId: listConnectors
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Connector states
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListConnectorsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /v1/connectors/google/start:
     post:
       tags: [Connectors]
@@ -568,6 +584,26 @@ components:
         status:
           type: string
           enum: [REVOKED]
+    ConnectorSummary:
+      type: object
+      required: [connector_id, provider, status]
+      properties:
+        connector_id:
+          type: string
+        provider:
+          type: string
+          enum: [google]
+        status:
+          type: string
+          enum: [ACTIVE, REVOKED]
+    ListConnectorsResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConnectorSummary"
     Preferences:
       type: object
       required:

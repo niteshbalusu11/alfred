@@ -8,6 +8,7 @@ final class AppModel: ObservableObject {
     enum Action: Hashable {
         case startGoogleOAuth
         case completeGoogleOAuth
+        case loadConnectors
         case loadPreferences
         case savePreferences
         case revokeConnector
@@ -18,6 +19,7 @@ final class AppModel: ObservableObject {
     enum RetryAction {
         case startGoogleOAuth(redirectURI: String)
         case completeGoogleOAuth(code: String?, state: String, error: String?, errorDescription: String?)
+        case loadConnectors
         case loadPreferences
         case savePreferences(Preferences)
         case revokeConnector(connectorID: String)
@@ -178,6 +180,33 @@ final class AppModel: ObservableObject {
             timeZone = prefs.timeZone
             highRiskRequiresConfirm = prefs.highRiskRequiresConfirm
             preferencesStatus = "Preferences synced."
+        }
+    }
+
+    func loadConnectors() async {
+        await run(action: .loadConnectors, retryAction: .loadConnectors) { [self] in
+            let response = try await apiClient.listConnectors()
+            applyConnectorSnapshot(response)
+        }
+    }
+
+    func applyConnectorSnapshot(_ response: ListConnectorsResponse) {
+        let googleConnector = response.items.first { $0.provider == "google" }
+        resetGoogleOAuthState()
+
+        guard let googleConnector else {
+            connectorID = ""
+            revokeStatus = ""
+            return
+        }
+
+        switch googleConnector.status {
+        case .active:
+            connectorID = googleConnector.connectorId
+            revokeStatus = "Connector status: \(googleConnector.status.rawValue)."
+        case .revoked:
+            connectorID = ""
+            revokeStatus = "Connector status: \(googleConnector.status.rawValue)."
         }
     }
 
@@ -349,6 +378,7 @@ final class AppModel: ObservableObject {
 
         if shouldLoadData || !wasAuthenticated {
             clearAuthBootstrapErrorBannerIfNeeded()
+            await loadConnectors()
             await loadPreferences()
             await loadAuditEvents(reset: true)
 
@@ -369,6 +399,7 @@ final class AppModel: ObservableObject {
     private func resetAuthenticationState() {
         isAuthenticated = false
         startupRoute = .signedOut
+        connectorID = ""
         auditEvents = []
         nextAuditCursor = nil
     }
@@ -389,13 +420,13 @@ final class AppModel: ObservableObject {
 
     private func clearAuthBootstrapErrorBannerIfNeeded() {
         guard let sourceAction = errorBanner?.sourceAction else { return }
-        if sourceAction == .loadPreferences || sourceAction == .loadAuditEvents {
+        if sourceAction == .loadConnectors || sourceAction == .loadPreferences || sourceAction == .loadAuditEvents {
             errorBanner = nil
         }
     }
 
     private var hasAuthBootstrapFailure: Bool {
         guard let sourceAction = errorBanner?.sourceAction else { return false }
-        return sourceAction == .loadPreferences || sourceAction == .loadAuditEvents
+        return sourceAction == .loadConnectors || sourceAction == .loadPreferences || sourceAction == .loadAuditEvents
     }
 }

@@ -16,6 +16,8 @@ extension AppModel {
             googleCallbackError = error ?? ""
             googleErrorDescription = errorDescription ?? ""
             await completeGoogleOAuth()
+        case .loadConnectors:
+            await loadConnectors()
         case .loadPreferences:
             await loadPreferences()
         case .savePreferences(let payload):

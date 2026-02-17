@@ -196,6 +196,45 @@ async fn user_cannot_read_or_mutate_other_users_privacy_or_connector_resources()
         .await
         .expect("connector insert should succeed");
 
+    let list_user_b_connectors = send_json(
+        &app,
+        request(Method::GET, "/v1/connectors", Some(&user_b_auth), None),
+    )
+    .await;
+    assert_eq!(list_user_b_connectors.status, StatusCode::OK);
+    let user_b_items = list_user_b_connectors
+        .body
+        .get("items")
+        .and_then(Value::as_array)
+        .expect("list connectors response should include items");
+    assert!(user_b_items.is_empty());
+
+    let list_user_a_connectors = send_json(
+        &app,
+        request(Method::GET, "/v1/connectors", Some(&user_a_auth), None),
+    )
+    .await;
+    assert_eq!(list_user_a_connectors.status, StatusCode::OK);
+    let expected_connector_id = connector_id.to_string();
+    let user_a_items = list_user_a_connectors
+        .body
+        .get("items")
+        .and_then(Value::as_array)
+        .expect("list connectors response should include items");
+    assert_eq!(user_a_items.len(), 1);
+    assert_eq!(
+        user_a_items[0].get("connector_id").and_then(Value::as_str),
+        Some(expected_connector_id.as_str())
+    );
+    assert_eq!(
+        user_a_items[0].get("provider").and_then(Value::as_str),
+        Some("google")
+    );
+    assert_eq!(
+        user_a_items[0].get("status").and_then(Value::as_str),
+        Some("ACTIVE")
+    );
+
     let revoke_other_user_connector = send_json(
         &app,
         request(
@@ -208,11 +247,36 @@ async fn user_cannot_read_or_mutate_other_users_privacy_or_connector_resources()
     .await;
     assert_eq!(revoke_other_user_connector.status, StatusCode::NOT_FOUND);
 
+    let revoked = store
+        .revoke_connector(user_a_id, connector_id)
+        .await
+        .expect("connector revoke should succeed");
+    assert!(revoked);
+
+    let list_user_a_connectors_after_revoke = send_json(
+        &app,
+        request(Method::GET, "/v1/connectors", Some(&user_a_auth), None),
+    )
+    .await;
+    assert_eq!(list_user_a_connectors_after_revoke.status, StatusCode::OK);
+    let user_a_items_after_revoke = list_user_a_connectors_after_revoke
+        .body
+        .get("items")
+        .and_then(Value::as_array)
+        .expect("list connectors response should include items");
+    assert_eq!(user_a_items_after_revoke.len(), 1);
+    assert_eq!(
+        user_a_items_after_revoke[0]
+            .get("status")
+            .and_then(Value::as_str),
+        Some("REVOKED")
+    );
+
     let connector_row = store
         .get_active_connector_key_metadata(user_a_id, connector_id)
         .await
         .expect("connector metadata lookup should succeed");
-    assert!(connector_row.is_some());
+    assert!(connector_row.is_none());
 }
 
 #[tokio::test]

@@ -74,7 +74,6 @@ backend-test:
 # Run full backend test workflow with local infra and migrations.
 backend-tests:
     @set -euo pipefail; \
-      trap 'just infra-stop >/dev/null 2>&1 || true' EXIT; \
       just check-infra-tools; \
       just infra-up; \
       attempts=0; \
