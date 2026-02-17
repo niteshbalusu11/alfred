@@ -172,39 +172,10 @@ struct HomeVoiceTranscriptionSection: View {
     }
 
     private var assistantResponseView: some View {
-        VStack(spacing: 8) {
-            Text("Assistant Reply")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(AppTheme.Colors.textSecondary)
-
-            Group {
-                if model.isLoading(.queryAssistant) {
-                    ProgressView()
-                        .progressViewStyle(.circular)
-                        .tint(AppTheme.Colors.textPrimary)
-                } else if model.assistantResponseText.isEmpty {
-                    Text("Tap Ask Alfred to send the transcript to the server.")
-                        .foregroundStyle(AppTheme.Colors.textSecondary)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                } else {
-                    Text(model.assistantResponseText)
-                        .foregroundStyle(AppTheme.Colors.textPrimary)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                }
-            }
-            .font(.footnote.weight(.semibold))
-            .frame(maxWidth: .infinity, minHeight: 62, alignment: .center)
-            .padding(.horizontal, 12)
-            .background(AppTheme.Colors.surfaceElevated.opacity(0.65))
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(AppTheme.Colors.outline.opacity(0.6), lineWidth: 1)
-            )
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 10)
+        AssistantConversationView(
+            messages: model.assistantConversation,
+            isLoading: model.isLoading(.queryAssistant)
+        )
     }
 }
 

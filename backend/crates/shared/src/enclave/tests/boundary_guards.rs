@@ -98,13 +98,15 @@ fn assistant_query_contracts_do_not_reintroduce_plaintext_query_fields() {
         "shared AssistantQueryRequest must not include plaintext query field"
     );
 
-    let swift_models_path =
-        shared_root.join("../../../alfred/Packages/AlfredAPIClient/Sources/Models.swift");
-    let swift_models = fs::read_to_string(&swift_models_path)
-        .expect("failed to read Swift models for plaintext guard");
-    let swift_block =
-        extract_swift_struct_block(&swift_models, "public struct AssistantQueryRequest")
-            .expect("AssistantQueryRequest struct must exist in Swift models");
+    let swift_models_paths = [
+        shared_root.join("../../../alfred/Packages/AlfredAPIClient/Sources/AssistantModels.swift"),
+        shared_root.join("../../../alfred/Packages/AlfredAPIClient/Sources/Models.swift"),
+    ];
+    let swift_block = extract_swift_struct_block_from_files(
+        &swift_models_paths,
+        "public struct AssistantQueryRequest",
+    )
+    .expect("AssistantQueryRequest struct must exist in Swift models");
     assert!(
         !swift_block.contains("query: String"),
         "Swift AssistantQueryRequest must not include plaintext query field"
@@ -251,6 +253,18 @@ fn extract_swift_struct_block<'a>(content: &'a str, marker: &str) -> Option<&'a 
     let remaining = &content[start..];
     let end = remaining.find("\n}\n\n").unwrap_or(remaining.len());
     Some(&remaining[..end])
+}
+
+fn extract_swift_struct_block_from_files(paths: &[PathBuf], marker: &str) -> Option<String> {
+    for path in paths {
+        let Ok(content) = fs::read_to_string(path) else {
+            continue;
+        };
+        if let Some(block) = extract_swift_struct_block(&content, marker) {
+            return Some(block.to_string());
+        }
+    }
+    None
 }
 
 fn collect_rust_files_recursive(path: &Path, files: &mut BTreeSet<PathBuf>) {
