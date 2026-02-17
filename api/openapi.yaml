@@ -446,8 +446,15 @@ components:
           type: string
     AssistantQueryCapability:
       type: string
-      enum: [meetings_today]
-    AssistantMeetingsTodayPayload:
+      enum:
+        [
+          meetings_today,
+          calendar_lookup,
+          email_lookup,
+          general_chat,
+          mixed
+        ]
+    AssistantStructuredPayload:
       type: object
       required: [title, summary, key_points, follow_ups]
       properties:

@@ -9,6 +9,7 @@ use crate::RuntimeState;
 mod mapping;
 mod memory;
 mod notifications;
+mod orchestrator;
 mod proactive;
 mod query;
 mod session_state;

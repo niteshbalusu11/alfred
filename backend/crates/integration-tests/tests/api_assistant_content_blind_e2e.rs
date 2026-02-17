@@ -215,9 +215,9 @@ async fn start_assistant_mock_enclave(
 
                             let response_payload = AssistantPlaintextQueryResponse {
                                 session_id: Uuid::new_v4(),
-                                capability: AssistantQueryCapability::MeetingsToday,
+                                capability: AssistantQueryCapability::GeneralChat,
                                 display_text: "Encrypted response from enclave".to_string(),
-                                payload: shared::models::AssistantMeetingsTodayPayload {
+                                payload: shared::models::AssistantStructuredPayload {
                                     title: "Encrypted".to_string(),
                                     summary: "Host cannot read plaintext".to_string(),
                                     key_points: vec!["Enclave-only decrypt path".to_string()],

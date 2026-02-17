@@ -239,8 +239,8 @@ mod tests {
         derive_public_key_b64, encrypt_assistant_response,
     };
     use crate::models::{
-        AssistantEncryptedRequestEnvelope, AssistantMeetingsTodayPayload,
-        AssistantPlaintextQueryRequest, AssistantPlaintextQueryResponse, AssistantQueryCapability,
+        AssistantEncryptedRequestEnvelope, AssistantPlaintextQueryRequest,
+        AssistantPlaintextQueryResponse, AssistantQueryCapability, AssistantStructuredPayload,
     };
 
     #[test]
@@ -278,7 +278,7 @@ mod tests {
             session_id: uuid::Uuid::new_v4(),
             capability: AssistantQueryCapability::MeetingsToday,
             display_text: "encrypted ingress accepted".to_string(),
-            payload: AssistantMeetingsTodayPayload {
+            payload: AssistantStructuredPayload {
                 title: "Encrypted ingress active".to_string(),
                 summary: "encrypted ingress accepted".to_string(),
                 key_points: vec!["phase 1 route live".to_string()],
