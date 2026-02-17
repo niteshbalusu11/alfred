@@ -69,23 +69,57 @@ pub(super) async fn process_assistant_query(
         .into_response();
     }
 
+    if let (Some(request_session_id), Some(plaintext_session_id)) =
+        (request.session_id, plaintext.session_id)
+        && request_session_id != plaintext_session_id
+    {
+        return rpc::reject(
+            StatusCode::BAD_REQUEST,
+            shared::enclave::EnclaveRpcErrorEnvelope::new(
+                Some(request.request_id),
+                "invalid_request_payload",
+                "session_id mismatch between envelope metadata and plaintext payload",
+                false,
+            ),
+        )
+        .into_response();
+    }
+
     let now = Utc::now();
     let prior_state = match request.prior_session_state.as_ref() {
-        Some(prior_state) => match decrypt_session_state(&state, prior_state) {
-            Ok(prior) => Some(prior),
-            Err(err) => {
-                return rpc::reject(
-                    StatusCode::BAD_REQUEST,
-                    shared::enclave::EnclaveRpcErrorEnvelope::new(
-                        Some(request.request_id),
-                        "invalid_request_payload",
-                        err,
-                        false,
-                    ),
-                )
-                .into_response();
+        Some(prior_state) => {
+            let session_id = match request.session_id {
+                Some(value) => value,
+                None => {
+                    return rpc::reject(
+                        StatusCode::BAD_REQUEST,
+                        shared::enclave::EnclaveRpcErrorEnvelope::new(
+                            Some(request.request_id),
+                            "invalid_request_payload",
+                            "prior_session_state requires session_id",
+                            false,
+                        ),
+                    )
+                    .into_response();
+                }
+            };
+
+            match decrypt_session_state(&state, prior_state, request.user_id, session_id, now) {
+                Ok(prior) => Some(prior),
+                Err(err) => {
+                    return rpc::reject(
+                        StatusCode::BAD_REQUEST,
+                        shared::enclave::EnclaveRpcErrorEnvelope::new(
+                            Some(request.request_id),
+                            "invalid_request_payload",
+                            err,
+                            false,
+                        ),
+                    )
+                    .into_response();
+                }
             }
-        },
+        }
         None => None,
     };
 
@@ -281,6 +315,8 @@ pub(super) async fn process_assistant_query(
             last_capability: capability,
             memory: updated_memory,
         },
+        request.user_id,
+        session_id,
         now,
     ) {
         Ok(session_state) => session_state,
