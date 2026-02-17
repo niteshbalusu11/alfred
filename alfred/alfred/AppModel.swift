@@ -69,6 +69,7 @@ final class AppModel: ObservableObject {
 
     @Published private(set) var auditEvents: [AuditEvent] = []
     @Published private(set) var nextAuditCursor: String?
+    @Published private(set) var assistantConversation: [AssistantConversationMessage] = []
     @Published private(set) var assistantResponseText = ""
 
     let apiBaseURL: URL
@@ -300,11 +301,18 @@ final class AppModel: ObservableObject {
                 attestationConfig: AppConfiguration.assistantAttestationVerificationConfig
             )
             assistantSessionID = response.sessionId
-            assistantResponseText = response.displayText
+            assistantConversation.append(
+                AssistantConversationMapper.userMessage(from: trimmedQuery)
+            )
+
+            let assistantMessage = AssistantConversationMapper.assistantMessage(from: response)
+            assistantConversation.append(assistantMessage)
+            assistantResponseText = assistantMessage.text
         }
     }
 
     func clearAssistantConversation() {
+        assistantConversation = []
         assistantResponseText = ""
         assistantSessionID = nil
     }
@@ -467,6 +475,7 @@ final class AppModel: ObservableObject {
         deleteAllStatus = ""
         revokeStatus = ""
         preferencesStatus = ""
+        assistantConversation = []
         assistantResponseText = ""
         assistantSessionID = nil
     }
