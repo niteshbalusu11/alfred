@@ -1,3 +1,9 @@
+#![allow(dead_code)]
+
+pub mod api_app;
+pub mod clerk;
+pub mod enclave_mock;
+
 use std::path::PathBuf;
 
 use shared::repos::Store;
@@ -6,8 +12,9 @@ use tokio::sync::OnceCell;
 
 static MIGRATIONS_APPLIED: OnceCell<()> = OnceCell::const_new();
 
-const DEFAULT_DATABASE_URL: &str = "postgres://postgres:postgres@127.0.0.1:5432/alfred";
-const DEFAULT_DATA_ENCRYPTION_KEY: &str = "integration-tests-data-key";
+pub const DEFAULT_DATABASE_URL: &str = "postgres://postgres:postgres@127.0.0.1:5432/alfred";
+pub const DEFAULT_DATA_ENCRYPTION_KEY: &str = "integration-tests-data-key";
+pub const DEFAULT_REDIS_URL: &str = "redis://127.0.0.1:6379/0";
 
 pub async fn test_store() -> Store {
     let database_url = test_database_url();
@@ -41,6 +48,10 @@ pub async fn reset_database(pool: &PgPool) {
 
 fn test_database_url() -> String {
     std::env::var("DATABASE_URL").unwrap_or_else(|_| DEFAULT_DATABASE_URL.to_string())
+}
+
+pub fn test_redis_url() -> String {
+    std::env::var("REDIS_URL").unwrap_or_else(|_| DEFAULT_REDIS_URL.to_string())
 }
 
 async fn apply_migrations_once(database_url: &str) {

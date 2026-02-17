@@ -84,7 +84,7 @@ For backend code changes, task is done only when all pass:
 
 1. `just backend-fmt`
 2. `just backend-clippy`
-3. `just backend-test`
+3. `just backend-tests`
 4. `just backend-build`
 
 Notes:

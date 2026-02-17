@@ -1265,11 +1265,22 @@ dependencies = [
 name = "integration-tests"
 version = "0.1.0"
 dependencies = [
+ "api-server",
+ "axum",
+ "base64",
  "chrono",
+ "jsonwebtoken",
+ "rand 0.8.5",
+ "reqwest",
+ "rsa",
+ "serde",
+ "serde_json",
  "serial_test",
+ "sha2",
  "shared",
  "sqlx",
  "tokio",
+ "tower",
  "uuid",
 ]
 

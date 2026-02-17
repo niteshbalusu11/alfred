@@ -40,8 +40,18 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
     env:
       DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/alfred_ci
+      REDIS_URL: redis://127.0.0.1:6379/0
       SQLX_CLI_ROOT: ${{ github.workspace }}/.cargo-sqlx-cli
       SQLX_CLI_VERSION: 0.8.6
     defaults:

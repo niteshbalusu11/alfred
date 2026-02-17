@@ -221,7 +221,7 @@ Primary commands:
 14. `just backend-tests`
    1. One-shot local backend test workflow (infra checks + infra up + migrate + tests + mocked eval + infra stop).
 15. `just backend-test`
-   1. Runs Rust tests.
+   1. Runs backend unit/module tests (excludes `integration-tests` crate).
 16. `just backend-integration-test`
    1. Runs integration test crate (`integration-tests`) with default local `DATABASE_URL` fallback.
 17. `just backend-eval`
@@ -269,7 +269,7 @@ Required completion checks:
 
 1. `just backend-fmt`
 2. `just backend-clippy`
-3. `just backend-test`
+3. `just backend-tests`
 4. `just backend-build`
 
 Important:

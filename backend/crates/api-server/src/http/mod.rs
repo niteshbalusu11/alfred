@@ -22,7 +22,7 @@ mod preferences;
 mod privacy;
 mod rate_limit;
 mod tokens;
-pub(crate) use clerk_jwks_cache::{ClerkJwksCache, ClerkJwksCacheConfig};
+pub use clerk_jwks_cache::{ClerkJwksCache, ClerkJwksCacheConfig};
 pub use rate_limit::RateLimiter;
 
 #[derive(Clone)]

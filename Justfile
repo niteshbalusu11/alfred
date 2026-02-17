@@ -69,17 +69,25 @@ backend-build:
 
 # Run Rust backend tests.
 backend-test:
-    cd {{ backend_dir }} && cargo test
+    cd {{ backend_dir }} && cargo test --workspace --exclude integration-tests
 
 # Run full backend test workflow with local infra and migrations.
 backend-tests:
     @set -euo pipefail; \
       trap 'just infra-stop >/dev/null 2>&1 || true' EXIT; \
-      just check-tools; \
       just check-infra-tools; \
       just infra-up; \
-      just backend-migrate; \
+      attempts=0; \
+      until just backend-migrate; do \
+        attempts=$((attempts + 1)); \
+        if [ $attempts -ge 20 ]; then \
+          echo "backend-tests failed: database did not become ready for migrations"; \
+          exit 1; \
+        fi; \
+        sleep 1; \
+      done; \
       just backend-test; \
+      just backend-integration-test; \
       just backend-eval
 
 # Run backend integration tests (uses default DATABASE_URL when unset).
@@ -126,14 +134,15 @@ backend-clippy:
 backend-verify:
     cd {{ backend_dir }} && cargo fmt --all
     cd {{ backend_dir }} && cargo clippy --workspace --all-targets -- -D warnings
-    cd {{ backend_dir }} && cargo test
+    just backend-tests
     cd {{ backend_dir }} && cargo build --workspace
 
 # CI backend gate (non-mutating).
 backend-ci:
     cd {{ backend_dir }} && cargo fmt --all --check
     cd {{ backend_dir }} && cargo clippy --workspace --all-targets -- -D warnings
-    cd {{ backend_dir }} && cargo test
+    cd {{ backend_dir }} && cargo test --workspace --exclude integration-tests
+    cd {{ backend_dir }} && cargo test -p integration-tests
     cd {{ backend_dir }} && cargo build --workspace
 
 # Security-focused dependency audit for backend.
@@ -143,7 +152,7 @@ backend-security-audit:
 
 # Bug-focused checks for backend code quality.
 backend-bug-check:
-    cd {{ backend_dir }} && cargo test
+    cd {{ backend_dir }} && cargo test --workspace --exclude integration-tests
     @if rg -n "todo!\\(|unimplemented!\\(|dbg!\\(|panic!\\(" {{ backend_dir }}/crates; then \
       echo "Bug check failed: remove debug or placeholder macros (todo!/unimplemented!/dbg!/panic!)."; \
       exit 1; \
