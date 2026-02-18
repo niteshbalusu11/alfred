@@ -1,5 +1,7 @@
 # Alfred
 
+> Batman's loyal butler.
+
 Alfred is a privacy-first AI assistant for iOS with a hosted Rust backend.
 
 The product goal is proactive help over Google data (calendar + email) with strong privacy boundaries, not a generic chat app.
