@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 pub mod api_app;
+pub mod assistant_encrypted;
 pub mod clerk;
 pub mod enclave_mock;
 

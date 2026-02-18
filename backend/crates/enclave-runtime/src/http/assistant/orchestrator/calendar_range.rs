@@ -204,4 +204,22 @@ mod tests {
         assert_eq!(today.time_min.to_rfc3339(), "2026-02-16T08:00:00+00:00");
         assert_eq!(today.time_max.to_rfc3339(), "2026-02-17T08:00:00+00:00");
     }
+
+    #[test]
+    fn plan_calendar_window_treats_afternoon_and_tonight_as_today() {
+        let now = utc("2026-02-17T10:15:00Z");
+
+        let afternoon =
+            plan_calendar_query_window("what is on my agenda this afternoon?", now, "UTC")
+                .expect("afternoon window should resolve");
+        assert_eq!(afternoon.label, "today");
+        assert_eq!(afternoon.time_min.to_rfc3339(), "2026-02-17T00:00:00+00:00");
+        assert_eq!(afternoon.time_max.to_rfc3339(), "2026-02-18T00:00:00+00:00");
+
+        let tonight = plan_calendar_query_window("do I have events tonight?", now, "UTC")
+            .expect("tonight window should resolve");
+        assert_eq!(tonight.label, "today");
+        assert_eq!(tonight.time_min.to_rfc3339(), "2026-02-17T00:00:00+00:00");
+        assert_eq!(tonight.time_max.to_rfc3339(), "2026-02-18T00:00:00+00:00");
+    }
 }

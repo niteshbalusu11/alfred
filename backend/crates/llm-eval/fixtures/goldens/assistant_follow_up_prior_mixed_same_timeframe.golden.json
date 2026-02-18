@@ -1,0 +1,13 @@
+{
+  "case_id": "assistant_follow_up_prior_mixed_same_timeframe",
+  "description": "Follow-up same-timeframe phrasing reuses prior mixed capability.",
+  "detected_capability": null,
+  "prior_capability": "mixed",
+  "query": "same timeframe please",
+  "resolved_capability": "mixed",
+  "response_part_types": [
+    "chat_text",
+    "tool_summary",
+    "tool_summary"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "case_id": "assistant_calendar_agenda_tonight",
+  "description": "English temporal paraphrase using agenda tonight routes to meetings-today lane.",
+  "query": "What is on my agenda tonight?",
+  "expectations": {
+    "detected_capability": "meetings_today",
+    "resolved_capability": "meetings_today",
+    "expected_response_part_types": ["chat_text", "tool_summary"]
+  }
+}

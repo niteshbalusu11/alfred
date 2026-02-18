@@ -123,6 +123,10 @@ mod tests {
             Some(AssistantQueryCapability::MeetingsToday)
         );
         assert_eq!(
+            detect_query_capability("What is on my agenda tonight?"),
+            Some(AssistantQueryCapability::MeetingsToday)
+        );
+        assert_eq!(
             detect_query_capability("Do I have any appointments tomorrow?"),
             Some(AssistantQueryCapability::CalendarLookup)
         );
@@ -162,6 +166,14 @@ mod tests {
                 Some(AssistantQueryCapability::CalendarLookup),
             ),
             Some(AssistantQueryCapability::CalendarLookup)
+        );
+        assert_eq!(
+            resolve_query_capability(
+                "same timeframe please",
+                None,
+                Some(AssistantQueryCapability::Mixed),
+            ),
+            Some(AssistantQueryCapability::Mixed)
         );
     }
 

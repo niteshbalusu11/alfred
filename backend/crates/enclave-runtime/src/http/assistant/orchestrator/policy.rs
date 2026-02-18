@@ -234,4 +234,15 @@ mod tests {
             PlannedRoute::Execute(AssistantQueryCapability::EmailLookup)
         ));
     }
+
+    #[test]
+    fn deterministic_fallback_does_not_force_non_english_clarification() {
+        let mut resolution = resolution(AssistantQueryCapability::CalendarLookup, 0.2, false, true);
+        resolution.plan.language = Some("es".to_string());
+        let planned = resolve_route_policy(&resolution);
+        assert!(matches!(
+            planned,
+            PlannedRoute::Execute(AssistantQueryCapability::CalendarLookup)
+        ));
+    }
 }
