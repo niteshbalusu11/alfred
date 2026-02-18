@@ -66,6 +66,25 @@ fn host_paths_do_not_construct_plaintext_llm_context_for_migrated_flows() {
 }
 
 #[test]
+fn enclave_orchestrator_primary_route_does_not_use_keyword_router() {
+    let shared_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let path = shared_root.join("../enclave-runtime/src/http/assistant/orchestrator/mod.rs");
+    let content = fs::read_to_string(&path)
+        .expect("failed to read enclave assistant orchestrator source for routing guard");
+
+    assert!(
+        !content.contains("detect_query_capability("),
+        "{} must not use keyword detector in primary orchestrator route selection",
+        path.display()
+    );
+    assert!(
+        !content.contains("resolve_query_capability("),
+        "{} must not use keyword resolver in primary orchestrator route selection",
+        path.display()
+    );
+}
+
+#[test]
 fn sensitive_error_mapping_does_not_embed_upstream_messages() {
     for file in sensitive_error_message_guard_files() {
         let content = fs::read_to_string(&file)
