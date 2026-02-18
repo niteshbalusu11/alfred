@@ -45,7 +45,7 @@ struct HomeVoiceTranscriptionSection: View {
     }
 
     var body: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: 14) {
             HStack {
                 AppStatusBadge(title: statusBadge.title, style: statusBadge.style)
             }
@@ -63,14 +63,14 @@ struct HomeVoiceTranscriptionSection: View {
                 .foregroundStyle(AppTheme.Colors.textSecondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.horizontal, 24)
+                .padding(.horizontal, 10)
                 .fixedSize(horizontal: false, vertical: true)
 
-            transcriptView
             assistantResponseView
+                .frame(maxHeight: .infinity)
             controlButtons
         }
-        .frame(maxWidth: .infinity, alignment: .center)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onDisappear {
             transcriptionController.stopRecording()
             responseSpeaker.stop()
@@ -92,27 +92,6 @@ struct HomeVoiceTranscriptionSection: View {
         }
         .frame(maxWidth: .infinity)
         .clipped()
-    }
-
-    private var transcriptView: some View {
-        Group {
-            if transcriptionController.transcript.isEmpty {
-                Text("Transcript appears here while you speak.")
-                    .foregroundStyle(AppTheme.Colors.textSecondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-            } else {
-                ScrollView(.vertical, showsIndicators: false) {
-                    Text(transcriptionController.transcript)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                }
-            }
-        }
-        .font(.subheadline.weight(.semibold))
-        .multilineTextAlignment(.center)
-        .frame(maxWidth: .infinity, minHeight: 96, maxHeight: 170, alignment: .top)
-        .padding(.horizontal, 12)
-        .shadow(color: AppTheme.Colors.shadow.opacity(0.35), radius: 0, x: 0, y: 2)
     }
 
     private var controlButtons: some View {
@@ -168,12 +147,14 @@ struct HomeVoiceTranscriptionSection: View {
                 .foregroundStyle(AppTheme.Colors.textSecondary)
                 .frame(maxWidth: .infinity, alignment: .center)
         }
-        .padding(.top, 90)
+        .padding(.top, 6)
+        .padding(.bottom, 8)
     }
 
     private var assistantResponseView: some View {
         AssistantConversationView(
             messages: model.assistantConversation,
+            draftMessage: transcriptionController.transcript,
             isLoading: model.isLoading(.queryAssistant)
         )
     }
