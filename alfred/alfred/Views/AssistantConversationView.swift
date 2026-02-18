@@ -207,6 +207,27 @@ private struct AssistantToolSummaryCard: View {
                     }
                 }
             }
+
+            if !summary.followUps.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Next")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(AppTheme.Colors.textSecondary)
+
+                    ForEach(Array(summary.followUps.prefix(2).enumerated()), id: \.offset) { _, followUp in
+                        HStack(alignment: .top, spacing: 6) {
+                            Text("->")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(AppTheme.Colors.textSecondary)
+
+                            Text(followUp)
+                                .font(.caption2)
+                                .foregroundStyle(AppTheme.Colors.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)

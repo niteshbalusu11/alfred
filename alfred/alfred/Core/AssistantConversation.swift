@@ -79,7 +79,9 @@ enum AssistantConversationMapper {
             )
         }
 
-        if toolSummaries.isEmpty && response.capability != .generalChat {
+        if toolSummaries.isEmpty
+            && shouldSurfaceLegacyPayloadAsToolSummary(response: response)
+        {
             toolSummaries = [
                 AssistantToolSummary(
                     id: UUID(),
@@ -93,5 +95,15 @@ enum AssistantConversationMapper {
         }
 
         return toolSummaries
+    }
+
+    private static func shouldSurfaceLegacyPayloadAsToolSummary(
+        response: AssistantPlaintextQueryResponse
+    ) -> Bool {
+        if response.capability != .generalChat {
+            return true
+        }
+
+        return !response.payload.keyPoints.isEmpty || !response.payload.followUps.isEmpty
     }
 }

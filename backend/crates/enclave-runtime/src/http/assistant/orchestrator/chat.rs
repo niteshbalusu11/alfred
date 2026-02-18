@@ -2,9 +2,9 @@ use serde_json::{Value, json};
 use shared::assistant_planner::{detect_query_capability, resolve_query_capability};
 use shared::llm::safety::sanitize_untrusted_text;
 use shared::llm::{
-    AssistantCapability, AssistantOutputContract, LlmExecutionSource, LlmGatewayRequest,
-    SafeOutputSource, generate_with_telemetry, resolve_safe_output, sanitize_context_payload,
-    template_for_capability,
+    AssistantCapability, AssistantOutputContract, LlmExecutionSource, LlmGateway,
+    LlmGatewayRequest, SafeOutputSource, generate_with_telemetry, resolve_safe_output,
+    sanitize_context_payload, template_for_capability,
 };
 use shared::models::{AssistantQueryCapability, AssistantResponsePart, AssistantStructuredPayload};
 use tracing::warn;
@@ -30,6 +30,27 @@ pub(super) async fn execute_general_chat(
     query: &str,
     prior_state: Option<&EnclaveAssistantSessionState>,
 ) -> AssistantOrchestratorResult {
+    let payload =
+        resolve_general_chat_payload(state.llm_gateway.as_ref(), user_id, query, prior_state).await;
+    let summary = non_empty(payload.summary.as_str())
+        .unwrap_or("I am here and listening.")
+        .to_string();
+
+    AssistantOrchestratorResult {
+        capability: AssistantQueryCapability::GeneralChat,
+        display_text: summary.clone(),
+        payload: payload.clone(),
+        response_parts: general_chat_response_parts(&summary, &payload),
+        attested_identity: local_attested_identity(state),
+    }
+}
+
+async fn resolve_general_chat_payload(
+    llm_gateway: &(dyn LlmGateway + Send + Sync),
+    user_id: Uuid,
+    query: &str,
+    prior_state: Option<&EnclaveAssistantSessionState>,
+) -> AssistantStructuredPayload {
     let mut context_payload = json!({
         "query_context": query_context_snippet(query),
     });
@@ -56,7 +77,7 @@ pub(super) async fn execute_general_chat(
     llm_request.context_prompt = CHAT_CONTEXT_PROMPT.to_string();
 
     let (llm_result, telemetry) = generate_with_telemetry(
-        state.llm_gateway.as_ref(),
+        llm_gateway,
         LlmExecutionSource::ApiAssistantQuery,
         llm_request,
     )
@@ -81,7 +102,7 @@ pub(super) async fn execute_general_chat(
         &context_payload,
     );
 
-    let payload = if resolved.source == SafeOutputSource::DeterministicFallback {
+    if resolved.source == SafeOutputSource::DeterministicFallback {
         fallback_general_chat_payload(query, prior_state)
     } else if let AssistantOutputContract::MeetingsSummary(contract) = resolved.contract {
         AssistantStructuredPayload {
@@ -96,18 +117,21 @@ pub(super) async fn execute_general_chat(
         }
     } else {
         fallback_general_chat_payload(query, prior_state)
-    };
-    let summary = non_empty(payload.summary.as_str())
-        .unwrap_or("I am here and listening.")
-        .to_string();
-
-    AssistantOrchestratorResult {
-        capability: AssistantQueryCapability::GeneralChat,
-        display_text: summary.clone(),
-        payload,
-        response_parts: vec![AssistantResponsePart::chat_text(summary)],
-        attested_identity: local_attested_identity(state),
     }
+}
+
+fn general_chat_response_parts(
+    summary: &str,
+    payload: &AssistantStructuredPayload,
+) -> Vec<AssistantResponsePart> {
+    let mut response_parts = vec![AssistantResponsePart::chat_text(summary.to_string())];
+    if !payload.key_points.is_empty() || !payload.follow_ups.is_empty() {
+        response_parts.push(AssistantResponsePart::tool_summary(
+            AssistantQueryCapability::GeneralChat,
+            payload.clone(),
+        ));
+    }
+    response_parts
 }
 
 pub(super) fn execute_clarification(
@@ -223,12 +247,20 @@ fn capability_label(capability: &AssistantQueryCapability) -> &'static str {
 #[cfg(test)]
 mod tests {
     use chrono::Utc;
+    use serde_json::json;
     use shared::assistant_memory::{
         ASSISTANT_SESSION_MEMORY_VERSION_V1, AssistantSessionMemory, AssistantSessionTurn,
     };
-    use shared::models::AssistantQueryCapability;
+    use shared::llm::{LlmGateway, LlmGatewayError, LlmGatewayRequest, LlmGatewayResponse};
+    use shared::models::{
+        AssistantQueryCapability, AssistantResponsePartType, AssistantStructuredPayload,
+    };
+    use uuid::Uuid;
 
-    use super::{clarification_text, fallback_general_chat_summary};
+    use super::{
+        clarification_text, fallback_general_chat_summary, general_chat_response_parts,
+        resolve_general_chat_payload,
+    };
     use crate::http::assistant::session_state::EnclaveAssistantSessionState;
 
     #[test]
@@ -276,5 +308,114 @@ mod tests {
     fn clarification_text_falls_back_when_prompt_is_empty() {
         let text = clarification_text("   ");
         assert!(text.contains("calendar details"));
+    }
+
+    #[tokio::test]
+    async fn resolve_general_chat_payload_uses_llm_contract_output() {
+        let gateway = MockLlmGateway::success(json!({
+            "version": "2026-02-15",
+            "output": {
+                "title": "Alaska in July",
+                "summary": "Great idea. Here is a practical starting plan.",
+                "key_points": [
+                    "Week 1: Anchorage + Denali",
+                    "Book lodging and rental car early"
+                ],
+                "follow_ups": [
+                    "Ask me for a 7-day itinerary with budget tiers."
+                ]
+            }
+        }));
+
+        let payload =
+            resolve_general_chat_payload(&gateway, Uuid::new_v4(), "plan Alaska in July", None)
+                .await;
+        assert_eq!(payload.title, "Alaska in July");
+        assert_eq!(
+            payload.summary,
+            "Great idea. Here is a practical starting plan."
+        );
+        assert_eq!(payload.key_points.len(), 2);
+        assert_eq!(payload.follow_ups.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn resolve_general_chat_payload_falls_back_when_provider_fails() {
+        let gateway = MockLlmGateway::failure("upstream unavailable");
+        let payload = resolve_general_chat_payload(
+            &gateway,
+            Uuid::new_v4(),
+            "how are you doing alfred",
+            None,
+        )
+        .await;
+
+        assert!(payload.summary.contains("doing well"));
+    }
+
+    #[test]
+    fn general_chat_response_parts_include_tool_summary_when_payload_has_details() {
+        let payload = AssistantStructuredPayload {
+            title: "Trip draft".to_string(),
+            summary: "Here is your draft.".to_string(),
+            key_points: vec!["Day 1: Anchorage".to_string()],
+            follow_ups: vec!["Ask for hotel options".to_string()],
+        };
+        let parts = general_chat_response_parts("Here is your draft.", &payload);
+        assert_eq!(parts.len(), 2);
+        assert_eq!(parts[0].part_type, AssistantResponsePartType::ChatText);
+        assert_eq!(parts[1].part_type, AssistantResponsePartType::ToolSummary);
+    }
+
+    #[test]
+    fn general_chat_response_parts_stays_chat_only_without_details() {
+        let payload = AssistantStructuredPayload {
+            title: "General conversation".to_string(),
+            summary: "I am here.".to_string(),
+            key_points: vec![],
+            follow_ups: vec![],
+        };
+        let parts = general_chat_response_parts("I am here.", &payload);
+        assert_eq!(parts.len(), 1);
+        assert_eq!(parts[0].part_type, AssistantResponsePartType::ChatText);
+    }
+
+    #[derive(Clone)]
+    struct MockLlmGateway {
+        response: Result<serde_json::Value, String>,
+    }
+
+    impl MockLlmGateway {
+        fn success(output: serde_json::Value) -> Self {
+            Self {
+                response: Ok(output),
+            }
+        }
+
+        fn failure(message: &str) -> Self {
+            Self {
+                response: Err(message.to_string()),
+            }
+        }
+    }
+
+    impl LlmGateway for MockLlmGateway {
+        fn generate<'a>(
+            &'a self,
+            _request: LlmGatewayRequest,
+        ) -> shared::llm::gateway::LlmGatewayFuture<'a> {
+            let response = self.response.clone();
+            Box::pin(async move {
+                match response {
+                    Ok(output) => Ok(LlmGatewayResponse {
+                        model: "mock-model".to_string(),
+                        provider_request_id: None,
+                        output,
+                        usage: None,
+                    }),
+                    Err(message) => Err(LlmGatewayError::ProviderFailure(message)),
+                }
+            })
+        }
     }
 }

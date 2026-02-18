@@ -148,6 +148,34 @@ final class AssistantConversationMapperTests: XCTestCase {
         XCTAssertTrue(assistantMessage.toolSummaries.isEmpty)
     }
 
+    func testLegacyGeneralChatWithPlanKeyPointsProducesToolSummaryCard() throws {
+        let response = try decodeAssistantResponse(
+            """
+            {
+              "session_id": "f8ab3b06-3fcc-42da-828b-6adfba598d2c",
+              "capability": "general_chat",
+              "display_text": "July is a great time. Here is a starting plan.",
+              "payload": {
+                "title": "Alaska in July",
+                "summary": "July is a great time. Here is a starting plan.",
+                "key_points": [
+                  "Day 1-2: Anchorage",
+                  "Day 3-4: Denali"
+                ],
+                "follow_ups": [
+                  "Ask for a 10-day itinerary."
+                ]
+              }
+            }
+            """
+        )
+
+        let assistantMessage = AssistantConversationMapper.assistantMessage(from: response)
+        XCTAssertEqual(assistantMessage.toolSummaries.count, 1)
+        XCTAssertEqual(assistantMessage.toolSummaries.first?.capability, .generalChat)
+        XCTAssertEqual(assistantMessage.toolSummaries.first?.keyPoints.count, 2)
+    }
+
     private func decodeAssistantResponse(_ json: String) throws -> AssistantPlaintextQueryResponse {
         let data = try XCTUnwrap(json.data(using: .utf8))
         return try JSONDecoder().decode(AssistantPlaintextQueryResponse.self, from: data)
