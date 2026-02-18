@@ -1,0 +1,10 @@
+{
+  "case_id": "assistant_email_mailbox_messages",
+  "description": "English inbox paraphrase using mailbox/messages routes to email lane.",
+  "query": "Any messages from finance in my mailbox this week?",
+  "expectations": {
+    "detected_capability": "email_lookup",
+    "resolved_capability": "email_lookup",
+    "expected_response_part_types": ["chat_text", "tool_summary"]
+  }
+}

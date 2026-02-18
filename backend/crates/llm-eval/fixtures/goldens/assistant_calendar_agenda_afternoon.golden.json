@@ -1,0 +1,12 @@
+{
+  "case_id": "assistant_calendar_agenda_afternoon",
+  "description": "English temporal paraphrase using agenda routes to calendar today lane.",
+  "detected_capability": "meetings_today",
+  "prior_capability": null,
+  "query": "What is on my agenda this afternoon?",
+  "resolved_capability": "meetings_today",
+  "response_part_types": [
+    "chat_text",
+    "tool_summary"
+  ]
+}
