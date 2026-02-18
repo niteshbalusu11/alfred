@@ -1,0 +1,10 @@
+{
+  "case_id": "assistant_calendar_appointments_tomorrow",
+  "description": "Calendar appointment phrasing with tomorrow stays in calendar lookup lane.",
+  "query": "Do I have any appointments tomorrow?",
+  "expectations": {
+    "detected_capability": "calendar_lookup",
+    "resolved_capability": "calendar_lookup",
+    "expected_response_part_types": ["chat_text", "tool_summary"]
+  }
+}

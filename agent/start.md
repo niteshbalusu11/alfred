@@ -79,34 +79,33 @@ The project intentionally avoids smart-home control in v1 to reduce reliability 
 4. Remove or hard-disable custom `/v1/auth/ios/session*` flow as part of Clerk completion (`#56`).
 5. Breaking auth changes are acceptable during this migration.
 
-## LLM Backend Source Of Truth (2026-02-15)
+## LLM Backend Source Of Truth (2026-02-18)
 
 1. Backend assistant direction is LLM-first with OpenRouter provider routing.
 2. Execution queue for this migration is GitHub issues `#91` through `#103`.
 3. Use label `ai-backend` for all related backend issues.
-4. Rule-based assistant decision logic is legacy and tracked for removal in `#91`.
-5. Keep privacy and reliability infrastructure intact during migration:
+4. Legacy rule-based assistant decision logic was removed (`#91`) and must not be reintroduced.
+5. Semantic planner routing migration (`#180`) is implemented and is now the required decision path.
+6. Current planner policy is English-first with deterministic clarification for unsupported language cases.
+7. Keep privacy and reliability infrastructure intact:
    1. OAuth/connector lifecycle
    2. enclave/attestation token path
    3. worker lease/retry/idempotency engine
    4. push pipeline
    5. audit/privacy controls
 
-## Content Blindness Source Of Truth (2026-02-16)
+## Content Blindness Source Of Truth (2026-02-18)
 
-1. Privacy-boundary tracker for server-blind message content is GitHub issue `#146`.
-2. Execution phases are:
+1. Privacy-boundary tracker for server-blind message content is GitHub issue `#146` and is implemented through `#149`.
+2. Execution phases:
    1. `#147` design and protocol boundary definition
    2. `#148` encrypted message transport and enclave-only plaintext handling
    3. `#149` validation, hardening, and privacy verification gates
-3. Current privacy posture:
-   1. Enclave path already protects connector fetch/decrypt workflows.
-   2. Assistant message content must be migrated to enclave-only plaintext handling.
-4. Target boundary for this migration:
+3. Current boundary:
    1. Metadata can remain visible to server control plane.
    2. User/assistant message body content must remain ciphertext outside the enclave.
-5. Breaking API/protocol changes are acceptable pre-launch; no legacy compatibility requirements for this track.
-6. Required labels for this workstream: `phase-1`, `P0`, `backend`, `content-blindness`.
+4. Breaking API/protocol changes remain acceptable pre-launch when preserving this boundary.
+5. Required labels for this workstream: `phase-1`, `P0`, `backend`, `content-blindness`.
 
 ## GitHub Issue-Driven Execution
 
@@ -360,19 +359,19 @@ Avoid monolithic files. New work should keep files focused and easy to review.
    1. explicitly list newly extracted modules
    2. include follow-up issue references for any deferred decomposition
 
-## Current Known State (LLM Migration Stage)
+## Current Known State (Post Semantic Planner Migration)
 
 1. API server and worker are live with OAuth, preferences, privacy, audit, and push job surfaces.
-2. Existing assistant behavior is currently rule-based baseline and is being migrated to LLM-first paths.
-3. LLM backend migration backlog is tracked in issues `#91` through `#103`.
-4. iOS app is integrated with core backend endpoints but assistant query UX is pending backend API completion.
+2. Assistant routing is planner-driven in enclave with schema-constrained output and deterministic fallback (`#180`).
+3. Content-blind message flow is active: host remains envelope-only and plaintext is enclave-only (`#146`..`#149`).
+4. iOS assistant query UX is integrated and currently focused on polish, response rendering, and regression hardening.
 
 ## Immediate Next Engineering Targets
 
-1. Land shared LLM gateway contracts and OpenRouter adapter (`#92`, `#93`).
-2. Ship `/v1/assistant/query` backend path with safety guardrails (`#95`, `#96`).
-3. Migrate worker morning brief and urgent-email paths to LLM orchestration (`#97`, `#98`).
-4. Add AI observability/reliability/eval gates and remove legacy rule paths (`#99`..`#102`, `#91`).
+1. Keep expanding deterministic eval/test coverage for planner routing and follow-up continuity.
+2. Continue assistant UX hardening for long-form/general-chat rendering in iOS.
+3. Preserve and enforce privacy boundary invariants in every backend change.
+4. Execute next highest-priority unblocked `phase-1` issue.
 
 ## Agent Guardrails
 

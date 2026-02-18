@@ -1,6 +1,6 @@
 # Alfred Product Context (Canonical)
 
-- Last Updated: 2026-02-15
+- Last Updated: 2026-02-18
 - Audience: Engineers, coding agents, product collaborators
 - Purpose: Provide shared context on what Alfred is, why it exists, and how to build it safely.
 
@@ -99,6 +99,7 @@ Required controls:
 7. No silent broadening of data access.
 8. LLM prompt-injection safeguards and output schema validation before user-visible actions.
 9. Redacted LLM telemetry (model/latency/usage) without raw sensitive payload logging.
+10. Assistant intent resolution must remain enclave semantic-planner driven (no keyword-only routing in primary path).
 
 Operating rule:
 

@@ -164,6 +164,11 @@ mod tests {
         assert_eq!(weekly_plan.sender_filter, None);
         assert_eq!(weekly_plan.lookback_days, 7);
         assert_eq!(weekly_plan.window_label, "this week");
+
+        let recent_plan = plan_email_query("show messages from payroll in the last 7 days");
+        assert_eq!(recent_plan.sender_filter.as_deref(), Some("payroll"));
+        assert_eq!(recent_plan.lookback_days, 7);
+        assert_eq!(recent_plan.window_label, "the past 7 days");
     }
 
     #[test]

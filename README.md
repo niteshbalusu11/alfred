@@ -19,18 +19,20 @@ Alfred is designed around a simple product thesis:
 
 This repository contains the iOS app, backend services, API contract, and security/privacy design docs needed to ship that product.
 
-## Implementation Status (As Of 2026-02-16)
+## Implementation Status (As Of 2026-02-18)
 
 Implemented now:
 
 1. Clerk-authenticated API surface for connectors, preferences, audit events, and privacy delete-all.
 2. LLM-first backend paths for:
-   1. `/v1/assistant/attested-key` + encrypted `/v1/assistant/query` (meetings-today capability)
+   1. `/v1/assistant/attested-key` + encrypted `/v1/assistant/query` (calendar, email, mixed, and general-chat lanes)
    2. Worker morning brief generation
    3. Worker urgent-email prioritization
-3. OpenRouter model routing/fallback plus reliability guardrails (rate limits, circuit breaker, cache, budget controls).
-4. Worker lease/retry/idempotency engine with dead-letter handling.
-5. Encrypted-at-rest storage for connector tokens and APNs device tokens.
+3. Enclave semantic planner routing for assistant queries (calendar/email/mixed/general-chat) replacing keyword-only routing (`#180`).
+4. OpenRouter model routing/fallback plus reliability guardrails (rate limits, circuit breaker, cache, budget controls).
+5. Worker lease/retry/idempotency engine with dead-letter handling.
+6. Encrypted-at-rest storage for connector tokens and APNs device tokens.
+7. Content-blind assistant message flow with envelope-only host contracts and enclave-only plaintext processing (`#146`..`#149`).
 
 Still in progress:
 

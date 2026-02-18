@@ -20,7 +20,13 @@ Use this file when an agent starts with minimal context.
 
 1. Backend assistant direction is LLM-first with OpenRouter provider routing.
 2. Migration execution queue is GitHub issues `#91` through `#103` (`ai-backend` label).
-3. Legacy rule-based assistant logic is deprecated and tracked for removal in issue `#91`.
+3. Legacy rule-based assistant logic was removed (`#91`) and must not be reintroduced.
+
+## Assistant Routing Direction (Current)
+
+1. Semantic planner migration is tracked in `#180` and implemented.
+2. Planner-driven routing (schema-constrained) is the required primary path.
+3. Current policy is English-first; non-English routes to safe clarification until expanded.
 
 ## Execution Rule
 

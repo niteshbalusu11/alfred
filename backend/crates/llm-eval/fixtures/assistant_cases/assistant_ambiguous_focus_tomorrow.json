@@ -1,0 +1,10 @@
+{
+  "case_id": "assistant_ambiguous_focus_tomorrow",
+  "description": "Ambiguous tomorrow phrasing without calendar/email intent stays in general chat lane.",
+  "query": "What should I focus on tomorrow?",
+  "expectations": {
+    "detected_capability": null,
+    "resolved_capability": "general_chat",
+    "expected_response_part_types": ["chat_text"]
+  }
+}

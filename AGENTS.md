@@ -23,7 +23,7 @@ This file is intentionally at repository root so coding agents can auto-discover
 
 1. Backend assistant direction is LLM-first with OpenRouter provider routing (GitHub issues `#91` through `#103`).
 2. New AI backend work must use label `ai-backend` and align to the execution tracker issue `#103`.
-3. Existing rule-based assistant logic is deprecated and tracked for removal in issue `#91`.
+3. Legacy rule-based assistant logic was removed (`#91`) and must not be reintroduced.
 4. Do not remove core infrastructure required by LLM workflows:
    1. OAuth/connector lifecycle
    2. enclave/attestation token path
@@ -31,10 +31,17 @@ This file is intentionally at repository root so coding agents can auto-discover
    4. push pipeline
    5. privacy + audit controls
 
+## Assistant Routing Direction (Important)
+
+1. Semantic planner migration tracker is GitHub issue `#180` and is implemented.
+2. Assistant routing must remain planner-driven (schema-constrained), not keyword-driven.
+3. Current policy scope is English-first routing; non-English queries must clarify safely unless explicitly expanded.
+4. Preserve deterministic fallback and clarification behavior when planner confidence/contract validation fails.
+
 ## Content Blindness Migration (Important)
 
-1. Privacy-boundary tracker for server-blind message content is GitHub issue `#146`.
-2. Delivery phases are `#147`, `#148`, and `#149` in dependency order.
+1. Privacy-boundary tracker for server-blind message content is GitHub issue `#146` (implemented through `#149`).
+2. Delivery phases `#147`, `#148`, and `#149` are complete; keep invariants enforced in new work.
 3. Use labels `phase-1`, `P0`, `backend`, and `content-blindness` for this migration line.
 4. Target privacy boundary:
    1. Metadata visibility on server is acceptable.

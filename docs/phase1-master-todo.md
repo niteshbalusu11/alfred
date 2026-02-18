@@ -52,6 +52,17 @@ Ship a private beta where iOS users can:
 3. Rule-based urgent-email logic has been removed from production worker paths (`#91`).
 4. Execution queue for this migration is GitHub issues `#91` through `#103` (`ai-backend` label).
 
+## Assistant Semantic Planner Update (2026-02-18)
+
+1. Keyword-driven assistant routing replacement is complete via tracker issue `#180`.
+2. Planner routing is now schema-constrained and enclave-resident with deterministic fallback/clarification.
+3. Phase sequence completed:
+   1. Phase A: planner contract and normalization plumbing
+   2. Phase B: executor integration and clarification path
+   3. Phase C: English-first temporal robustness policy
+   4. Phase D: telemetry, eval hardening, and test expansion
+4. Product scope decision for this line: English-first only for now; multilingual expansion deferred.
+
 ## Content Blindness Privacy Boundary Update (2026-02-17)
 
 1. Current state: connector provider fetch/decrypt paths and assistant message-body flows are enclave-plaintext-only with ciphertext host transit/storage.
@@ -230,6 +241,8 @@ Ship a private beta where iOS users can:
 | AI-010 | P0 | Add assistant session memory for follow-up continuity (`#101`) | BE | 2026-03-24 | DONE | AI-004 | Session-context follow-up queries supported with retention controls |
 | AI-011 | P0 | Add LLM eval/regression harness in CI (`#102`) | QA | 2026-03-26 | DONE | AI-005, AI-006, AI-007 | Prompt/output regressions are detected by automated checks |
 | AI-012 | P0 | Maintain migration tracker + execution order (`#103`) | FOUNDER | 2026-03-05 | IN_PROGRESS | - | Tracker issue reflects live execution order and status |
+| AI-014 | P0 | Replace keyword assistant routing with enclave semantic planner (`#180`) | BE | 2026-02-18 | DONE | AI-004, AI-005, AI-010 | Planner-driven capability resolution is production path with schema validation, policy gating, and deterministic fallback |
+| AI-015 | P0 | Planner rollout phases A-D (contract, integration, English temporal policy, hardening) (`#181`..`#187`) | BE | 2026-02-18 | DONE | AI-014 | All planned rollout phases delivered with unit/integration/eval coverage and deep-review pass |
 
 ### L) Content Blindness Migration (Server-Blind Message Content)
 
@@ -252,7 +265,7 @@ Ship a private beta where iOS users can:
 7. `IOS-001` through `IOS-006`
 8. `QA-002`, `QA-005`, `QA-008`
 9. `GOV-001`, `GOV-002`, `GOV-006`, `GOV-007`, `GOV-008`
-10. `AI-000`, then `AI-001` through `AI-011`
+10. `AI-000`, then `AI-001` through `AI-011`, `AI-014`, `AI-015`
 11. `CB-001`, `CB-002`, `CB-003`
 
 ## 7) Weekly Operating Cadence
