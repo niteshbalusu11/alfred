@@ -3,6 +3,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 
+use crate::assistant_semantic_plan::{
+    ASSISTANT_SEMANTIC_PLAN_VERSION_V1, AssistantSemanticPlanContract,
+};
+
 pub const OUTPUT_CONTRACT_VERSION_V1: &str = "2026-02-15";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
@@ -11,11 +15,15 @@ pub enum AssistantCapability {
     MeetingsSummary,
     MorningBrief,
     UrgentEmailSummary,
+    AssistantSemanticPlan,
 }
 
 impl AssistantCapability {
     pub const fn contract_version(self) -> &'static str {
-        OUTPUT_CONTRACT_VERSION_V1
+        match self {
+            Self::AssistantSemanticPlan => ASSISTANT_SEMANTIC_PLAN_VERSION_V1,
+            _ => OUTPUT_CONTRACT_VERSION_V1,
+        }
     }
 }
 
@@ -83,6 +91,7 @@ pub enum AssistantOutputContract {
     MeetingsSummary(MeetingsSummaryContract),
     MorningBrief(MorningBriefContract),
     UrgentEmailSummary(UrgentEmailSummaryContract),
+    AssistantSemanticPlan(AssistantSemanticPlanContract),
 }
 
 #[derive(Debug, Error)]
@@ -113,6 +122,10 @@ pub fn output_schema(capability: AssistantCapability) -> Value {
             serde_json::to_value(schema_for!(UrgentEmailSummaryContract))
                 .expect("urgent email summary schema should be serializable")
         }
+        AssistantCapability::AssistantSemanticPlan => {
+            serde_json::to_value(schema_for!(AssistantSemanticPlanContract))
+                .expect("assistant semantic plan schema should be serializable")
+        }
     }
 }
 
@@ -135,6 +148,11 @@ pub fn parse_contract(
             let contract: UrgentEmailSummaryContract = serde_json::from_value(payload)?;
             ensure_contract_version(capability, &contract.version)?;
             Ok(AssistantOutputContract::UrgentEmailSummary(contract))
+        }
+        AssistantCapability::AssistantSemanticPlan => {
+            let contract: AssistantSemanticPlanContract = serde_json::from_value(payload)?;
+            ensure_contract_version(capability, &contract.version)?;
+            Ok(AssistantOutputContract::AssistantSemanticPlan(contract))
         }
     }
 }

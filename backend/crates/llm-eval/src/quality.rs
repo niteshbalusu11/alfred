@@ -80,6 +80,29 @@ pub fn evaluate_quality(
                 );
             }
         }
+        AssistantOutputContract::AssistantSemanticPlan(plan) => {
+            if plan.output.capabilities.is_empty() {
+                issues
+                    .push("output.capabilities: must include at least one capability".to_string());
+            }
+            if !(0.0..=1.0).contains(&plan.output.confidence) {
+                issues.push("output.confidence: must be between 0.0 and 1.0".to_string());
+            }
+            if plan.output.needs_clarification {
+                let has_question = plan
+                    .output
+                    .clarifying_question
+                    .as_deref()
+                    .map(str::trim)
+                    .is_some_and(|value| !value.is_empty());
+                if !has_question {
+                    issues.push(
+                        "output.clarifying_question: required when needs_clarification=true"
+                            .to_string(),
+                    );
+                }
+            }
+        }
     }
 
     issues

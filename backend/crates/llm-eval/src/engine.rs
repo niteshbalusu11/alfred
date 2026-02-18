@@ -352,6 +352,9 @@ fn contract_to_value(contract: &AssistantOutputContract) -> Value {
         AssistantOutputContract::UrgentEmailSummary(urgent) => {
             serde_json::to_value(urgent).expect("urgent email contract should serialize")
         }
+        AssistantOutputContract::AssistantSemanticPlan(plan) => {
+            serde_json::to_value(plan).expect("assistant semantic plan contract should serialize")
+        }
     }
 }
 

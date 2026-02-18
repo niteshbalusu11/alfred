@@ -2,6 +2,11 @@ use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use serde_json::Value;
 
+use crate::assistant_semantic_plan::{
+    ASSISTANT_SEMANTIC_PLAN_VERSION_V1, AssistantSemanticCapability, AssistantSemanticPlanContract,
+    AssistantSemanticPlanOutput,
+};
+
 use super::contracts::{
     AssistantCapability, AssistantOutputContract, MeetingsSummaryContract, MeetingsSummaryOutput,
     MorningBriefContract, MorningBriefOutput, OUTPUT_CONTRACT_VERSION_V1, UrgencyLevel,
@@ -92,6 +97,9 @@ fn deterministic_fallback_contract(
         AssistantCapability::UrgentEmailSummary => AssistantOutputContract::UrgentEmailSummary(
             fallback_urgent_email_summary(context_payload),
         ),
+        AssistantCapability::AssistantSemanticPlan => {
+            AssistantOutputContract::AssistantSemanticPlan(fallback_assistant_semantic_plan())
+        }
     }
 }
 
@@ -229,6 +237,24 @@ fn fallback_urgent_email_summary(context_payload: &Value) -> UrgentEmailSummaryC
     }
 }
 
+fn fallback_assistant_semantic_plan() -> AssistantSemanticPlanContract {
+    AssistantSemanticPlanContract {
+        version: ASSISTANT_SEMANTIC_PLAN_VERSION_V1.to_string(),
+        output: AssistantSemanticPlanOutput {
+            capabilities: vec![AssistantSemanticCapability::GeneralChat],
+            confidence: 0.2,
+            needs_clarification: true,
+            clarifying_question: Some(
+                "Could you clarify whether you want calendar details, email details, or both?"
+                    .to_string(),
+            ),
+            time_window: None,
+            email_filters: None,
+            language: None,
+        },
+    }
+}
+
 fn passes_action_safety_policy(contract: &AssistantOutputContract) -> bool {
     let AssistantOutputContract::UrgentEmailSummary(urgent) = contract else {
         return true;
@@ -295,6 +321,11 @@ fn contract_within_bounds(contract: &AssistantOutputContract) -> bool {
                     .suggested_actions
                     .iter()
                     .all(|item| fits_chars(item, MAX_OUTPUT_TEXT_CHARS))
+        }
+        AssistantOutputContract::AssistantSemanticPlan(plan) => {
+            (0.0..=1.0).contains(&plan.output.confidence)
+                && plan.output.capabilities.len() <= 2
+                && (!plan.output.needs_clarification || plan.output.clarifying_question.is_some())
         }
     }
 }
