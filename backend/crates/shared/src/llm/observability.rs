@@ -152,6 +152,7 @@ fn capability_label(capability: AssistantCapability) -> &'static str {
         AssistantCapability::MeetingsSummary => "meetings_summary",
         AssistantCapability::MorningBrief => "morning_brief",
         AssistantCapability::UrgentEmailSummary => "urgent_email_summary",
+        AssistantCapability::AssistantSemanticPlan => "assistant_semantic_plan",
     }
 }
 

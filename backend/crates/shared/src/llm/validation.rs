@@ -64,6 +64,12 @@ static URGENT_EMAIL_SUMMARY_VALIDATOR: LazyLock<Result<JSONSchema, String>> = La
         .map_err(|err| err.to_string())
 });
 
+static ASSISTANT_SEMANTIC_PLAN_VALIDATOR: LazyLock<Result<JSONSchema, String>> =
+    LazyLock::new(|| {
+        JSONSchema::compile(&output_schema(AssistantCapability::AssistantSemanticPlan))
+            .map_err(|err| err.to_string())
+    });
+
 fn validator_for_capability(
     capability: AssistantCapability,
 ) -> Result<&'static JSONSchema, OutputValidationError> {
@@ -71,6 +77,7 @@ fn validator_for_capability(
         AssistantCapability::MeetingsSummary => &*MEETINGS_SUMMARY_VALIDATOR,
         AssistantCapability::MorningBrief => &*MORNING_BRIEF_VALIDATOR,
         AssistantCapability::UrgentEmailSummary => &*URGENT_EMAIL_SUMMARY_VALIDATOR,
+        AssistantCapability::AssistantSemanticPlan => &*ASSISTANT_SEMANTIC_PLAN_VALIDATOR,
     };
 
     validator_result
