@@ -1,3 +1,4 @@
+use shared::assistant_planner::{detect_query_capability, resolve_query_capability};
 use shared::llm::safety::sanitize_untrusted_text;
 use shared::models::{AssistantQueryCapability, AssistantResponsePart, AssistantStructuredPayload};
 
@@ -69,6 +70,7 @@ fn general_chat_summary(query: &str, prior_state: Option<&EnclaveAssistantSessio
         .collect::<String>();
     let follow_up_context = prior_state
         .and_then(|state| state.memory.turns.last())
+        .filter(|turn| should_include_follow_up_context(query, &turn.capability))
         .map(|turn| {
             format!(
                 "Following up on your previous {} request: ",
@@ -84,6 +86,19 @@ fn general_chat_summary(query: &str, prior_state: Option<&EnclaveAssistantSessio
             "{follow_up_context}I heard: \"{query_snippet}\". I can chat generally now and will route to calendar/email tools when requested."
         )
     }
+}
+
+fn should_include_follow_up_context(
+    query: &str,
+    prior_capability: &AssistantQueryCapability,
+) -> bool {
+    let detected = detect_query_capability(query);
+    if detected.is_some() {
+        return false;
+    }
+
+    resolve_query_capability(query, detected, Some(prior_capability.clone()))
+        .is_some_and(|resolved| resolved == *prior_capability)
 }
 
 fn clarification_text(question: &str) -> String {
@@ -135,8 +150,28 @@ mod tests {
             },
         };
 
-        let summary = general_chat_summary("thanks", Some(&prior_state));
+        let summary = general_chat_summary("what about after that", Some(&prior_state));
         assert!(summary.starts_with("Following up on your previous email request:"));
+    }
+
+    #[test]
+    fn general_chat_summary_skips_follow_up_context_for_normal_chat_queries() {
+        let prior_state = EnclaveAssistantSessionState {
+            version: ASSISTANT_SESSION_MEMORY_VERSION_V1.to_string(),
+            last_capability: AssistantQueryCapability::CalendarLookup,
+            memory: AssistantSessionMemory {
+                version: ASSISTANT_SESSION_MEMORY_VERSION_V1.to_string(),
+                turns: vec![AssistantSessionTurn {
+                    user_query_snippet: "meetings tomorrow".to_string(),
+                    assistant_summary_snippet: "Two meetings tomorrow.".to_string(),
+                    capability: AssistantQueryCapability::CalendarLookup,
+                    created_at: Utc::now(),
+                }],
+            },
+        };
+
+        let summary = general_chat_summary("how are you doing alfred", Some(&prior_state));
+        assert!(!summary.starts_with("Following up on your previous"));
     }
 
     #[test]
