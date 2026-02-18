@@ -2,15 +2,35 @@ use crate::models::AssistantQueryCapability;
 
 pub fn detect_query_capability(query: &str) -> Option<AssistantQueryCapability> {
     let normalized = query.to_ascii_lowercase();
-    let asks_for_today = normalized.contains("today");
-    let asks_for_calendar = normalized.contains("meeting")
-        || normalized.contains("calendar")
-        || normalized.contains("schedule")
-        || normalized.contains("event");
-    let asks_for_email = normalized.contains("email")
-        || normalized.contains("inbox")
-        || normalized.contains("mail")
-        || normalized.contains("gmail");
+    let asks_for_today = contains_any(
+        normalized.as_str(),
+        &["today", "this morning", "this afternoon", "tonight"],
+    );
+    let asks_for_calendar = contains_any(
+        normalized.as_str(),
+        &[
+            "meeting",
+            "calendar",
+            "schedule",
+            "event",
+            "agenda",
+            "appointment",
+            "appointments",
+        ],
+    );
+    let asks_for_email = contains_any(
+        normalized.as_str(),
+        &[
+            "email",
+            "inbox",
+            "mail",
+            "gmail",
+            "mailbox",
+            "messages",
+            "message thread",
+            "threads",
+        ],
+    );
 
     if asks_for_calendar && asks_for_email {
         return Some(AssistantQueryCapability::Mixed);
@@ -63,16 +83,24 @@ fn looks_like_follow_up_query(query: &str) -> bool {
         "then",
         "next",
         "after that",
+        "afterwards",
         "same",
         "again",
         "also",
         "those",
         "them",
+        "what else",
+        "same window",
+        "same timeframe",
     ];
 
     follow_up_markers
         .iter()
         .any(|marker| normalized.contains(marker))
+}
+
+fn contains_any(query: &str, terms: &[&str]) -> bool {
+    terms.iter().any(|term| query.contains(term))
 }
 
 #[cfg(test)]
@@ -91,11 +119,27 @@ mod tests {
             Some(AssistantQueryCapability::CalendarLookup)
         );
         assert_eq!(
+            detect_query_capability("What is on my agenda this afternoon?"),
+            Some(AssistantQueryCapability::MeetingsToday)
+        );
+        assert_eq!(
+            detect_query_capability("Do I have any appointments tomorrow?"),
+            Some(AssistantQueryCapability::CalendarLookup)
+        );
+        assert_eq!(
             detect_query_capability("Any emails from finance?"),
             Some(AssistantQueryCapability::EmailLookup)
         );
         assert_eq!(
+            detect_query_capability("Any messages from finance in my mailbox?"),
+            Some(AssistantQueryCapability::EmailLookup)
+        );
+        assert_eq!(
             detect_query_capability("Check calendar and inbox for this afternoon"),
+            Some(AssistantQueryCapability::Mixed)
+        );
+        assert_eq!(
+            detect_query_capability("Give me agenda and inbox updates for next week"),
             Some(AssistantQueryCapability::Mixed)
         );
         assert_eq!(detect_query_capability("thanks"), None);
@@ -110,6 +154,14 @@ mod tests {
                 Some(AssistantQueryCapability::EmailLookup),
             ),
             Some(AssistantQueryCapability::EmailLookup)
+        );
+        assert_eq!(
+            resolve_query_capability(
+                "what else afterwards",
+                None,
+                Some(AssistantQueryCapability::CalendarLookup),
+            ),
+            Some(AssistantQueryCapability::CalendarLookup)
         );
     }
 

@@ -4,6 +4,8 @@ use shared::models::AssistantQueryCapability;
 pub(super) const MIN_CONFIDENCE_FOR_DIRECT_EXECUTION: f32 = 0.45;
 const DEFAULT_CLARIFICATION_QUESTION: &str =
     "Could you clarify whether you want calendar details, email details, or both?";
+const DEFAULT_ENGLISH_ONLY_QUESTION: &str =
+    "English support is currently available. Could you rephrase your request in English?";
 
 pub(super) enum PlannedRoute {
     Execute(AssistantQueryCapability),
@@ -19,6 +21,12 @@ pub(super) fn resolve_route_policy(
         .first()
         .cloned()
         .unwrap_or(AssistantQueryCapability::GeneralChat);
+
+    if let Some(question) =
+        unsupported_language_clarification(&resolution.plan, resolution.used_deterministic_fallback)
+    {
+        return PlannedRoute::Clarify(question);
+    }
 
     if should_clarify(
         &resolution.plan,
@@ -49,6 +57,27 @@ fn should_clarify(
     }
 
     plan.confidence < MIN_CONFIDENCE_FOR_DIRECT_EXECUTION
+}
+
+fn unsupported_language_clarification(
+    plan: &AssistantSemanticPlan,
+    used_deterministic_fallback: bool,
+) -> Option<String> {
+    if used_deterministic_fallback {
+        return None;
+    }
+
+    let language = plan.language.as_deref()?;
+    if language_is_english(language) {
+        return None;
+    }
+
+    Some(DEFAULT_ENGLISH_ONLY_QUESTION.to_string())
+}
+
+fn language_is_english(language: &str) -> bool {
+    let normalized = language.trim().to_ascii_lowercase();
+    normalized == "en" || normalized.starts_with("en-")
 }
 
 fn clarification_question(plan: &AssistantSemanticPlan) -> String {
@@ -182,5 +211,27 @@ mod tests {
         assert!(
             matches!(planned, PlannedRoute::Clarify(question) if question.contains("calendar details"))
         );
+    }
+
+    #[test]
+    fn non_english_language_hint_routes_to_clarification() {
+        let mut resolution =
+            resolution(AssistantQueryCapability::CalendarLookup, 0.95, false, false);
+        resolution.plan.language = Some("es".to_string());
+        let planned = resolve_route_policy(&resolution);
+        assert!(
+            matches!(planned, PlannedRoute::Clarify(question) if question.contains("rephrase your request in English"))
+        );
+    }
+
+    #[test]
+    fn english_language_variants_do_not_force_clarification() {
+        let mut resolution = resolution(AssistantQueryCapability::EmailLookup, 0.95, false, false);
+        resolution.plan.language = Some("en-US".to_string());
+        let planned = resolve_route_policy(&resolution);
+        assert!(matches!(
+            planned,
+            PlannedRoute::Execute(AssistantQueryCapability::EmailLookup)
+        ));
     }
 }

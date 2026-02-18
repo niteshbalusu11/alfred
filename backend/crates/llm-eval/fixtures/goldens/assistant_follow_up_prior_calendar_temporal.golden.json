@@ -1,0 +1,12 @@
+{
+  "case_id": "assistant_follow_up_prior_calendar_temporal",
+  "description": "English follow-up temporal reference reuses prior calendar lane.",
+  "detected_capability": null,
+  "prior_capability": "calendar_lookup",
+  "query": "what else afterwards",
+  "resolved_capability": "calendar_lookup",
+  "response_part_types": [
+    "chat_text",
+    "tool_summary"
+  ]
+}
