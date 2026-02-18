@@ -1,6 +1,6 @@
 # Engineering Standards (Scalability + Security)
 
-- Last Updated: 2026-02-15
+- Last Updated: 2026-02-18
 - Priority: Mandatory for all issue execution
 
 ## 1) Post-Issue Deep Review (Required)
@@ -95,3 +95,6 @@ All LLM-backed backend behavior must follow these controls:
 5. Observability:
    1. Emit model, latency, usage, and cost telemetry in redacted form.
    2. Never persist or log sensitive raw prompt/completion payloads.
+6. Assistant routing integrity:
+   1. Keep semantic planner contract validation in the enclave decision path.
+   2. Do not reintroduce keyword-only capability routing as primary behavior.
