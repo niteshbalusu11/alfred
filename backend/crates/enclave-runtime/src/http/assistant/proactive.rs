@@ -131,7 +131,7 @@ pub(super) async fn generate_morning_brief(
     .with_requester_id(request.user_id.to_string());
 
     let (llm_result, telemetry) = generate_with_telemetry(
-        state.llm_gateway.as_ref(),
+        state.worker_gateway(),
         LlmExecutionSource::WorkerMorningBrief,
         llm_request,
     )
@@ -271,7 +271,7 @@ pub(super) async fn generate_urgent_email_summary(
     .with_requester_id(request.user_id.to_string());
 
     let (llm_result, telemetry) = generate_with_telemetry(
-        state.llm_gateway.as_ref(),
+        state.worker_gateway(),
         LlmExecutionSource::WorkerUrgentEmail,
         llm_request,
     )

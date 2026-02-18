@@ -48,7 +48,7 @@ Use strict separation of concerns:
 To prevent codebase entropy and scaling bottlenecks:
 
 1. Keep modules small and single-purpose; avoid "god files".
-2. Handwritten source files should target `<= 300` lines.
+2. Handwritten source files should target `<= 500` lines.
 3. Any handwritten source file above `500` lines must be actively decomposed when modified, unless there is a documented blocker.
 4. Do not add substantial new logic to existing files already above `500` lines without first extracting modules.
 5. Allowed size exceptions:

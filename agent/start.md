@@ -222,7 +222,8 @@ Primary commands:
 13. `just backend-build`
    1. Builds Rust backend workspace.
 14. `just backend-tests`
-   1. One-shot local backend test workflow (infra checks + infra up + migrate + tests + mocked eval + infra stop).
+   1. One-shot local backend test workflow (infra checks + infra up + migrate + tests + mocked eval).
+   2. Do not run `just infra-stop` automatically after verification; keep infra running unless the user explicitly asks to stop it.
 15. `just backend-test`
    1. Runs backend unit/module tests (excludes `integration-tests` crate).
 16. `just backend-integration-test`
@@ -294,8 +295,8 @@ Important:
 4. Run `just ios-test` when logic tests were added/changed or when explicitly requested.
 5. Follow `docs/ui-spec.md` for navigation, theme, state UX, and screen responsibilities.
 6. Keep SwiftUI files modular:
-   1. Target `<= 300` lines for handwritten files.
-   2. Hard ceiling `500` lines unless blocked and explicitly documented.
+   1. Target `<= 500` lines for handwritten files.
+   2. If a file exceeds `500` lines, split it unless blocked and explicitly documented.
 7. Prefer reusable components and shared patterns over one-off large view files.
 8. Use SwiftUI skills when relevant:
    1. `swiftui-ui-patterns`
@@ -348,7 +349,7 @@ Use this sequence for most engineering tasks:
 Avoid monolithic files. New work should keep files focused and easy to review.
 
 1. Prefer one responsibility per file/module.
-2. For handwritten source files, keep a target size of `<= 300` lines.
+2. For handwritten source files, keep a target size of `<= 500` lines.
 3. When a file exceeds `500` lines, split it into submodules in the same issue unless blocked.
 4. If touching a file already over `500` lines, do not add net-new complexity without extracting logic first.
 5. Exceptions are limited to:

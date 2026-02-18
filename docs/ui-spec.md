@@ -114,8 +114,8 @@ This section is mandatory for all front-end issues.
 2. Reuse shared components for repeated UI patterns (cards, rows, headers, state views).
 3. Prefer modern SwiftUI data flow (`@State`, `@Binding`, `@Environment`, `@Observable`) over large ad hoc view models.
 4. Keep files small and focused:
-   1. Target `<= 300` lines for handwritten Swift files.
-   2. Hard ceiling is `500` lines. If exceeded, split in the same issue unless blocked.
+   1. Target `<= 500` lines for handwritten Swift files.
+   2. If a file exceeds `500` lines, split in the same issue unless blocked.
 5. Do not add new logic into already-large files without extracting subviews/helpers first.
 6. Keep routing/state orchestration outside presentational subviews.
 7. Add lightweight comments only where flow is non-obvious.
