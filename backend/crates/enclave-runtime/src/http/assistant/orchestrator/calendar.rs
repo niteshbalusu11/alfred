@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use serde_json::Value;
@@ -7,7 +9,7 @@ use shared::llm::{
     template_for_capability,
 };
 use shared::models::{AssistantQueryCapability, AssistantResponsePart};
-use tracing::warn;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 use super::super::mapping::{log_telemetry, map_calendar_event_to_meeting_source};
@@ -33,6 +35,9 @@ pub(super) async fn execute_calendar_query(
     user_time_zone: &str,
     prior_state: Option<&EnclaveAssistantSessionState>,
 ) -> Result<AssistantOrchestratorResult, Response> {
+    let lane_started = Instant::now();
+
+    let connector_started = Instant::now();
     let connector = match state
         .enclave_service
         .resolve_active_google_connector_request(user_id)
@@ -45,7 +50,9 @@ pub(super) async fn execute_calendar_query(
             );
         }
     };
+    let connector_resolve_ms = connector_started.elapsed().as_millis() as u64;
 
+    let window_started = Instant::now();
     let window = match plan_calendar_query_window(query, chrono::Utc::now(), user_time_zone) {
         Some(window) => window,
         None => {
@@ -61,7 +68,9 @@ pub(super) async fn execute_calendar_query(
             .into_response());
         }
     };
+    let window_plan_ms = window_started.elapsed().as_millis() as u64;
 
+    let fetch_started = Instant::now();
     let fetch_response = match state
         .enclave_service
         .fetch_google_calendar_events(
@@ -79,6 +88,7 @@ pub(super) async fn execute_calendar_query(
             );
         }
     };
+    let calendar_fetch_ms = fetch_started.elapsed().as_millis() as u64;
 
     let mut meetings = fetch_response
         .events
@@ -108,7 +118,7 @@ pub(super) async fn execute_calendar_query(
     .with_requester_id(user_id.to_string());
 
     let (llm_result, telemetry) = generate_with_telemetry(
-        state.llm_gateway.as_ref(),
+        state.assistant_tool_gateway(),
         LlmExecutionSource::ApiAssistantQuery,
         llm_request,
     )
@@ -132,8 +142,9 @@ pub(super) async fn execute_calendar_query(
         },
         &context_payload,
     );
+    let used_deterministic_fallback = resolved.source == SafeOutputSource::DeterministicFallback;
 
-    let payload = if resolved.source == SafeOutputSource::DeterministicFallback {
+    let payload = if used_deterministic_fallback {
         deterministic_calendar_fallback_payload(&window, &meetings)
     } else {
         let AssistantOutputContract::MeetingsSummary(summary_contract) = resolved.contract else {
@@ -164,6 +175,20 @@ pub(super) async fn execute_calendar_query(
         AssistantResponsePart::chat_text(display_text.clone()),
         AssistantResponsePart::tool_summary(capability.clone(), payload.clone()),
     ];
+    info!(
+        user_id = %user_id,
+        request_id,
+        connector_resolve_ms,
+        window_plan_ms,
+        calendar_fetch_ms,
+        calendar_llm_latency_ms = telemetry.latency_ms,
+        calendar_llm_outcome = telemetry.outcome,
+        calendar_llm_model = ?telemetry.model,
+        meetings_count = meetings.len(),
+        used_deterministic_fallback,
+        total_calendar_lane_ms = lane_started.elapsed().as_millis() as u64,
+        "assistant calendar lane latency breakdown"
+    );
 
     Ok(AssistantOrchestratorResult {
         capability,

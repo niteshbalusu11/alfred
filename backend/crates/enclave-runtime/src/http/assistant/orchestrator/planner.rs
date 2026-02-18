@@ -28,6 +28,7 @@ pub(super) struct SemanticPlanResolution {
 pub(super) async fn resolve_semantic_plan(
     state: &RuntimeState,
     user_id: Uuid,
+    request_id: &str,
     query: &str,
     user_time_zone: &str,
     prior_state: Option<&EnclaveAssistantSessionState>,
@@ -57,18 +58,27 @@ pub(super) async fn resolve_semantic_plan(
     .with_requester_id(user_id.to_string());
 
     let (llm_result, telemetry) = generate_with_telemetry(
-        state.llm_gateway.as_ref(),
+        state.assistant_planner_gateway(),
         LlmExecutionSource::ApiAssistantQuery,
         llm_request,
     )
     .await;
     super::super::mapping::log_telemetry(user_id, &telemetry, "assistant_semantic_planner");
+    info!(
+        user_id = %user_id,
+        request_id,
+        planner_llm_latency_ms = telemetry.latency_ms,
+        planner_llm_outcome = telemetry.outcome,
+        planner_llm_model = ?telemetry.model,
+        "assistant semantic planner llm stage"
+    );
 
     match llm_result {
         Ok(response) => match parse_semantic_plan_output(&response.output, user_time_zone) {
             Ok(plan) => {
                 info!(
                     user_id = %user_id,
+                    request_id,
                     confidence = plan.confidence,
                     needs_clarification = plan.needs_clarification,
                     "assistant semantic planner resolved model output"
@@ -81,6 +91,7 @@ pub(super) async fn resolve_semantic_plan(
             Err(err) => {
                 warn!(
                     user_id = %user_id,
+                    request_id,
                     "assistant semantic planner output was invalid, falling back deterministically: {err}"
                 );
                 SemanticPlanResolution {
@@ -92,6 +103,7 @@ pub(super) async fn resolve_semantic_plan(
         Err(err) => {
             warn!(
                 user_id = %user_id,
+                request_id,
                 "assistant semantic planner request failed, falling back deterministically: {err}"
             );
             SemanticPlanResolution {

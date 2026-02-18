@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use chrono::Utc;
@@ -8,7 +10,7 @@ use shared::llm::{
     output_schema, resolve_safe_output, sanitize_context_payload,
 };
 use shared::models::{AssistantQueryCapability, AssistantResponsePart, AssistantStructuredPayload};
-use tracing::warn;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 use super::super::mapping::{log_telemetry, map_email_candidate_source};
@@ -37,6 +39,9 @@ pub(super) async fn execute_email_query(
     user_time_zone: &str,
     prior_state: Option<&EnclaveAssistantSessionState>,
 ) -> Result<AssistantOrchestratorResult, Response> {
+    let lane_started = Instant::now();
+
+    let connector_started = Instant::now();
     let connector = match state
         .enclave_service
         .resolve_active_google_connector_request(user_id)
@@ -49,10 +54,14 @@ pub(super) async fn execute_email_query(
             );
         }
     };
+    let connector_resolve_ms = connector_started.elapsed().as_millis() as u64;
 
+    let plan_started = Instant::now();
     let plan = plan_email_query(query);
+    let email_plan_ms = plan_started.elapsed().as_millis() as u64;
     let now = Utc::now();
 
+    let fetch_started = Instant::now();
     let fetch_response = match state
         .enclave_service
         .fetch_google_email_candidates(connector, Some(build_gmail_query(&plan)), EMAIL_MAX_RESULTS)
@@ -65,13 +74,16 @@ pub(super) async fn execute_email_query(
             );
         }
     };
+    let email_fetch_ms = fetch_started.elapsed().as_millis() as u64;
 
+    let filter_started = Instant::now();
     let raw_candidates = fetch_response
         .candidates
         .iter()
         .map(map_email_candidate_source)
         .collect::<Vec<_>>();
     let candidates = apply_email_filters(raw_candidates, &plan, now, user_time_zone);
+    let email_filter_ms = filter_started.elapsed().as_millis() as u64;
 
     let context = assemble_urgent_email_candidates_context(&candidates);
     let mut context_payload = match serde_json::to_value(&context) {
@@ -127,7 +139,7 @@ pub(super) async fn execute_email_query(
     };
 
     let (llm_result, telemetry) = generate_with_telemetry(
-        state.llm_gateway.as_ref(),
+        state.assistant_tool_gateway(),
         LlmExecutionSource::ApiAssistantQuery,
         llm_request,
     )
@@ -151,8 +163,9 @@ pub(super) async fn execute_email_query(
         },
         &context_payload,
     );
+    let used_deterministic_fallback = resolved.source == SafeOutputSource::DeterministicFallback;
 
-    let payload = if resolved.source == SafeOutputSource::DeterministicFallback {
+    let payload = if used_deterministic_fallback {
         deterministic_email_fallback_payload(&plan, &candidates)
     } else {
         let AssistantOutputContract::MeetingsSummary(contract) = resolved.contract else {
@@ -200,6 +213,21 @@ pub(super) async fn execute_email_query(
         AssistantResponsePart::chat_text(display_text.clone()),
         AssistantResponsePart::tool_summary(AssistantQueryCapability::EmailLookup, payload.clone()),
     ];
+    info!(
+        user_id = %user_id,
+        request_id,
+        connector_resolve_ms,
+        email_plan_ms,
+        email_fetch_ms,
+        email_filter_ms,
+        email_llm_latency_ms = telemetry.latency_ms,
+        email_llm_outcome = telemetry.outcome,
+        email_llm_model = ?telemetry.model,
+        candidates_count = candidates.len(),
+        used_deterministic_fallback,
+        total_email_lane_ms = lane_started.elapsed().as_millis() as u64,
+        "assistant email lane latency breakdown"
+    );
 
     Ok(AssistantOrchestratorResult {
         capability: AssistantQueryCapability::EmailLookup,

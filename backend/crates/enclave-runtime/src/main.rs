@@ -5,20 +5,39 @@ use axum::Router;
 use axum::routing::{get, post};
 use shared::config::load_dotenv;
 use shared::enclave::EnclaveOperationService;
-use shared::llm::{LlmReliabilityConfig, OpenRouterGatewayConfig, ReliableOpenRouterGateway};
+use shared::llm::{LlmGateway, LlmReliabilityConfig, OpenRouterGatewayConfig};
 use shared::repos::Store;
 use shared::security::{KmsDecryptPolicy, SecretRuntime, TeeAttestationPolicy};
 use tracing::{error, info, warn};
 
 mod config;
 mod http;
+mod llm_profiles;
 
 #[derive(Clone)]
 struct RuntimeState {
     config: config::RuntimeConfig,
     enclave_service: EnclaveOperationService,
     rpc_replay_guard: Arc<Mutex<std::collections::HashMap<String, i64>>>,
-    llm_gateway: Arc<dyn shared::llm::LlmGateway + Send + Sync>,
+    llm_gateways: llm_profiles::LlmGatewayProfiles,
+}
+
+impl RuntimeState {
+    pub(crate) fn assistant_planner_gateway(&self) -> &(dyn LlmGateway + Send + Sync) {
+        self.llm_gateways.planner()
+    }
+
+    pub(crate) fn assistant_chat_gateway(&self) -> &(dyn LlmGateway + Send + Sync) {
+        self.llm_gateways.assistant_chat()
+    }
+
+    pub(crate) fn assistant_tool_gateway(&self) -> &(dyn LlmGateway + Send + Sync) {
+        self.llm_gateways.assistant_tool()
+    }
+
+    pub(crate) fn worker_gateway(&self) -> &(dyn LlmGateway + Send + Sync) {
+        self.llm_gateways.worker()
+    }
 }
 
 #[tokio::main]
@@ -114,20 +133,19 @@ async fn main() {
     };
     let redis_url =
         std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379/0".to_string());
-    let llm_gateway: Arc<dyn shared::llm::LlmGateway + Send + Sync> =
-        match ReliableOpenRouterGateway::from_openrouter_config_with_redis(
-            openrouter_config,
-            llm_reliability_config,
-            &redis_url,
-        )
-        .await
-        {
-            Ok(gateway) => Arc::new(gateway),
-            Err(err) => {
-                error!("failed to initialize enclave LLM gateway: {err}");
-                std::process::exit(1);
-            }
-        };
+    let llm_gateways = match llm_profiles::build_llm_gateway_profiles(
+        openrouter_config,
+        llm_reliability_config,
+        &redis_url,
+    )
+    .await
+    {
+        Ok(gateways) => gateways,
+        Err(err) => {
+            error!("failed to initialize enclave LLM gateways: {err}");
+            std::process::exit(1);
+        }
+    };
 
     let app = Router::new()
         .route("/healthz", get(http::healthz))
@@ -176,7 +194,7 @@ async fn main() {
             config: config.clone(),
             enclave_service,
             rpc_replay_guard: Arc::new(Mutex::new(std::collections::HashMap::new())),
-            llm_gateway,
+            llm_gateways,
         });
 
     let addr: SocketAddr = match config.bind_addr.parse() {

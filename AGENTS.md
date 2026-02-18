@@ -83,7 +83,8 @@ Default local DB:
 
 One-shot backend testing workflow:
 
-1. `just backend-tests` (runs infra checks, starts DB/Redis, applies migrations, runs backend tests + eval, then stops infra)
+1. `just backend-tests` (runs infra checks, starts DB/Redis, applies migrations, runs backend tests + eval)
+2. Do not run `just infra-stop` automatically after verification; leave local infra running unless the user explicitly asks to stop it.
 
 ## Backend Quality Gate (Non-Negotiable)
 
@@ -127,7 +128,7 @@ Required architecture boundary:
 Code must remain modular by default. Do not keep adding logic to a single large file.
 
 1. Keep one clear responsibility per file/module.
-2. For handwritten source files, target `<= 300` lines.
+2. For handwritten source files, target `<= 500` lines.
 3. If a file grows beyond `500` lines, split it in the same issue unless there is a documented blocker.
 4. Do not increase line count in an already-large file (`> 500` lines) without first extracting modules/helpers.
 5. Allowed exceptions:
@@ -150,7 +151,7 @@ Code must remain modular by default. Do not keep adding logic to a single large 
 
 1. `docs/ui-spec.md` is the front-end source of truth for Phase I UI/UX.
 2. SwiftUI must stay modular and reusable; avoid monolithic screens.
-3. Target `<= 300` lines for handwritten Swift files and treat `500` lines as hard ceiling unless blocked.
+3. Target `<= 500` lines for handwritten Swift files.
 4. If touching a large front-end file, extract components/helpers in the same issue when practical.
 5. For front-end implementation, use relevant SwiftUI skills when applicable:
    1. `swiftui-ui-patterns`

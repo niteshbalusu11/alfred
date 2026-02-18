@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use axum::Json;
 use axum::extract::{Extension, State};
 use axum::response::{IntoResponse, Response};
@@ -8,7 +10,7 @@ use shared::assistant_crypto::{
 };
 use shared::enclave::EnclaveRpcError;
 use shared::models::{AssistantQueryRequest, AssistantQueryResponse};
-use tracing::warn;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 use super::super::errors::{bad_gateway_response, bad_request_response, store_error_response};
@@ -19,19 +21,27 @@ pub(crate) async fn query_assistant(
     Extension(user): Extension<AuthUser>,
     Json(request): Json<AssistantQueryRequest>,
 ) -> Response {
+    let handler_started = Instant::now();
+    let assistant_request_id = request.envelope.request_id.clone();
     if let Some(response) = validate_envelope_shape(&request) {
         return response;
     }
 
     let now = Utc::now();
+    let had_prior_session = request.session_id.is_some();
+    let mut load_prior_session_ms = 0_u64;
     let prior_session_state = match request.session_id {
         Some(session_id) => {
+            let load_started = Instant::now();
             match state
                 .store
                 .load_assistant_encrypted_session(user.user_id, session_id, now)
                 .await
             {
-                Ok(record) => record.map(|record| record.state),
+                Ok(record) => {
+                    load_prior_session_ms = load_started.elapsed().as_millis() as u64;
+                    record.map(|record| record.state)
+                }
                 Err(err) => return store_error_response(err),
             }
         }
@@ -43,7 +53,7 @@ pub(crate) async fn query_assistant(
         state.enclave_rpc.auth.clone(),
         state.http_client.clone(),
     );
-    let assistant_request_id = request.envelope.request_id.clone();
+    let enclave_rpc_started = Instant::now();
     let response = match enclave_client
         .process_assistant_query(user.user_id, request, prior_session_state)
         .await
@@ -51,7 +61,9 @@ pub(crate) async fn query_assistant(
         Ok(response) => response,
         Err(err) => return map_assistant_enclave_error(err, user.user_id, &assistant_request_id),
     };
+    let enclave_rpc_ms = enclave_rpc_started.elapsed().as_millis() as u64;
 
+    let mut persist_session_ms = 0_u64;
     if let Some(session_state) = &response.session_state {
         let ttl_seconds = (session_state.expires_at - now).num_seconds();
         if ttl_seconds <= 0 {
@@ -61,6 +73,7 @@ pub(crate) async fn query_assistant(
             );
         }
 
+        let persist_started = Instant::now();
         if let Err(err) = state
             .store
             .upsert_assistant_encrypted_session(
@@ -74,7 +87,20 @@ pub(crate) async fn query_assistant(
         {
             return store_error_response(err);
         }
+        persist_session_ms = persist_started.elapsed().as_millis() as u64;
     }
+
+    info!(
+        user_id = %user.user_id,
+        assistant_request_id,
+        had_prior_session,
+        returned_session_state = response.session_state.is_some(),
+        load_prior_session_ms,
+        enclave_rpc_ms,
+        persist_session_ms,
+        total_handler_ms = handler_started.elapsed().as_millis() as u64,
+        "assistant query latency breakdown"
+    );
 
     (
         axum::http::StatusCode::OK,

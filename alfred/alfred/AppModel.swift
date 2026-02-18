@@ -300,12 +300,25 @@ final class AppModel: ObservableObject {
                 sessionId: assistantSessionID,
                 attestationConfig: AppConfiguration.assistantAttestationVerificationConfig
             )
+            AppLogger.info(
+                """
+                Assistant response received capability=\(response.capability.rawValue) \
+                response_parts=\(response.responseParts.count) \
+                payload_key_points=\(response.payload.keyPoints.count) \
+                payload_follow_ups=\(response.payload.followUps.count)
+                """,
+                category: .network
+            )
             assistantSessionID = response.sessionId
             assistantConversation.append(
                 AssistantConversationMapper.userMessage(from: trimmedQuery)
             )
 
             let assistantMessage = AssistantConversationMapper.assistantMessage(from: response)
+            AppLogger.info(
+                "Assistant message mapped tool_summaries=\(assistantMessage.toolSummaries.count)",
+                category: .network
+            )
             assistantConversation.append(assistantMessage)
             assistantResponseText = assistantMessage.text
         }
