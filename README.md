@@ -1,76 +1,57 @@
 # Alfred
 
-Alfred is a hosted, privacy-first AI life assistant for iOS.
+Alfred is a privacy-first AI assistant for iOS with a hosted Rust backend.
 
-It is designed for proactive help, not generic chat. Phase I focuses on Google-integrated workflows that save attention every day while keeping strict user control over data.
+The product goal is proactive help over Google data (calendar + email) with strong privacy boundaries, not a generic chat app.
 
-## What Alfred Is
+## What Exists In Code Today
 
-Alfred combines:
+### Backend (`backend/`)
 
-1. An iOS app for onboarding, settings, and notifications.
-2. A Rust API + worker backend for connectors, preferences, privacy, and automation.
-3. LLM-backed assistant behavior (via OpenRouter) with deterministic safety fallback.
-4. A TEE-sensitive execution path for protected decrypt/process flows.
+1. Clerk-authenticated API server (`axum`) with routes for:
+   1. Assistant: `/v1/assistant/attested-key`, `/v1/assistant/query`
+   2. Connectors: Google OAuth start/callback/list/revoke
+   3. Devices: APNs registration and test notification enqueue
+   4. Preferences, audit events, and privacy delete-all
+2. Encrypted assistant query flow:
+   1. Attested key challenge/response
+   2. Encrypted request/response envelopes
+   3. Encrypted session continuity state
+3. Enclave runtime orchestration for assistant and connector-sensitive operations.
+4. Worker pipeline with leased/idempotent jobs for:
+   1. Meeting reminders
+   2. Morning brief generation
+   3. Urgent email alerts
+5. LLM-backed assistant routing/orchestration with deterministic fallback and safety validation.
 
-Phase I user outcomes:
+### Assistant Capabilities
 
-1. Google Calendar meeting reminders.
-2. Daily morning brief.
-3. Urgent Gmail alerts.
-4. Natural-language assistant questions over connected Google context.
+The assistant supports these lanes in code:
 
-## Current Status (As Of 2026-02-18)
+1. `calendar_lookup`
+2. `email_lookup`
+3. `mixed`
+4. `general_chat`
+5. `meetings_today`
 
-This repo is in active Phase I private-beta execution.
+Routing is planner-driven (semantic plan + policy), with:
 
-Completed migration lines:
+1. Clarification flow for low-confidence tool requests
+2. English-first language policy
+3. Deterministic fallback when planner/model output is unavailable or invalid
 
-1. LLM-first backend migration (`#91` through `#103`).
-2. Semantic planner assistant routing migration (`#180`).
-3. Content-blindness boundary migration (`#146` through `#149`).
+### iOS App (`alfred/`)
 
-Still in progress:
+Current tab shell and primary UX:
 
-1. Clerk auth migration and legacy auth endpoint retirement (`#52`, `#53`, `#54`, `#56`).
-2. Remaining Phase I board work across product, API, APNs, QA, and launch readiness.
-3. External security assessment/remediation track before beta readiness.
+1. `Home`: voice transcription + assistant conversation
+2. `Activity`: audit/event timeline
+3. `Connectors`: Google connect/disconnect flow
 
-Source-of-truth status lives in:
+Authentication and API access are Clerk-based. The app uses encrypted assistant query APIs and renders structured assistant response parts (chat text + tool summaries).
 
-1. GitHub issues in `niteshbalusu11/alfred` (`phase-1`, then `P0` before `P1`).
-2. `docs/phase1-master-todo.md` (planning/control board).
-
-If the board and an issue conflict, GitHub issues are the immediate execution source.
-
-## Architecture Snapshot
-
-Core runtime components:
-
-1. iOS app (`SwiftUI`): product UX.
-2. API server (`Rust + axum`): auth, connectors, preferences, privacy, audit APIs.
-3. Worker (`Rust + tokio`): scheduled/proactive processing.
-4. Enclave runtime: sensitive processing boundary.
-5. Postgres + Redis: operational persistence and reliability state.
-6. Google APIs + APNs: external integrations.
-
-## Privacy and Security Direction
-
-Non-negotiable baseline:
-
-1. Least-privilege OAuth scopes.
-2. Encrypted secret/token storage.
-3. No plaintext message-body persistence in server control-plane paths.
-4. Enclave-only plaintext handling for protected assistant flows.
-5. Redacted logs + auditability.
-6. User revoke and delete-all controls.
-
-See:
-
-1. `docs/product-context.md`
-2. `docs/engineering-standards.md`
-3. `docs/content-blindness-invariants.md`
-4. `docs/threat-model-phase1.md`
+Note:
+Backend preferences and privacy delete-all APIs are implemented; current iOS navigation is focused on Home/Activity/Connectors.
 
 ## Repository Map
 
@@ -80,34 +61,21 @@ See:
 4. OpenAPI contract: `api/openapi.yaml`
 5. DB migrations: `db/migrations`
 6. Product context: `docs/product-context.md`
-7. Agent/contributor start: `agent/start.md`
-8. Phase I board: `docs/phase1-master-todo.md`
+7. Agent/contributor workflow: `AGENTS.md`, `agent/start.md`
 
-## Local Development Quick Start
+## Local Development
 
-Run from repo root.
-
-1. Validate local tools:
+Run from repo root:
 
 ```bash
 just check-tools
 just check-infra-tools
-```
-
-2. Create env file:
-
-```bash
 cp .env.example .env
-```
-
-3. Start local infra and apply migrations:
-
-```bash
 just infra-up
 just backend-migrate
 ```
 
-4. Start runtime services (recommended: separate terminals):
+Start services (recommended in separate terminals):
 
 ```bash
 just enclave-runtime
@@ -115,27 +83,25 @@ just api
 just worker
 ```
 
-Optional (single terminal, includes `ngrok`):
+Optional combined dev mode (also starts `ngrok`):
 
 ```bash
 just dev
 ```
 
-5. Stop infra when done:
+Stop infra:
 
 ```bash
 just infra-stop
 ```
 
-Remove volumes too:
+Destroy infra volumes:
 
 ```bash
 just infra-down
 ```
 
-## Build, Test, and Quality Gates
-
-Common commands:
+## Build and Verification
 
 ```bash
 just backend-check
@@ -152,33 +118,20 @@ Backend completion gate for backend-impacting changes:
 3. `just backend-tests`
 4. `just backend-build`
 
-Deep review gate for backend-impacting issues:
+Deep review gate:
 
 ```bash
 just backend-deep-review
 ```
 
-## Contribution Workflow
+## Workflow and Source Of Truth
 
-Required workflow is issue-driven:
+Execution is issue-driven (`phase-1`, prioritize `P0` before `P1`) with `codex/` branches.
 
-1. Select from GitHub issues with `phase-1`.
-2. Priority order: `P0` first, then `P1`; lowest issue number first unless blocked.
-3. Use `codex/` branch prefixes.
-4. Keep scope aligned to issue acceptance criteria.
-5. Update issue status/comments and keep board alignment.
-
-Detailed process:
+Primary references:
 
 1. `AGENTS.md`
 2. `agent/start.md`
-3. `docs/issue-update-template.md`
-
-## Reference Docs
-
-1. Product context: `docs/product-context.md`
-2. Engineering standards: `docs/engineering-standards.md`
-3. Agent start guide: `agent/start.md`
-4. UI source of truth: `docs/ui-spec.md`
-5. OpenAPI contract: `api/openapi.yaml`
-6. Cloud/local testing: `docs/cloud-deployment-local-testing.md`
+3. `docs/engineering-standards.md`
+4. `docs/phase1-master-todo.md`
+5. `docs/ui-spec.md`
