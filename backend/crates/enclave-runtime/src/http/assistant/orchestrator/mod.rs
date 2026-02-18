@@ -82,7 +82,7 @@ pub(super) async fn execute_query(
                 .await
             }
             AssistantQueryCapability::GeneralChat => {
-                Ok(chat::execute_general_chat(state, query, prior_state))
+                Ok(chat::execute_general_chat(state, user_id, query, prior_state).await)
             }
         },
     }
