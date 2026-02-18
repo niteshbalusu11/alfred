@@ -6,6 +6,7 @@ use super::{AssistantOrchestratorResult, local_attested_identity};
 use crate::RuntimeState;
 
 const QUERY_SNIPPET_MAX_CHARS: usize = 120;
+const CLARIFICATION_SUMMARY_MAX_CHARS: usize = 220;
 
 pub(super) fn execute_general_chat(
     state: &RuntimeState,
@@ -34,6 +35,33 @@ pub(super) fn execute_general_chat(
     }
 }
 
+pub(super) fn execute_clarification(
+    state: &RuntimeState,
+    question: &str,
+    user_time_zone: &str,
+) -> AssistantOrchestratorResult {
+    let text = clarification_text(question);
+
+    AssistantOrchestratorResult {
+        capability: AssistantQueryCapability::GeneralChat,
+        display_text: text.clone(),
+        payload: AssistantStructuredPayload {
+            title: "Clarification needed".to_string(),
+            summary: text.clone(),
+            key_points: vec![
+                "Planner requested clarification before running tool-backed retrieval.".to_string(),
+                format!("Current timezone context: {user_time_zone}"),
+            ],
+            follow_ups: vec![
+                "Example: Show my meetings tomorrow.".to_string(),
+                "Example: Any urgent emails from finance this week?".to_string(),
+            ],
+        },
+        response_parts: vec![AssistantResponsePart::chat_text(text)],
+        attested_identity: local_attested_identity(state),
+    }
+}
+
 fn general_chat_summary(query: &str, prior_state: Option<&EnclaveAssistantSessionState>) -> String {
     let query_snippet = sanitize_untrusted_text(query)
         .chars()
@@ -58,6 +86,18 @@ fn general_chat_summary(query: &str, prior_state: Option<&EnclaveAssistantSessio
     }
 }
 
+fn clarification_text(question: &str) -> String {
+    let sanitized = sanitize_untrusted_text(question)
+        .chars()
+        .take(CLARIFICATION_SUMMARY_MAX_CHARS)
+        .collect::<String>();
+    if sanitized.trim().is_empty() {
+        "Could you clarify whether you want calendar details, email details, or both?".to_string()
+    } else {
+        sanitized
+    }
+}
+
 fn capability_label(capability: &AssistantQueryCapability) -> &'static str {
     match capability {
         AssistantQueryCapability::MeetingsToday => "meetings",
@@ -76,7 +116,7 @@ mod tests {
     };
     use shared::models::AssistantQueryCapability;
 
-    use super::general_chat_summary;
+    use super::{clarification_text, general_chat_summary};
     use crate::http::assistant::session_state::EnclaveAssistantSessionState;
 
     #[test]
@@ -97,5 +137,11 @@ mod tests {
 
         let summary = general_chat_summary("thanks", Some(&prior_state));
         assert!(summary.starts_with("Following up on your previous email request:"));
+    }
+
+    #[test]
+    fn clarification_text_falls_back_when_prompt_is_empty() {
+        let text = clarification_text("   ");
+        assert!(text.contains("calendar details"));
     }
 }

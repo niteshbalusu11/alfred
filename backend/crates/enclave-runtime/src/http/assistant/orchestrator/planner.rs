@@ -168,10 +168,16 @@ fn capability_label(capability: AssistantQueryCapability) -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    use chrono::Utc;
     use serde_json::json;
+    use shared::assistant_memory::{
+        ASSISTANT_SESSION_MEMORY_VERSION_V1, AssistantSessionMemory, AssistantSessionTurn,
+    };
+    use shared::models::AssistantQueryCapability;
 
     use super::parse_semantic_plan_output;
     use crate::http::assistant::orchestrator::planner::deterministic_fallback_plan;
+    use crate::http::assistant::session_state::EnclaveAssistantSessionState;
 
     #[test]
     fn parse_semantic_plan_output_accepts_valid_contract() {
@@ -220,5 +226,28 @@ mod tests {
     fn deterministic_fallback_plan_uses_chat_when_query_is_ambiguous() {
         let plan = deterministic_fallback_plan("thanks", "UTC", None);
         assert_eq!(plan.capabilities.len(), 1);
+    }
+
+    #[test]
+    fn deterministic_fallback_plan_uses_prior_capability_for_follow_up_queries() {
+        let prior_state = EnclaveAssistantSessionState {
+            version: ASSISTANT_SESSION_MEMORY_VERSION_V1.to_string(),
+            last_capability: AssistantQueryCapability::EmailLookup,
+            memory: AssistantSessionMemory {
+                version: ASSISTANT_SESSION_MEMORY_VERSION_V1.to_string(),
+                turns: vec![AssistantSessionTurn {
+                    user_query_snippet: "anything from finance today?".to_string(),
+                    assistant_summary_snippet: "Two messages matched.".to_string(),
+                    capability: AssistantQueryCapability::EmailLookup,
+                    created_at: Utc::now(),
+                }],
+            },
+        };
+
+        let plan = deterministic_fallback_plan("what about after that?", "UTC", Some(&prior_state));
+        assert_eq!(
+            plan.capabilities,
+            vec![AssistantQueryCapability::EmailLookup]
+        );
     }
 }

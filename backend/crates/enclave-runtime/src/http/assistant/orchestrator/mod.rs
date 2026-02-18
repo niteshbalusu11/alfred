@@ -5,7 +5,6 @@ use shared::timezone::DEFAULT_USER_TIME_ZONE;
 use tracing::warn;
 use uuid::Uuid;
 
-use super::memory::{detect_query_capability, resolve_query_capability};
 use super::session_state::EnclaveAssistantSessionState;
 use crate::RuntimeState;
 
@@ -18,6 +17,7 @@ mod email_fallback;
 mod email_plan;
 mod mixed;
 mod planner;
+mod policy;
 
 pub(super) struct AssistantOrchestratorResult {
     pub(super) capability: AssistantQueryCapability,
@@ -34,89 +34,57 @@ pub(super) async fn execute_query(
     query: &str,
     prior_state: Option<&EnclaveAssistantSessionState>,
 ) -> Result<AssistantOrchestratorResult, Response> {
-    let detected_capability = detect_query_capability(query);
-    let heuristic_capability = resolve_query_capability(
-        query,
-        detected_capability,
-        prior_state
-            .as_ref()
-            .map(|state| state.last_capability.clone()),
-    );
-    let mut planner_time_zone: Option<String> = None;
-    let planner_capability = if heuristic_capability.is_none() {
-        let user_time_zone = resolve_user_time_zone(state, user_id).await;
-        let semantic_plan = planner::resolve_semantic_plan(
+    let user_time_zone = resolve_user_time_zone(state, user_id).await;
+    let semantic_plan =
+        planner::resolve_semantic_plan(state, user_id, query, user_time_zone.as_str(), prior_state)
+            .await;
+    let route = policy::resolve_route_policy(&semantic_plan);
+
+    match route {
+        policy::PlannedRoute::Clarify(question) => Ok(chat::execute_clarification(
             state,
-            user_id,
-            query,
+            question.as_str(),
             user_time_zone.as_str(),
-            prior_state,
-        )
-        .await;
-        planner_time_zone = Some(user_time_zone);
-
-        if semantic_plan.used_deterministic_fallback {
-            None
-        } else {
-            semantic_plan.plan.capabilities.first().cloned()
-        }
-    } else {
-        None
-    };
-    let capability = heuristic_capability
-        .or(planner_capability)
-        .unwrap_or(AssistantQueryCapability::GeneralChat);
-
-    match capability {
-        AssistantQueryCapability::MeetingsToday | AssistantQueryCapability::CalendarLookup => {
-            let user_time_zone = match planner_time_zone.clone() {
-                Some(value) => value,
-                None => resolve_user_time_zone(state, user_id).await,
-            };
-            calendar::execute_calendar_query(
-                state,
-                user_id,
-                request_id,
-                query,
-                capability,
-                user_time_zone.as_str(),
-                prior_state,
-            )
-            .await
-        }
-        AssistantQueryCapability::EmailLookup => {
-            let user_time_zone = match planner_time_zone.clone() {
-                Some(value) => value,
-                None => resolve_user_time_zone(state, user_id).await,
-            };
-            email::execute_email_query(
-                state,
-                user_id,
-                request_id,
-                query,
-                user_time_zone.as_str(),
-                prior_state,
-            )
-            .await
-        }
-        AssistantQueryCapability::Mixed => {
-            let user_time_zone = match planner_time_zone {
-                Some(value) => value,
-                None => resolve_user_time_zone(state, user_id).await,
-            };
-            mixed::execute_mixed_query(
-                state,
-                user_id,
-                request_id,
-                query,
-                user_time_zone.as_str(),
-                prior_state,
-            )
-            .await
-        }
-        AssistantQueryCapability::GeneralChat => {
-            Ok(chat::execute_general_chat(state, query, prior_state))
-        }
+        )),
+        policy::PlannedRoute::Execute(capability) => match capability {
+            AssistantQueryCapability::MeetingsToday | AssistantQueryCapability::CalendarLookup => {
+                calendar::execute_calendar_query(
+                    state,
+                    user_id,
+                    request_id,
+                    query,
+                    capability,
+                    user_time_zone.as_str(),
+                    prior_state,
+                )
+                .await
+            }
+            AssistantQueryCapability::EmailLookup => {
+                email::execute_email_query(
+                    state,
+                    user_id,
+                    request_id,
+                    query,
+                    user_time_zone.as_str(),
+                    prior_state,
+                )
+                .await
+            }
+            AssistantQueryCapability::Mixed => {
+                mixed::execute_mixed_query(
+                    state,
+                    user_id,
+                    request_id,
+                    query,
+                    user_time_zone.as_str(),
+                    prior_state,
+                )
+                .await
+            }
+            AssistantQueryCapability::GeneralChat => {
+                Ok(chat::execute_general_chat(state, query, prior_state))
+            }
+        },
     }
 }
 
