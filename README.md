@@ -1,212 +1,184 @@
 # Alfred
 
-Alfred is a hosted, privacy-first AI life assistant focused on proactive help, not chat.
+Alfred is a hosted, privacy-first AI life assistant for iOS.
 
-In Phase I, Alfred helps users by:
+It is designed for proactive help, not generic chat. Phase I focuses on Google-integrated workflows that save attention every day while keeping strict user control over data.
 
-1. Sending meeting reminders from Google Calendar.
-2. Sending a daily morning brief.
-3. Sending urgent Gmail alerts.
-4. Answering natural-language assistant questions using connected Google context.
+## What Alfred Is
 
-## What This Project Is
+Alfred combines:
 
-Alfred is designed around a simple product thesis:
+1. An iOS app for onboarding, settings, and notifications.
+2. A Rust API + worker backend for connectors, preferences, privacy, and automation.
+3. LLM-backed assistant behavior (via OpenRouter) with deterministic safety fallback.
+4. A TEE-sensitive execution path for protected decrypt/process flows.
 
-1. Hosted convenience should not require weak privacy guarantees.
-2. Proactive automation must be reliable before it is broad.
-3. Users should always keep control (auditability, revoke, delete-all).
+Phase I user outcomes:
 
-This repository contains the iOS app, backend services, API contract, and security/privacy design docs needed to ship that product.
+1. Google Calendar meeting reminders.
+2. Daily morning brief.
+3. Urgent Gmail alerts.
+4. Natural-language assistant questions over connected Google context.
 
-## Implementation Status (As Of 2026-02-18)
+## Current Status (As Of 2026-02-18)
 
-Implemented now:
+This repo is in active Phase I private-beta execution.
 
-1. Clerk-authenticated API surface for connectors, preferences, audit events, and privacy delete-all.
-2. LLM-first backend paths for:
-   1. `/v1/assistant/attested-key` + encrypted `/v1/assistant/query` (calendar, email, mixed, and general-chat lanes)
-   2. Worker morning brief generation
-   3. Worker urgent-email prioritization
-3. Enclave semantic planner routing for assistant queries (calendar/email/mixed/general-chat) replacing keyword-only routing (`#180`).
-4. OpenRouter model routing/fallback plus reliability guardrails (rate limits, circuit breaker, cache, budget controls).
-5. Worker lease/retry/idempotency engine with dead-letter handling.
-6. Encrypted-at-rest storage for connector tokens and APNs device tokens.
-7. Content-blind assistant message flow with envelope-only host contracts and enclave-only plaintext processing (`#146`..`#149`).
+Completed migration lines:
+
+1. LLM-first backend migration (`#91` through `#103`).
+2. Semantic planner assistant routing migration (`#180`).
+3. Content-blindness boundary migration (`#146` through `#149`).
 
 Still in progress:
 
-1. External security assessment and remediation program before beta (`#43`).
-2. Remaining Phase I product/ops readiness items on the board (`docs/phase1-master-todo.md`).
+1. Clerk auth migration and legacy auth endpoint retirement (`#52`, `#53`, `#54`, `#56`).
+2. Remaining Phase I board work across product, API, APNs, QA, and launch readiness.
+3. External security assessment/remediation track before beta readiness.
 
-## Architecture Overview
+Source-of-truth status lives in:
 
-At a high level, Alfred has eight core parts:
+1. GitHub issues in `niteshbalusu11/alfred` (`phase-1`, then `P0` before `P1`).
+2. `docs/phase1-master-todo.md` (planning/control board).
 
-1. iOS app (`SwiftUI`) for sign-in, settings, and notification UX.
-2. Rust API server (`axum`) for auth, connector, preferences, audit, and privacy APIs.
-3. LLM orchestration layer for assistant query and proactive summaries.
-4. OpenRouter provider gateway for model routing/fallback.
-5. Rust worker (`tokio`) for scheduled/proactive processing.
-6. Encrypted Postgres for operational state.
-7. Attestation-gated sensitive token path with enclave runtime + KMS-bound policy enforcement.
-8. APNs delivery pipeline for user notifications.
+If the board and an issue conflict, GitHub issues are the immediate execution source.
 
-```mermaid
-flowchart LR
-    User["User (iOS)"] --> App["Alfred iOS App"]
-    App --> API["API Server (Rust/axum)"]
-    API --> DB["Encrypted Postgres"]
-    API --> Audit["Audit Events API"]
-    API --> OAuth["Google OAuth + Connector APIs"]
-    Worker["Worker (Rust/tokio)"] --> API
-    Worker --> DB
-    API --> SecretRuntime["Attestation + Key Policy Checks"]
-    Worker --> SecretRuntime
-    SecretRuntime --> GoogleOAuth["Google OAuth Token Refresh/Revoke"]
-    API --> Google["Google APIs"]
-    Worker --> Google
-    Worker --> APNs["APNs Provider"]
-    APNs --> App
-```
+## Architecture Snapshot
 
-## Privacy Model
+Core runtime components:
 
-Alfred is intentionally opinionated about privacy:
+1. iOS app (`SwiftUI`): product UX.
+2. API server (`Rust + axum`): auth, connectors, preferences, privacy, audit APIs.
+3. Worker (`Rust + tokio`): scheduled/proactive processing.
+4. Enclave runtime: sensitive processing boundary.
+5. Postgres + Redis: operational persistence and reliability state.
+6. Google APIs + APNs: external integrations.
 
-1. Least privilege by default:
-   Minimal OAuth scopes and no silent scope broadening.
-2. Token protection:
-   Connector secrets are encrypted at rest, with sensitive decrypt authorization guarded by attestation and key policy checks.
-   Enclave runtime + RPC boundary controls are implemented; external assessment/remediation remains in progress.
-3. Data minimization:
-   Alfred stores only what is required for reminders/alerts, retries, and auditability.
-4. User control:
-   Users can revoke connectors and request delete-all.
-5. Auditability:
-   Access/actions are logged as redacted audit events.
+## Privacy and Security Direction
 
-## How Alfred Delivers Value (Phase I)
+Non-negotiable baseline:
 
-1. User signs in and connects Google.
-2. Alfred assembles normalized calendar/email context for assistant capabilities.
-3. API/worker call LLM workflows (via OpenRouter) to generate summaries/prioritized actions.
-4. APNs delivers timely notifications to iOS.
-5. User can inspect activity and revoke/delete at any time.
+1. Least-privilege OAuth scopes.
+2. Encrypted secret/token storage.
+3. No plaintext message-body persistence in server control-plane paths.
+4. Enclave-only plaintext handling for protected assistant flows.
+5. Redacted logs + auditability.
+6. User revoke and delete-all controls.
+
+See:
+
+1. `docs/product-context.md`
+2. `docs/engineering-standards.md`
+3. `docs/content-blindness-invariants.md`
+4. `docs/threat-model-phase1.md`
 
 ## Repository Map
 
 1. iOS app: `alfred`
 2. iOS API package: `alfred/Packages/AlfredAPIClient`
 3. Backend workspace: `backend`
-4. API contract: `api/openapi.yaml`
+4. OpenAPI contract: `api/openapi.yaml`
 5. DB migrations: `db/migrations`
 6. Product context: `docs/product-context.md`
-7. RFC: `docs/rfc-0001-alfred-ios-v1.md`
-8. Threat model: `docs/threat-model-phase1.md`
-9. Security + TEE execution tracker (completed): [GitHub issue #130](https://github.com/niteshbalusu11/alfred/issues/130)
+7. Agent/contributor start: `agent/start.md`
+8. Phase I board: `docs/phase1-master-todo.md`
 
-## Local Backend Quick Start
+## Local Development Quick Start
 
-Run from repository root (`alfred/`).
+Run from repo root.
 
-1. Validate tools:
+1. Validate local tools:
 
 ```bash
 just check-tools
 just check-infra-tools
 ```
 
-2. Create local env file:
+2. Create env file:
 
 ```bash
 cp .env.example .env
 ```
 
-Assistant note:
-`ASSISTANT_INGRESS_*` defaults in `.env.example` are set for local development so encrypted assistant queries can run end-to-end without extra setup.
-
-3. Start local infra and apply DB migrations:
+3. Start local infra and apply migrations:
 
 ```bash
 just infra-up
 just backend-migrate
 ```
 
-4. Start services in separate terminals:
-
-Terminal A:
+4. Start runtime services (recommended: separate terminals):
 
 ```bash
 just enclave-runtime
-```
-
-Terminal B:
-
-```bash
 just api
-```
-
-Terminal C:
-
-```bash
 just worker
 ```
 
-5. Verify health:
+Optional (single terminal, includes `ngrok`):
 
 ```bash
-curl -s http://127.0.0.1:8080/healthz
-curl -s http://127.0.0.1:8080/readyz
-curl -s http://127.0.0.1:8181/healthz
+just dev
 ```
 
-Expected API responses include `{\"ok\":true}`.
-
-6. Stop local infra when done:
+5. Stop infra when done:
 
 ```bash
 just infra-stop
 ```
 
-If you want to wipe local DB volumes too:
+Remove volumes too:
 
 ```bash
 just infra-down
 ```
 
-## Quick Build/Check
+## Build, Test, and Quality Gates
 
-Run from repository root:
+Common commands:
 
 ```bash
-just check-tools
 just backend-check
-just ios-build
-```
-
-If you need local database-backed backend work:
-
-```bash
-just check-infra-tools
-just infra-up
-just backend-migrate
-```
-
-One-shot backend testing:
-
-```bash
 just backend-tests
+just backend-verify
+just ios-build
+just ios-test
 ```
 
-## For Contributors
+Backend completion gate for backend-impacting changes:
 
-Use these docs as the source of truth:
+1. `just backend-fmt`
+2. `just backend-clippy`
+3. `just backend-tests`
+4. `just backend-build`
 
-1. Product intent and scope: [docs/product-context.md](docs/product-context.md)
-2. Contributor and agent workflow: [agent/start.md](agent/start.md)
-3. Security/scalability requirements: [docs/engineering-standards.md](docs/engineering-standards.md)
-4. API contract: [api/openapi.yaml](api/openapi.yaml)
-5. Cloud deploy + local manual testing guide: [docs/cloud-deployment-local-testing.md](docs/cloud-deployment-local-testing.md)
+Deep review gate for backend-impacting issues:
 
-Implementation work is issue-driven and prioritized by Phase I labels in GitHub (`phase-1`, then `P0` before `P1`).
+```bash
+just backend-deep-review
+```
+
+## Contribution Workflow
+
+Required workflow is issue-driven:
+
+1. Select from GitHub issues with `phase-1`.
+2. Priority order: `P0` first, then `P1`; lowest issue number first unless blocked.
+3. Use `codex/` branch prefixes.
+4. Keep scope aligned to issue acceptance criteria.
+5. Update issue status/comments and keep board alignment.
+
+Detailed process:
+
+1. `AGENTS.md`
+2. `agent/start.md`
+3. `docs/issue-update-template.md`
+
+## Reference Docs
+
+1. Product context: `docs/product-context.md`
+2. Engineering standards: `docs/engineering-standards.md`
+3. Agent start guide: `agent/start.md`
+4. UI source of truth: `docs/ui-spec.md`
+5. OpenAPI contract: `api/openapi.yaml`
+6. Cloud/local testing: `docs/cloud-deployment-local-testing.md`
