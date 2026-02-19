@@ -2,28 +2,34 @@ use chrono::Utc;
 use serde_json::{Value, json};
 use shared::assistant_semantic_plan::{
     AssistantSemanticCapability, AssistantSemanticPlan, AssistantSemanticPlanOutput,
-    normalize_semantic_plan_output,
+    AssistantSemanticResponseOutput, normalize_semantic_plan_output,
 };
+use shared::llm::safety::sanitize_untrusted_text;
 use shared::llm::{
     AssistantCapability, AssistantOutputContract, LlmExecutionSource, LlmGatewayError,
     LlmGatewayRequest, generate_with_telemetry, sanitize_context_payload, template_for_capability,
     validate_output_value,
 };
-use shared::models::AssistantQueryCapability;
+use shared::models::{AssistantQueryCapability, AssistantStructuredPayload};
 use tracing::{info, warn};
 use uuid::Uuid;
 
 use super::super::memory::{
-    detect_query_capability, query_context_snippet, resolve_query_capability,
-    session_memory_context,
+    query_context_snippet, session_memory_context, should_include_follow_up_context,
 };
 use super::super::session_state::EnclaveAssistantSessionState;
 use crate::RuntimeState;
 
 pub(super) struct SemanticPlanResolution {
     pub(super) plan: AssistantSemanticPlan,
+    pub(super) model_response_payload: Option<AssistantStructuredPayload>,
     pub(super) used_deterministic_fallback: bool,
 }
+
+const MAX_RESPONSE_TITLE_CHARS: usize = 120;
+const MAX_RESPONSE_SUMMARY_CHARS: usize = 500;
+const MAX_RESPONSE_LIST_ITEMS: usize = 8;
+const MAX_RESPONSE_LIST_ITEM_CHARS: usize = 320;
 
 pub(super) async fn resolve_semantic_plan(
     state: &RuntimeState,
@@ -37,17 +43,17 @@ pub(super) async fn resolve_semantic_plan(
         "query_context": query_context_snippet(query),
         "user_time_zone": user_time_zone,
     });
-    if let Value::Object(entries) = &mut context_payload {
-        if let Some(memory_context) = session_memory_context(prior_state.map(|state| &state.memory))
-        {
+    if let Value::Object(entries) = &mut context_payload
+        && let Some(prior_state) = prior_state
+        && should_include_follow_up_context(query, &prior_state.last_capability)
+    {
+        if let Some(memory_context) = session_memory_context(Some(&prior_state.memory)) {
             entries.insert("session_memory".to_string(), memory_context);
         }
-        if let Some(prior_capability) = prior_state.map(|state| state.last_capability.clone()) {
-            entries.insert(
-                "prior_capability".to_string(),
-                json!(capability_label(prior_capability)),
-            );
-        }
+        entries.insert(
+            "prior_capability".to_string(),
+            json!(capability_label(prior_state.last_capability.clone())),
+        );
     }
 
     let context_payload = sanitize_context_payload(&context_payload);
@@ -75,7 +81,7 @@ pub(super) async fn resolve_semantic_plan(
 
     match llm_result {
         Ok(response) => match parse_semantic_plan_output(&response.output, user_time_zone) {
-            Ok(plan) => {
+            Ok((plan, model_response_payload)) => {
                 info!(
                     user_id = %user_id,
                     request_id,
@@ -85,6 +91,7 @@ pub(super) async fn resolve_semantic_plan(
                 );
                 SemanticPlanResolution {
                     plan,
+                    model_response_payload,
                     used_deterministic_fallback: false,
                 }
             }
@@ -96,6 +103,7 @@ pub(super) async fn resolve_semantic_plan(
                 );
                 SemanticPlanResolution {
                     plan: deterministic_fallback_plan(query, user_time_zone, prior_state),
+                    model_response_payload: None,
                     used_deterministic_fallback: true,
                 }
             }
@@ -108,6 +116,7 @@ pub(super) async fn resolve_semantic_plan(
             );
             SemanticPlanResolution {
                 plan: deterministic_fallback_plan(query, user_time_zone, prior_state),
+                model_response_payload: None,
                 used_deterministic_fallback: true,
             }
         }
@@ -117,7 +126,7 @@ pub(super) async fn resolve_semantic_plan(
 fn parse_semantic_plan_output(
     payload: &Value,
     user_time_zone: &str,
-) -> Result<AssistantSemanticPlan, LlmGatewayError> {
+) -> Result<(AssistantSemanticPlan, Option<AssistantStructuredPayload>), LlmGatewayError> {
     let contract = validate_output_value(AssistantCapability::AssistantSemanticPlan, payload)
         .map_err(|err| LlmGatewayError::InvalidProviderPayload(err.to_string()))?;
     let AssistantOutputContract::AssistantSemanticPlan(contract) = contract else {
@@ -125,47 +134,72 @@ fn parse_semantic_plan_output(
             "semantic planner contract type mismatch".to_string(),
         ));
     };
+    let output = contract.output;
+    let model_response_payload = normalize_semantic_response(output.response.clone());
+    let plan = normalize_semantic_plan_output(output, user_time_zone, Utc::now())
+        .map_err(|err| LlmGatewayError::InvalidProviderPayload(err.to_string()))?;
 
-    normalize_semantic_plan_output(contract.output, user_time_zone, Utc::now())
-        .map_err(|err| LlmGatewayError::InvalidProviderPayload(err.to_string()))
+    Ok((plan, model_response_payload))
 }
 
 fn deterministic_fallback_plan(
-    query: &str,
+    _query: &str,
     user_time_zone: &str,
-    prior_state: Option<&EnclaveAssistantSessionState>,
+    _prior_state: Option<&EnclaveAssistantSessionState>,
 ) -> AssistantSemanticPlan {
-    let detected_capability = detect_query_capability(query);
-    let resolved = resolve_query_capability(
-        query,
-        detected_capability,
-        prior_state.map(|state| state.last_capability.clone()),
-    )
-    .unwrap_or(AssistantQueryCapability::GeneralChat);
-
     let output = AssistantSemanticPlanOutput {
-        capabilities: vec![map_to_semantic_capability(resolved)],
-        confidence: 0.25,
+        capabilities: vec![AssistantSemanticCapability::GeneralChat],
+        confidence: 0.0,
         needs_clarification: false,
         clarifying_question: None,
         time_window: None,
         email_filters: None,
         language: None,
+        response: None,
     };
 
     normalize_semantic_plan_output(output, user_time_zone, Utc::now())
         .expect("deterministic semantic planner fallback must normalize")
 }
 
-fn map_to_semantic_capability(capability: AssistantQueryCapability) -> AssistantSemanticCapability {
-    match capability {
-        AssistantQueryCapability::MeetingsToday | AssistantQueryCapability::CalendarLookup => {
-            AssistantSemanticCapability::CalendarLookup
-        }
-        AssistantQueryCapability::EmailLookup => AssistantSemanticCapability::EmailLookup,
-        AssistantQueryCapability::GeneralChat => AssistantSemanticCapability::GeneralChat,
-        AssistantQueryCapability::Mixed => AssistantSemanticCapability::Mixed,
+fn normalize_semantic_response(
+    response: Option<AssistantSemanticResponseOutput>,
+) -> Option<AssistantStructuredPayload> {
+    let response = response?;
+    let summary = truncate_and_sanitize(response.summary.as_str(), MAX_RESPONSE_SUMMARY_CHARS);
+    if summary.is_empty() {
+        return None;
     }
+
+    let title = truncate_and_sanitize(response.title.as_str(), MAX_RESPONSE_TITLE_CHARS);
+    Some(AssistantStructuredPayload {
+        title: if title.is_empty() {
+            "General conversation".to_string()
+        } else {
+            title
+        },
+        summary,
+        key_points: sanitize_list(response.key_points),
+        follow_ups: sanitize_list(response.follow_ups),
+    })
+}
+
+fn sanitize_list(items: Vec<String>) -> Vec<String> {
+    items
+        .into_iter()
+        .map(|item| truncate_and_sanitize(item.as_str(), MAX_RESPONSE_LIST_ITEM_CHARS))
+        .filter(|item| !item.is_empty())
+        .take(MAX_RESPONSE_LIST_ITEMS)
+        .collect()
+}
+
+fn truncate_and_sanitize(value: &str, limit: usize) -> String {
+    sanitize_untrusted_text(value)
+        .chars()
+        .take(limit)
+        .collect::<String>()
+        .trim()
+        .to_string()
 }
 
 fn capability_label(capability: AssistantQueryCapability) -> &'static str {
@@ -180,16 +214,11 @@ fn capability_label(capability: AssistantQueryCapability) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use chrono::Utc;
     use serde_json::json;
-    use shared::assistant_memory::{
-        ASSISTANT_SESSION_MEMORY_VERSION_V1, AssistantSessionMemory, AssistantSessionTurn,
-    };
     use shared::models::AssistantQueryCapability;
 
     use super::parse_semantic_plan_output;
     use crate::http::assistant::orchestrator::planner::deterministic_fallback_plan;
-    use crate::http::assistant::session_state::EnclaveAssistantSessionState;
 
     #[test]
     fn parse_semantic_plan_output_accepts_valid_contract() {
@@ -211,10 +240,44 @@ mod tests {
             }
         });
 
-        let plan = parse_semantic_plan_output(&payload, "UTC")
+        let (plan, model_response_payload) = parse_semantic_plan_output(&payload, "UTC")
             .expect("valid semantic planner payload should parse");
         assert_eq!(plan.capabilities.len(), 1);
         assert!(plan.email_filters.is_some());
+        assert!(model_response_payload.is_none());
+    }
+
+    #[test]
+    fn parse_semantic_plan_output_extracts_response_payload() {
+        let payload = json!({
+            "version": "2026-02-18",
+            "output": {
+                "capabilities": ["general_chat"],
+                "confidence": 0.88,
+                "needs_clarification": false,
+                "clarifying_question": null,
+                "time_window": null,
+                "email_filters": null,
+                "language": "en",
+                "response": {
+                    "title": "Trip planning",
+                    "summary": "I can help you plan a practical Alaska trip.",
+                    "key_points": ["Pick dates first", "Estimate total budget"],
+                    "follow_ups": ["Ask me for a 7-day itinerary"]
+                }
+            }
+        });
+
+        let (plan, model_response_payload) = parse_semantic_plan_output(&payload, "UTC")
+            .expect("valid semantic planner payload with response should parse");
+        assert_eq!(
+            plan.capabilities,
+            vec![AssistantQueryCapability::GeneralChat]
+        );
+        let payload = model_response_payload.expect("response payload should be extracted");
+        assert_eq!(payload.title, "Trip planning");
+        assert!(payload.summary.contains("Alaska"));
+        assert_eq!(payload.key_points.len(), 2);
     }
 
     #[test]
@@ -235,31 +298,13 @@ mod tests {
     }
 
     #[test]
-    fn deterministic_fallback_plan_uses_chat_when_query_is_ambiguous() {
+    fn deterministic_fallback_plan_defaults_to_general_chat_execution() {
         let plan = deterministic_fallback_plan("thanks", "UTC", None);
-        assert_eq!(plan.capabilities.len(), 1);
-    }
-
-    #[test]
-    fn deterministic_fallback_plan_uses_prior_capability_for_follow_up_queries() {
-        let prior_state = EnclaveAssistantSessionState {
-            version: ASSISTANT_SESSION_MEMORY_VERSION_V1.to_string(),
-            last_capability: AssistantQueryCapability::EmailLookup,
-            memory: AssistantSessionMemory {
-                version: ASSISTANT_SESSION_MEMORY_VERSION_V1.to_string(),
-                turns: vec![AssistantSessionTurn {
-                    user_query_snippet: "anything from finance today?".to_string(),
-                    assistant_summary_snippet: "Two messages matched.".to_string(),
-                    capability: AssistantQueryCapability::EmailLookup,
-                    created_at: Utc::now(),
-                }],
-            },
-        };
-
-        let plan = deterministic_fallback_plan("what about after that?", "UTC", Some(&prior_state));
         assert_eq!(
             plan.capabilities,
-            vec![AssistantQueryCapability::EmailLookup]
+            vec![AssistantQueryCapability::GeneralChat]
         );
+        assert!(!plan.needs_clarification);
+        assert!(plan.clarifying_question.is_none());
     }
 }

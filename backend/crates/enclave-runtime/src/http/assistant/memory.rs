@@ -27,6 +27,19 @@ pub(super) fn resolve_query_capability(
     resolve_query_capability_shared(query, detected, prior_capability)
 }
 
+pub(super) fn should_include_follow_up_context(
+    query: &str,
+    prior_capability: &AssistantQueryCapability,
+) -> bool {
+    let detected = detect_query_capability(query);
+    if detected.is_some() {
+        return false;
+    }
+
+    resolve_query_capability(query, detected, Some(prior_capability.clone()))
+        .is_some_and(|resolved| resolved == *prior_capability)
+}
+
 pub(super) fn build_updated_memory(
     existing_memory: Option<&AssistantSessionMemory>,
     query: &str,
@@ -82,7 +95,9 @@ fn redact_and_truncate(value: &str, max_chars: usize) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{detect_query_capability, resolve_query_capability};
+    use super::{
+        detect_query_capability, resolve_query_capability, should_include_follow_up_context,
+    };
     use shared::models::AssistantQueryCapability;
 
     #[test]
@@ -132,5 +147,13 @@ mod tests {
             resolve_query_capability("thanks", detect_query_capability("thanks"), None),
             None
         );
+    }
+
+    #[test]
+    fn follow_up_context_is_not_attached_for_unrelated_chat_queries() {
+        assert!(!should_include_follow_up_context(
+            "Can you tell me how to make pizza?",
+            &AssistantQueryCapability::CalendarLookup,
+        ));
     }
 }

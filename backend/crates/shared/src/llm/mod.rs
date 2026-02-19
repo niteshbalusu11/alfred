@@ -16,8 +16,8 @@ pub use context::{
     assemble_urgent_email_candidates_context,
 };
 pub use contracts::{
-    AssistantCapability, AssistantOutputContract, ContractError, MeetingsSummaryContract,
-    MorningBriefContract, UrgentEmailSummaryContract, output_schema,
+    AssistantCapability, AssistantOutputContract, ContractError, GeneralChatContract,
+    MeetingsSummaryContract, MorningBriefContract, UrgentEmailSummaryContract, output_schema,
 };
 pub use gateway::{LlmGateway, LlmGatewayError, LlmGatewayRequest, LlmGatewayResponse};
 pub use observability::{LlmExecutionSource, LlmTelemetryEvent, generate_with_telemetry};

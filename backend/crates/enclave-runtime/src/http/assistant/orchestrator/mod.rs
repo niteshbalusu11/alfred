@@ -22,6 +22,8 @@ mod mixed;
 mod planner;
 mod policy;
 
+const DEFAULT_GENERAL_CHAT_SUMMARY: &str = "Thanks for sharing that. I am here and listening.";
+
 pub(super) struct AssistantOrchestratorResult {
     pub(super) capability: AssistantQueryCapability,
     pub(super) display_text: String,
@@ -79,6 +81,8 @@ pub(super) async fn execute_query(
     let planner_stage_ms = planner_started.elapsed().as_millis() as u64;
     let route = policy::resolve_route_policy(&semantic_plan);
     let route_label = planned_route_label(&route);
+    let plan_time_window = semantic_plan.plan.time_window.clone();
+    let plan_email_filters = semantic_plan.plan.email_filters.clone();
 
     let lane_started = Instant::now();
     let result = match route {
@@ -89,44 +93,71 @@ pub(super) async fn execute_query(
         )),
         policy::PlannedRoute::Execute(capability) => match capability {
             AssistantQueryCapability::MeetingsToday | AssistantQueryCapability::CalendarLookup => {
+                let Some(time_window) = plan_time_window.as_ref() else {
+                    return Ok(chat::execute_clarification(
+                        state,
+                        "I need a specific calendar timeframe before I can run that lookup.",
+                        user_time_zone.as_str(),
+                    ));
+                };
                 calendar::execute_calendar_query(
                     state,
                     user_id,
                     request_id,
-                    query,
                     capability,
-                    user_time_zone.as_str(),
-                    prior_state,
+                    time_window,
                 )
                 .await
             }
             AssistantQueryCapability::EmailLookup => {
-                email::execute_email_query(
-                    state,
-                    user_id,
-                    request_id,
-                    query,
-                    user_time_zone.as_str(),
-                    prior_state,
-                )
-                .await
+                let Some(email_filters) = plan_email_filters.as_ref() else {
+                    return Ok(chat::execute_clarification(
+                        state,
+                        "I need a specific email scope before I can run that lookup.",
+                        user_time_zone.as_str(),
+                    ));
+                };
+                email::execute_email_query(state, user_id, request_id, email_filters).await
             }
             AssistantQueryCapability::Mixed => {
+                let Some(time_window) = plan_time_window.as_ref() else {
+                    return Ok(chat::execute_clarification(
+                        state,
+                        "I need a calendar timeframe and email scope before I can run this combined lookup.",
+                        user_time_zone.as_str(),
+                    ));
+                };
+                let Some(email_filters) = plan_email_filters.as_ref() else {
+                    return Ok(chat::execute_clarification(
+                        state,
+                        "I need a calendar timeframe and email scope before I can run this combined lookup.",
+                        user_time_zone.as_str(),
+                    ));
+                };
                 mixed::execute_mixed_query(
                     state,
                     user_id,
                     request_id,
                     query,
-                    user_time_zone.as_str(),
-                    prior_state,
+                    time_window,
+                    email_filters,
                 )
                 .await
             }
             AssistantQueryCapability::GeneralChat => {
-                Ok(
-                    chat::execute_general_chat(state, user_id, request_id, query, prior_state)
-                        .await,
-                )
+                if let Some(payload) = semantic_plan.model_response_payload.as_ref() {
+                    Ok(execute_general_chat_one_call(state, payload))
+                } else {
+                    info!(
+                        user_id = %user_id,
+                        request_id,
+                        "assistant semantic planner omitted general chat response payload; using chat backstop"
+                    );
+                    Ok(
+                        chat::execute_general_chat(state, user_id, request_id, query, prior_state)
+                            .await,
+                    )
+                }
             }
         },
     };
@@ -185,6 +216,33 @@ fn capability_label(capability: &AssistantQueryCapability) -> &'static str {
         AssistantQueryCapability::EmailLookup => "email_lookup",
         AssistantQueryCapability::GeneralChat => "general_chat",
         AssistantQueryCapability::Mixed => "mixed",
+    }
+}
+
+fn execute_general_chat_one_call(
+    state: &RuntimeState,
+    model_response_payload: &AssistantStructuredPayload,
+) -> AssistantOrchestratorResult {
+    let payload = model_response_payload.clone();
+    let display_text = if payload.summary.trim().is_empty() {
+        DEFAULT_GENERAL_CHAT_SUMMARY.to_string()
+    } else {
+        payload.summary.clone()
+    };
+    let mut response_parts = vec![AssistantResponsePart::chat_text(display_text.clone())];
+    if !payload.key_points.is_empty() || !payload.follow_ups.is_empty() {
+        response_parts.push(AssistantResponsePart::tool_summary(
+            AssistantQueryCapability::GeneralChat,
+            payload.clone(),
+        ));
+    }
+
+    AssistantOrchestratorResult {
+        capability: AssistantQueryCapability::GeneralChat,
+        display_text,
+        payload,
+        response_parts,
+        attested_identity: local_attested_identity(state),
     }
 }
 

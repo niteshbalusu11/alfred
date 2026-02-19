@@ -31,10 +31,6 @@ impl RuntimeState {
         self.llm_gateways.assistant_chat()
     }
 
-    pub(crate) fn assistant_tool_gateway(&self) -> &(dyn LlmGateway + Send + Sync) {
-        self.llm_gateways.assistant_tool()
-    }
-
     pub(crate) fn worker_gateway(&self) -> &(dyn LlmGateway + Send + Sync) {
         self.llm_gateways.worker()
     }

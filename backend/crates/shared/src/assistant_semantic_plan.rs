@@ -71,6 +71,17 @@ pub struct AssistantSemanticPlanOutput {
     pub email_filters: Option<AssistantSemanticEmailFiltersOutput>,
     #[serde(default)]
     pub language: Option<String>,
+    #[serde(default)]
+    pub response: Option<AssistantSemanticResponseOutput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AssistantSemanticResponseOutput {
+    pub title: String,
+    pub summary: String,
+    pub key_points: Vec<String>,
+    pub follow_ups: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -166,7 +177,6 @@ pub fn normalize_semantic_plan_output(
     };
     let email_filters = output.email_filters.map(normalize_email_filters);
     let language = normalize_language_hint(output.language.as_deref());
-
     Ok(AssistantSemanticPlan {
         capabilities,
         confidence: output.confidence as f32,

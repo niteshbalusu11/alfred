@@ -11,7 +11,6 @@ type DynLlmGateway = dyn LlmGateway + Send + Sync;
 
 const ASSISTANT_PLANNER_PROFILE_PREFIX: &str = "ASSISTANT_PLANNER";
 const ASSISTANT_CHAT_PROFILE_PREFIX: &str = "ASSISTANT_CHAT";
-const ASSISTANT_TOOL_PROFILE_PREFIX: &str = "ASSISTANT_TOOL";
 
 const DEFAULT_ASSISTANT_PLANNER_TIMEOUT_MS: u64 = 4_000;
 const DEFAULT_ASSISTANT_PLANNER_MAX_RETRIES: u32 = 0;
@@ -21,15 +20,10 @@ const DEFAULT_ASSISTANT_CHAT_TIMEOUT_MS: u64 = 3_000;
 const DEFAULT_ASSISTANT_CHAT_MAX_RETRIES: u32 = 0;
 const DEFAULT_ASSISTANT_CHAT_MAX_OUTPUT_TOKENS: u32 = 260;
 
-const DEFAULT_ASSISTANT_TOOL_TIMEOUT_MS: u64 = 6_000;
-const DEFAULT_ASSISTANT_TOOL_MAX_RETRIES: u32 = 1;
-const DEFAULT_ASSISTANT_TOOL_MAX_OUTPUT_TOKENS: u32 = 500;
-
 #[derive(Clone)]
 pub(crate) struct LlmGatewayProfiles {
     planner: Arc<DynLlmGateway>,
     assistant_chat: Arc<DynLlmGateway>,
-    assistant_tool: Arc<DynLlmGateway>,
     worker: Arc<DynLlmGateway>,
 }
 
@@ -40,10 +34,6 @@ impl LlmGatewayProfiles {
 
     pub(crate) fn assistant_chat(&self) -> &DynLlmGateway {
         self.assistant_chat.as_ref()
-    }
-
-    pub(crate) fn assistant_tool(&self) -> &DynLlmGateway {
-        self.assistant_tool.as_ref()
     }
 
     pub(crate) fn worker(&self) -> &DynLlmGateway {
@@ -76,26 +66,9 @@ pub(crate) async fn build_llm_gateway_profiles(
             use_model_fallback: false,
         },
     );
-    let assistant_tool_config = assistant_profile_config(
-        &openrouter_config,
-        ASSISTANT_TOOL_PROFILE_PREFIX,
-        AssistantProfileDefaults {
-            timeout_ms: DEFAULT_ASSISTANT_TOOL_TIMEOUT_MS,
-            max_retries: DEFAULT_ASSISTANT_TOOL_MAX_RETRIES,
-            max_output_tokens: DEFAULT_ASSISTANT_TOOL_MAX_OUTPUT_TOKENS,
-            use_model_fallback: false,
-        },
-    );
-
     let planner = build_gateway(planner_config, llm_reliability_config.clone(), redis_url).await?;
     let assistant_chat = build_gateway(
         assistant_chat_config,
-        llm_reliability_config.clone(),
-        redis_url,
-    )
-    .await?;
-    let assistant_tool = build_gateway(
-        assistant_tool_config,
         llm_reliability_config.clone(),
         redis_url,
     )
@@ -105,7 +78,6 @@ pub(crate) async fn build_llm_gateway_profiles(
     Ok(LlmGatewayProfiles {
         planner,
         assistant_chat,
-        assistant_tool,
         worker,
     })
 }

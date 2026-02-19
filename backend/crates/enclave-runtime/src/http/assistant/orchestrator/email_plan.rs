@@ -1,21 +1,41 @@
 use std::cmp::Ordering;
 
-use chrono::{DateTime, Datelike, Duration, NaiveDate, Utc};
-use shared::timezone::{local_day_bounds_utc, user_local_date};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum EmailWindowKind {
-    Today,
-    ThisWeek,
-    PastDays(i64),
-}
+use chrono::{DateTime, Duration, Utc};
+use shared::assistant_semantic_plan::AssistantSemanticEmailFilters;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct EmailQueryPlan {
     pub(super) sender_filter: Option<String>,
+    pub(super) keywords: Vec<String>,
     pub(super) lookback_days: i64,
-    pub(super) window_label: &'static str,
-    window_kind: EmailWindowKind,
+    pub(super) unread_only: bool,
+    pub(super) window_label: String,
+    window_start: DateTime<Utc>,
+}
+
+pub(super) fn plan_email_query(
+    filters: &AssistantSemanticEmailFilters,
+    now: DateTime<Utc>,
+) -> EmailQueryPlan {
+    let lookback_days = i64::from(filters.lookback_days.clamp(1, 30));
+    let window_label = if lookback_days == 1 {
+        "the past day".to_string()
+    } else {
+        format!("the past {lookback_days} days")
+    };
+
+    EmailQueryPlan {
+        sender_filter: filters.sender.as_deref().map(str::to_ascii_lowercase),
+        keywords: filters
+            .keywords
+            .iter()
+            .map(|keyword| keyword.to_ascii_lowercase())
+            .collect(),
+        lookback_days,
+        unread_only: filters.unread_only,
+        window_label,
+        window_start: now - Duration::days(lookback_days),
+    }
 }
 
 pub(super) fn build_gmail_query(plan: &EmailQueryPlan) -> String {
@@ -23,44 +43,21 @@ pub(super) fn build_gmail_query(plan: &EmailQueryPlan) -> String {
     if let Some(sender_filter) = &plan.sender_filter {
         parts.push(format!("from:{sender_filter}"));
     }
-    parts.join(" ")
-}
-
-pub(super) fn plan_email_query(query: &str) -> EmailQueryPlan {
-    let normalized = query.to_ascii_lowercase();
-
-    let (lookback_days, window_label, window_kind) = if normalized.contains("today") {
-        (1, "today", EmailWindowKind::Today)
-    } else if normalized.contains("this week") {
-        (7, "this week", EmailWindowKind::ThisWeek)
-    } else if normalized.contains("next 7 days")
-        || normalized.contains("last 7 days")
-        || normalized.contains("week")
-    {
-        (7, "the past 7 days", EmailWindowKind::PastDays(7))
-    } else if normalized.contains("month") || normalized.contains("30 days") {
-        (30, "the past 30 days", EmailWindowKind::PastDays(30))
-    } else {
-        (7, "the past 7 days", EmailWindowKind::PastDays(7))
-    };
-
-    EmailQueryPlan {
-        sender_filter: parse_sender_filter(query),
-        lookback_days,
-        window_label,
-        window_kind,
+    if plan.unread_only {
+        parts.push("is:unread".to_string());
     }
+    if !plan.keywords.is_empty() {
+        parts.extend(plan.keywords.iter().cloned());
+    }
+
+    parts.join(" ")
 }
 
 pub(super) fn apply_email_filters(
     mut candidates: Vec<shared::llm::GoogleEmailCandidateSource>,
     plan: &EmailQueryPlan,
     now: DateTime<Utc>,
-    user_time_zone: &str,
 ) -> Vec<shared::llm::GoogleEmailCandidateSource> {
-    let min_received_at = window_start_utc(plan, now, user_time_zone)
-        .unwrap_or_else(|| now - Duration::days(plan.lookback_days));
-
     candidates.retain(|candidate| {
         let sender_match = plan
             .sender_filter
@@ -75,12 +72,39 @@ pub(super) fn apply_email_filters(
             })
             .unwrap_or(true);
 
+        let keyword_match = if plan.keywords.is_empty() {
+            true
+        } else {
+            let subject = candidate
+                .subject
+                .as_deref()
+                .unwrap_or("")
+                .to_ascii_lowercase();
+            let snippet = candidate
+                .snippet
+                .as_deref()
+                .unwrap_or("")
+                .to_ascii_lowercase();
+            plan.keywords
+                .iter()
+                .any(|keyword| subject.contains(keyword) || snippet.contains(keyword))
+        };
+
+        let unread_match = if plan.unread_only {
+            candidate
+                .label_ids
+                .iter()
+                .any(|label| label.eq_ignore_ascii_case("UNREAD"))
+        } else {
+            true
+        };
+
         let time_match = candidate
             .received_at
-            .map(|received| received >= min_received_at && received <= now)
+            .map(|received| received >= plan.window_start && received <= now)
             .unwrap_or(false);
 
-        sender_match && time_match
+        sender_match && keyword_match && unread_match && time_match
     });
 
     candidates.sort_by(|left, right| match (left.received_at, right.received_at) {
@@ -93,59 +117,13 @@ pub(super) fn apply_email_filters(
     candidates
 }
 
-pub(super) fn window_start_utc(
-    plan: &EmailQueryPlan,
-    now: DateTime<Utc>,
-    user_time_zone: &str,
-) -> Option<DateTime<Utc>> {
-    let local_today = user_local_date(now, user_time_zone);
-
-    let start_date = match plan.window_kind {
-        EmailWindowKind::Today => local_today,
-        EmailWindowKind::ThisWeek => start_of_week(local_today),
-        EmailWindowKind::PastDays(days) => local_today - Duration::days(days.saturating_sub(1)),
-    };
-
-    local_day_bounds_utc(start_date, user_time_zone).map(|(start, _)| start)
-}
-
-fn start_of_week(date: NaiveDate) -> NaiveDate {
-    date - Duration::days(date.weekday().num_days_from_monday() as i64)
-}
-
-fn parse_sender_filter(query: &str) -> Option<String> {
-    let markers = ["from ", "sender "];
-    let normalized = query.to_ascii_lowercase();
-
-    for marker in markers {
-        if let Some(start) = normalized.find(marker) {
-            let rest = &query[start + marker.len()..];
-            let raw = rest.split_whitespace().next().unwrap_or("");
-            let cleaned = raw
-                .trim_matches(|c: char| {
-                    !c.is_ascii_alphanumeric()
-                        && c != '@'
-                        && c != '.'
-                        && c != '_'
-                        && c != '-'
-                        && c != '+'
-                })
-                .to_ascii_lowercase();
-            if !cleaned.is_empty() {
-                return Some(cleaned);
-            }
-        }
-    }
-
-    None
-}
-
 #[cfg(test)]
 mod tests {
     use chrono::{DateTime, Utc};
+    use shared::assistant_semantic_plan::AssistantSemanticEmailFilters;
     use shared::llm::GoogleEmailCandidateSource;
 
-    use super::{apply_email_filters, plan_email_query, window_start_utc};
+    use super::{apply_email_filters, build_gmail_query, plan_email_query};
 
     fn utc(value: &str) -> DateTime<Utc> {
         DateTime::parse_from_rfc3339(value)
@@ -154,68 +132,66 @@ mod tests {
     }
 
     #[test]
-    fn plan_email_query_extracts_sender_and_window() {
-        let plan = plan_email_query("Any email from finance@example.com today?");
+    fn plan_email_query_is_built_from_structured_filters() {
+        let now = utc("2026-02-17T12:00:00Z");
+        let plan = plan_email_query(
+            &AssistantSemanticEmailFilters {
+                sender: Some("Finance@Example.com".to_string()),
+                keywords: vec!["invoice".to_string(), "q1".to_string()],
+                lookback_days: 7,
+                unread_only: true,
+            },
+            now,
+        );
+
         assert_eq!(plan.sender_filter.as_deref(), Some("finance@example.com"));
-        assert_eq!(plan.lookback_days, 1);
-        assert_eq!(plan.window_label, "today");
+        assert_eq!(plan.lookback_days, 7);
+        assert_eq!(plan.window_label, "the past 7 days");
+        assert!(plan.unread_only);
 
-        let weekly_plan = plan_email_query("summarize my inbox this week");
-        assert_eq!(weekly_plan.sender_filter, None);
-        assert_eq!(weekly_plan.lookback_days, 7);
-        assert_eq!(weekly_plan.window_label, "this week");
-
-        let recent_plan = plan_email_query("show messages from payroll in the last 7 days");
-        assert_eq!(recent_plan.sender_filter.as_deref(), Some("payroll"));
-        assert_eq!(recent_plan.lookback_days, 7);
-        assert_eq!(recent_plan.window_label, "the past 7 days");
+        let gmail_query = build_gmail_query(&plan);
+        assert!(gmail_query.contains("newer_than:7d"));
+        assert!(gmail_query.contains("from:finance@example.com"));
+        assert!(gmail_query.contains("is:unread"));
+        assert!(gmail_query.contains("invoice"));
     }
 
     #[test]
-    fn apply_email_filters_supports_sender_and_user_local_day_window() {
+    fn apply_email_filters_uses_structured_sender_keyword_and_unread_constraints() {
         let now = utc("2026-02-17T12:00:00Z");
-        let plan = plan_email_query("Any email from finance@example.com today?");
+        let plan = plan_email_query(
+            &AssistantSemanticEmailFilters {
+                sender: Some("finance@example.com".to_string()),
+                keywords: vec!["invoice".to_string()],
+                lookback_days: 7,
+                unread_only: true,
+            },
+            now,
+        );
+
         let candidates = vec![
             GoogleEmailCandidateSource {
                 message_id: Some("1".to_string()),
                 from: Some("finance@example.com".to_string()),
-                subject: Some("Invoice".to_string()),
-                snippet: None,
-                received_at: Some(utc("2026-02-17T10:00:00Z")),
-                label_ids: vec![],
+                subject: Some("Invoice for Q1".to_string()),
+                snippet: Some("Please review attached invoice".to_string()),
+                received_at: Some(utc("2026-02-16T10:00:00Z")),
+                label_ids: vec!["UNREAD".to_string()],
                 has_attachments: false,
             },
             GoogleEmailCandidateSource {
                 message_id: Some("2".to_string()),
                 from: Some("finance@example.com".to_string()),
-                subject: Some("Before local midnight".to_string()),
-                snippet: None,
-                received_at: Some(utc("2026-02-17T07:30:00Z")),
-                label_ids: vec![],
-                has_attachments: false,
-            },
-            GoogleEmailCandidateSource {
-                message_id: Some("3".to_string()),
-                from: Some("finance@example.com".to_string()),
-                subject: Some("Unknown time".to_string()),
-                snippet: None,
-                received_at: None,
-                label_ids: vec![],
+                subject: Some("Budget update".to_string()),
+                snippet: Some("No invoice mentioned".to_string()),
+                received_at: Some(utc("2026-02-16T09:00:00Z")),
+                label_ids: vec!["INBOX".to_string()],
                 has_attachments: false,
             },
         ];
 
-        let filtered = apply_email_filters(candidates, &plan, now, "America/Los_Angeles");
+        let filtered = apply_email_filters(candidates, &plan, now);
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0].message_id.as_deref(), Some("1"));
-    }
-
-    #[test]
-    fn window_start_utc_aligns_this_week_to_local_monday() {
-        let now = utc("2026-02-19T05:00:00Z");
-        let plan = plan_email_query("summarize my inbox this week");
-
-        let start = window_start_utc(&plan, now, "America/New_York").expect("start should resolve");
-        assert_eq!(start.to_rfc3339(), "2026-02-16T05:00:00+00:00");
     }
 }

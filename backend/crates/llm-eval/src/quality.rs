@@ -9,6 +9,24 @@ pub fn evaluate_quality(
     let mut issues = Vec::new();
 
     match contract {
+        AssistantOutputContract::GeneralChat(chat) => {
+            require_non_empty_text("output.title", &chat.output.title, &mut issues);
+            require_non_empty_text("output.summary", &chat.output.summary, &mut issues);
+            require_all_non_empty("output.key_points", &chat.output.key_points, &mut issues);
+            require_all_non_empty("output.follow_ups", &chat.output.follow_ups, &mut issues);
+            require_min_len(
+                "output.key_points",
+                chat.output.key_points.len(),
+                expectations.min_key_points,
+                &mut issues,
+            );
+            require_min_len(
+                "output.follow_ups",
+                chat.output.follow_ups.len(),
+                expectations.min_follow_ups,
+                &mut issues,
+            );
+        }
         AssistantOutputContract::MeetingsSummary(summary) => {
             require_non_empty_text("output.title", &summary.output.title, &mut issues);
             require_non_empty_text("output.summary", &summary.output.summary, &mut issues);

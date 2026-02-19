@@ -83,6 +83,7 @@ struct CacheKeyPayload<'a> {
 fn capability_label(capability: AssistantCapability) -> &'static str {
     match capability {
         AssistantCapability::MeetingsSummary => "meetings_summary",
+        AssistantCapability::GeneralChat => "general_chat",
         AssistantCapability::MorningBrief => "morning_brief",
         AssistantCapability::UrgentEmailSummary => "urgent_email_summary",
         AssistantCapability::AssistantSemanticPlan => "assistant_semantic_plan",
