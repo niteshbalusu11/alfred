@@ -2,8 +2,8 @@ use std::time::Instant;
 
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use chrono::Utc;
 use serde_json::{Value, json};
+use shared::assistant_semantic_plan::AssistantSemanticPlan;
 use shared::llm::{
     AssistantCapability, AssistantOutputContract, LlmExecutionSource, LlmGatewayRequest,
     SafeOutputSource, assemble_urgent_email_candidates_context, generate_with_telemetry,
@@ -21,9 +21,7 @@ use super::AssistantOrchestratorResult;
 use super::email_fallback::{
     deterministic_email_fallback_payload, format_email_key_point, title_for_email_results,
 };
-use super::email_plan::{
-    apply_email_filters, build_gmail_query, plan_email_query, window_start_utc,
-};
+use super::email_plan::{apply_email_filters, build_gmail_query, plan_email_query};
 use crate::RuntimeState;
 use crate::http::rpc;
 
@@ -36,7 +34,7 @@ pub(super) async fn execute_email_query(
     user_id: Uuid,
     request_id: &str,
     query: &str,
-    user_time_zone: &str,
+    semantic_plan: &AssistantSemanticPlan,
     prior_state: Option<&EnclaveAssistantSessionState>,
 ) -> Result<AssistantOrchestratorResult, Response> {
     let lane_started = Instant::now();
@@ -57,9 +55,23 @@ pub(super) async fn execute_email_query(
     let connector_resolve_ms = connector_started.elapsed().as_millis() as u64;
 
     let plan_started = Instant::now();
-    let plan = plan_email_query(query);
+    let semantic_time_window = match semantic_plan.time_window.as_ref() {
+        Some(window) => window,
+        None => {
+            return Err(rpc::reject(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                shared::enclave::EnclaveRpcErrorEnvelope::new(
+                    Some(request_id.to_string()),
+                    "rpc_internal_error",
+                    "missing semantic time_window for email query",
+                    true,
+                ),
+            )
+            .into_response());
+        }
+    };
+    let plan = plan_email_query(semantic_time_window, semantic_plan.email_filters.as_ref());
     let email_plan_ms = plan_started.elapsed().as_millis() as u64;
-    let now = Utc::now();
 
     let fetch_started = Instant::now();
     let fetch_response = match state
@@ -82,7 +94,7 @@ pub(super) async fn execute_email_query(
         .iter()
         .map(map_email_candidate_source)
         .collect::<Vec<_>>();
-    let candidates = apply_email_filters(raw_candidates, &plan, now, user_time_zone);
+    let candidates = apply_email_filters(raw_candidates, &plan);
     let email_filter_ms = filter_started.elapsed().as_millis() as u64;
 
     let context = assemble_urgent_email_candidates_context(&candidates);
@@ -110,12 +122,12 @@ pub(super) async fn execute_email_query(
         entries.insert(
             "query_plan".to_string(),
             json!({
-                "window_label": plan.window_label,
-                "lookback_days": plan.lookback_days,
-                "sender_filter": plan.sender_filter,
-                "time_zone": user_time_zone,
-                "window_start_utc": window_start_utc(&plan, now, user_time_zone)
-                    .map(|value| value.to_rfc3339()),
+                "window_label": plan.window_label.clone(),
+                "window_start_utc": plan.window_start_utc.to_rfc3339(),
+                "window_end_utc": plan.window_end_utc.to_rfc3339(),
+                "sender_filter": plan.sender_filter.clone(),
+                "keyword_filters": plan.keyword_filters.clone(),
+                "unread_only": plan.unread_only,
             }),
         );
         if let Some(memory_context) =

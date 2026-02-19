@@ -3,6 +3,7 @@ use std::time::Instant;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use serde_json::Value;
+use shared::assistant_semantic_plan::AssistantSemanticPlan;
 use shared::llm::{
     AssistantCapability, AssistantOutputContract, LlmExecutionSource, LlmGatewayRequest,
     SafeOutputSource, generate_with_telemetry, resolve_safe_output, sanitize_context_payload,
@@ -20,7 +21,7 @@ use super::calendar_fallback::{
     build_calendar_context_payload, compare_meetings_by_start_time, default_display_for_window,
     deterministic_calendar_fallback_payload,
 };
-use super::calendar_range::plan_calendar_query_window;
+use super::calendar_range::window_from_semantic_time_window;
 use crate::RuntimeState;
 use crate::http::rpc;
 
@@ -32,7 +33,7 @@ pub(super) async fn execute_calendar_query(
     request_id: &str,
     query: &str,
     capability: AssistantQueryCapability,
-    user_time_zone: &str,
+    semantic_plan: &AssistantSemanticPlan,
     prior_state: Option<&EnclaveAssistantSessionState>,
 ) -> Result<AssistantOrchestratorResult, Response> {
     let lane_started = Instant::now();
@@ -53,7 +54,7 @@ pub(super) async fn execute_calendar_query(
     let connector_resolve_ms = connector_started.elapsed().as_millis() as u64;
 
     let window_started = Instant::now();
-    let window = match plan_calendar_query_window(query, chrono::Utc::now(), user_time_zone) {
+    let semantic_window = match semantic_plan.time_window.as_ref() {
         Some(window) => window,
         None => {
             return Err(rpc::reject(
@@ -61,13 +62,14 @@ pub(super) async fn execute_calendar_query(
                 shared::enclave::EnclaveRpcErrorEnvelope::new(
                     Some(request_id.to_string()),
                     "rpc_internal_error",
-                    "failed to resolve calendar query window",
+                    "missing semantic time_window for calendar query",
                     true,
                 ),
             )
             .into_response());
         }
     };
+    let window = window_from_semantic_time_window(semantic_window);
     let window_plan_ms = window_started.elapsed().as_millis() as u64;
 
     let fetch_started = Instant::now();

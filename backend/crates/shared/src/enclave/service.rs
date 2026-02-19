@@ -254,7 +254,7 @@ impl EnclaveOperationService {
         request: ConnectorSecretRequest,
         max_results: usize,
     ) -> Result<FetchGoogleUrgentEmailCandidatesResponse, EnclaveRpcError> {
-        self.fetch_google_email_candidates(request, Some("newer_than:2d".to_string()), max_results)
+        self.fetch_google_email_candidates(request, None, max_results)
             .await
     }
 

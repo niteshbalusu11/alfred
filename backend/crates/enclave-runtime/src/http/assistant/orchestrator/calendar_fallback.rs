@@ -64,46 +64,15 @@ pub(super) fn deterministic_calendar_fallback_payload(
     meetings: &[shared::llm::GoogleCalendarMeetingSource],
 ) -> AssistantStructuredPayload {
     if meetings.is_empty() {
-        let (title, summary) = if window.label == "today" {
-            (
-                "No meetings today".to_string(),
-                "No meetings are currently scheduled for today.".to_string(),
-            )
-        } else if window.label == "tomorrow" {
-            (
-                "No meetings tomorrow".to_string(),
-                "No meetings are currently scheduled for tomorrow.".to_string(),
-            )
-        } else {
-            (
-                format!("No meetings for {}", window.label),
-                format!("No meetings are currently scheduled for {}.", window.label),
-            )
-        };
-
         return AssistantStructuredPayload {
-            title,
-            summary,
+            title: "No meetings in range".to_string(),
+            summary: format!("No meetings are currently scheduled for {}.", window.label),
             key_points: Vec::new(),
             follow_ups: Vec::new(),
         };
     }
 
     let meeting_count = meetings.len();
-    let title = if window.label == "today" {
-        "Today's meetings".to_string()
-    } else if window.label == "tomorrow" {
-        "Tomorrow's meetings".to_string()
-    } else {
-        format!("Meetings for {}", window.label)
-    };
-
-    let summary = format!(
-        "You have {meeting_count} meeting{} scheduled for {}.",
-        if meeting_count == 1 { "" } else { "s" },
-        window.label
-    );
-
     let key_points = meetings
         .iter()
         .take(MAX_FALLBACK_KEY_POINTS)
@@ -111,27 +80,22 @@ pub(super) fn deterministic_calendar_fallback_payload(
         .collect::<Vec<_>>();
 
     AssistantStructuredPayload {
-        title,
-        summary,
+        title: "Meetings in range".to_string(),
+        summary: format!(
+            "You have {meeting_count} meeting{} scheduled for {}.",
+            if meeting_count == 1 { "" } else { "s" },
+            window.label
+        ),
         key_points,
         follow_ups: vec!["Open Calendar for full meeting details.".to_string()],
     }
 }
 
 pub(super) fn default_display_for_window(
-    capability: &AssistantQueryCapability,
-    window: &CalendarQueryWindow,
+    _capability: &AssistantQueryCapability,
+    _window: &CalendarQueryWindow,
 ) -> &'static str {
-    match capability {
-        AssistantQueryCapability::CalendarLookup => {
-            if window.label == "today" {
-                "Here is your calendar summary for today."
-            } else {
-                "Here is your calendar summary."
-            }
-        }
-        _ => "Here are your meetings.",
-    }
+    "Here is your calendar summary."
 }
 
 fn fallback_meeting_key_point(meeting: &shared::llm::GoogleCalendarMeetingSource) -> String {
@@ -147,9 +111,12 @@ fn fallback_meeting_key_point(meeting: &shared::llm::GoogleCalendarMeetingSource
 #[cfg(test)]
 mod tests {
     use chrono::{DateTime, Utc};
+    use shared::assistant_semantic_plan::{
+        AssistantSemanticTimeWindow, AssistantTimeWindowResolutionSource,
+    };
     use shared::llm::GoogleCalendarMeetingSource;
 
-    use super::super::calendar_range::plan_calendar_query_window;
+    use super::super::calendar_range::window_from_semantic_time_window;
     use super::deterministic_calendar_fallback_payload;
 
     fn utc(value: &str) -> DateTime<Utc> {
@@ -158,27 +125,30 @@ mod tests {
             .with_timezone(&Utc)
     }
 
+    fn window(start: &str, end: &str) -> super::CalendarQueryWindow {
+        let semantic = AssistantSemanticTimeWindow {
+            start: utc(start),
+            end: utc(end),
+            timezone: "UTC".to_string(),
+            resolution_source: AssistantTimeWindowResolutionSource::RelativeDate,
+        };
+        window_from_semantic_time_window(&semantic)
+    }
+
     #[test]
     fn deterministic_fallback_uses_window_label_for_no_events() {
-        let now = utc("2026-02-17T10:15:00Z");
-        let window = plan_calendar_query_window("show calendar for next 7 days", now, "UTC")
-            .expect("window should resolve");
-
-        let payload = deterministic_calendar_fallback_payload(&window, &[]);
-        assert_eq!(payload.title, "No meetings for next 7 days");
-        assert_eq!(
-            payload.summary,
-            "No meetings are currently scheduled for next 7 days."
+        let payload = deterministic_calendar_fallback_payload(
+            &window("2026-02-17T00:00:00Z", "2026-02-24T00:00:00Z"),
+            &[],
         );
+
+        assert_eq!(payload.title, "No meetings in range");
+        assert!(payload.summary.contains("2026-02-17 00:00"));
         assert!(payload.key_points.is_empty());
     }
 
     #[test]
     fn deterministic_fallback_is_grounded_to_event_times() {
-        let now = utc("2026-02-17T10:15:00Z");
-        let window = plan_calendar_query_window("what meetings today?", now, "UTC")
-            .expect("window should resolve");
-
         let meetings = vec![GoogleCalendarMeetingSource {
             event_id: Some("event-1".to_string()),
             title: Some("Team Sync".to_string()),
@@ -187,9 +157,12 @@ mod tests {
             attendee_emails: vec![],
         }];
 
-        let payload = deterministic_calendar_fallback_payload(&window, &meetings);
-        assert_eq!(payload.title, "Today's meetings");
-        assert_eq!(payload.summary, "You have 1 meeting scheduled for today.");
+        let payload = deterministic_calendar_fallback_payload(
+            &window("2026-02-17T00:00:00Z", "2026-02-18T00:00:00Z"),
+            &meetings,
+        );
+        assert_eq!(payload.title, "Meetings in range");
+        assert!(payload.summary.contains("2026-02-17 00:00"));
         assert_eq!(
             payload.key_points,
             vec!["16:30 UTC - Team Sync".to_string()]

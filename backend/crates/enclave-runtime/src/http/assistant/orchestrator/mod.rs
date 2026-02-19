@@ -95,7 +95,7 @@ pub(super) async fn execute_query(
                     request_id,
                     query,
                     capability,
-                    user_time_zone.as_str(),
+                    &semantic_plan.plan,
                     prior_state,
                 )
                 .await
@@ -106,7 +106,7 @@ pub(super) async fn execute_query(
                     user_id,
                     request_id,
                     query,
-                    user_time_zone.as_str(),
+                    &semantic_plan.plan,
                     prior_state,
                 )
                 .await
@@ -117,7 +117,7 @@ pub(super) async fn execute_query(
                     user_id,
                     request_id,
                     query,
-                    user_time_zone.as_str(),
+                    &semantic_plan.plan,
                     prior_state,
                 )
                 .await

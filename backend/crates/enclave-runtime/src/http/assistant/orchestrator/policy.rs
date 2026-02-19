@@ -28,6 +28,10 @@ pub(super) fn resolve_route_policy(
         return PlannedRoute::Clarify(question);
     }
 
+    if let Some(question) = missing_time_window_clarification(&resolution.plan, &capability) {
+        return PlannedRoute::Clarify(question);
+    }
+
     if should_clarify(
         &resolution.plan,
         resolution.used_deterministic_fallback,
@@ -57,6 +61,30 @@ fn should_clarify(
     }
 
     plan.confidence < MIN_CONFIDENCE_FOR_DIRECT_EXECUTION
+}
+
+fn missing_time_window_clarification(
+    plan: &AssistantSemanticPlan,
+    capability: &AssistantQueryCapability,
+) -> Option<String> {
+    if !requires_time_window(capability) || plan.time_window.is_some() {
+        return None;
+    }
+
+    Some(
+        "What exact time range should I use? Please include both start and end date/time with timezone."
+            .to_string(),
+    )
+}
+
+fn requires_time_window(capability: &AssistantQueryCapability) -> bool {
+    matches!(
+        capability,
+        AssistantQueryCapability::MeetingsToday
+            | AssistantQueryCapability::CalendarLookup
+            | AssistantQueryCapability::EmailLookup
+            | AssistantQueryCapability::Mixed
+    )
 }
 
 fn unsupported_language_clarification(
@@ -92,7 +120,9 @@ fn clarification_question(plan: &AssistantSemanticPlan) -> String {
 #[cfg(test)]
 mod tests {
     use chrono::{DateTime, Utc};
-    use shared::assistant_semantic_plan::AssistantSemanticPlan;
+    use shared::assistant_semantic_plan::{
+        AssistantSemanticPlan, AssistantSemanticTimeWindow, AssistantTimeWindowResolutionSource,
+    };
 
     use super::{MIN_CONFIDENCE_FOR_DIRECT_EXECUTION, PlannedRoute, resolve_route_policy};
     use crate::http::assistant::orchestrator::planner::SemanticPlanResolution;
@@ -116,7 +146,12 @@ mod tests {
                 confidence,
                 needs_clarification,
                 clarifying_question: Some("can you clarify?".to_string()),
-                time_window: None,
+                time_window: Some(AssistantSemanticTimeWindow {
+                    start: utc("2026-02-18T00:00:00Z"),
+                    end: utc("2026-02-19T00:00:00Z"),
+                    timezone: "UTC".to_string(),
+                    resolution_source: AssistantTimeWindowResolutionSource::ExplicitDate,
+                }),
                 email_filters: None,
                 language: Some("en".to_string()),
                 planned_at: utc("2026-02-18T00:00:00Z"),
@@ -244,5 +279,15 @@ mod tests {
             planned,
             PlannedRoute::Execute(AssistantQueryCapability::CalendarLookup)
         ));
+    }
+
+    #[test]
+    fn missing_time_window_requires_clarification_for_email() {
+        let mut resolution = resolution(AssistantQueryCapability::EmailLookup, 0.95, false, false);
+        resolution.plan.time_window = None;
+        let planned = resolve_route_policy(&resolution);
+        assert!(
+            matches!(planned, PlannedRoute::Clarify(question) if question.contains("exact time range"))
+        );
     }
 }
