@@ -19,6 +19,7 @@ use super::super::memory::{
 };
 use super::super::session_state::EnclaveAssistantSessionState;
 use crate::RuntimeState;
+use shared::timezone::parse_time_zone_or_default;
 
 pub(super) struct SemanticPlanResolution {
     pub(super) plan: AssistantSemanticPlan,
@@ -33,9 +34,15 @@ pub(super) async fn resolve_semantic_plan(
     user_time_zone: &str,
     prior_state: Option<&EnclaveAssistantSessionState>,
 ) -> SemanticPlanResolution {
+    let now_utc = Utc::now();
+    let now_local = now_utc
+        .with_timezone(&parse_time_zone_or_default(user_time_zone))
+        .to_rfc3339();
     let mut context_payload = json!({
         "query_context": query_context_snippet(query),
         "user_time_zone": user_time_zone,
+        "current_time_utc": now_utc.to_rfc3339(),
+        "current_time_local": now_local,
     });
     if let Value::Object(entries) = &mut context_payload {
         if let Some(memory_context) = session_memory_context(prior_state.map(|state| &state.memory))
