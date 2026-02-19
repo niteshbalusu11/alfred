@@ -346,6 +346,9 @@ fn contract_to_value(contract: &AssistantOutputContract) -> Value {
         AssistantOutputContract::MeetingsSummary(summary) => {
             serde_json::to_value(summary).expect("meetings summary contract should serialize")
         }
+        AssistantOutputContract::GeneralChat(chat) => {
+            serde_json::to_value(chat).expect("general chat contract should serialize")
+        }
         AssistantOutputContract::MorningBrief(brief) => {
             serde_json::to_value(brief).expect("morning brief contract should serialize")
         }

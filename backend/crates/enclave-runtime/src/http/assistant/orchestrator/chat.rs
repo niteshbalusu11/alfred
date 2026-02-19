@@ -1,5 +1,4 @@
 use serde_json::{Value, json};
-use shared::assistant_planner::{detect_query_capability, resolve_query_capability};
 use shared::llm::safety::sanitize_untrusted_text;
 use shared::llm::{
     AssistantCapability, AssistantOutputContract, LlmExecutionSource, LlmGateway,
@@ -13,7 +12,10 @@ use uuid::Uuid;
 use super::super::session_state::EnclaveAssistantSessionState;
 use super::super::{
     mapping::log_telemetry,
-    memory::{query_context_snippet, session_memory_context},
+    memory::{
+        detect_query_capability, query_context_snippet, session_memory_context,
+        should_include_follow_up_context,
+    },
     notifications::non_empty,
 };
 use super::chat_fast_path::is_small_talk_fast_path_query;
@@ -82,22 +84,22 @@ async fn resolve_general_chat_payload(
     let mut context_payload = json!({
         "query_context": query_context_snippet(query),
     });
-    if let Value::Object(entries) = &mut context_payload {
-        if let Some(memory_context) = session_memory_context(prior_state.map(|state| &state.memory))
-        {
+    if let Value::Object(entries) = &mut context_payload
+        && let Some(prior_state) = prior_state
+        && should_include_follow_up_context(query, &prior_state.last_capability)
+    {
+        if let Some(memory_context) = session_memory_context(Some(&prior_state.memory)) {
             entries.insert("session_memory".to_string(), memory_context);
         }
-        if let Some(prior_capability) = prior_state.map(|state| state.last_capability.clone()) {
-            entries.insert(
-                "prior_capability".to_string(),
-                json!(capability_label(&prior_capability)),
-            );
-        }
+        entries.insert(
+            "prior_capability".to_string(),
+            json!(capability_label(&prior_state.last_capability)),
+        );
     }
 
     let context_payload = sanitize_context_payload(&context_payload);
     let mut llm_request = LlmGatewayRequest::from_template(
-        template_for_capability(AssistantCapability::MeetingsSummary),
+        template_for_capability(AssistantCapability::GeneralChat),
         context_payload.clone(),
     )
     .with_requester_id(user_id.to_string());
@@ -121,7 +123,7 @@ async fn resolve_general_chat_payload(
     };
 
     let resolved = resolve_safe_output(
-        AssistantCapability::MeetingsSummary,
+        AssistantCapability::GeneralChat,
         if model_output.is_null() {
             None
         } else {
@@ -142,11 +144,13 @@ async fn resolve_general_chat_payload(
 
     if used_deterministic_fallback {
         fallback_general_chat_payload(query, prior_state)
-    } else if let AssistantOutputContract::MeetingsSummary(contract) = resolved.contract {
+    } else if let AssistantOutputContract::GeneralChat(contract) = resolved.contract {
         let summary = non_empty(contract.output.summary.as_str())
             .unwrap_or("I am here and listening.")
             .to_string();
-        let summary = if is_robotic_restatement(summary.as_str()) {
+        let summary = if is_robotic_restatement(summary.as_str())
+            || is_capability_locked_refusal(query, summary.as_str())
+        {
             fallback_general_chat_summary(query, prior_state)
         } else {
             summary
@@ -260,17 +264,26 @@ fn is_robotic_restatement(summary: &str) -> bool {
         || lower.starts_with("the user said ")
 }
 
-fn should_include_follow_up_context(
-    query: &str,
-    prior_capability: &AssistantQueryCapability,
-) -> bool {
-    let detected = detect_query_capability(query);
-    if detected.is_some() {
+fn is_capability_locked_refusal(query: &str, summary: &str) -> bool {
+    if detect_query_capability(query).is_some() {
         return false;
     }
 
-    resolve_query_capability(query, detected, Some(prior_capability.clone()))
-        .is_some_and(|resolved| resolved == *prior_capability)
+    let lower = summary.trim().to_ascii_lowercase();
+    let mentions_tool_domain = ["meeting", "calendar", "email", "inbox"]
+        .iter()
+        .any(|term| lower.contains(term));
+    if !mentions_tool_domain {
+        return false;
+    }
+
+    (lower.contains("cannot")
+        || lower.contains("can't")
+        || lower.contains("don't have")
+        || lower.contains("do not have"))
+        && (lower.contains("purpose")
+            || lower.contains("current information")
+            || lower.contains("based on our previous"))
 }
 
 fn clarification_text(question: &str) -> String {
@@ -433,6 +446,33 @@ mod tests {
         .await;
 
         assert!(!payload.summary.to_ascii_lowercase().starts_with("the user"));
+        assert_eq!(
+            payload.summary,
+            "Thanks for sharing that. I am here and listening."
+        );
+    }
+
+    #[tokio::test]
+    async fn resolve_general_chat_payload_rewrites_capability_locked_refusal() {
+        let gateway = MockLlmGateway::success(json!({
+            "version": "2026-02-15",
+            "output": {
+                "title": "General conversation",
+                "summary": "I cannot tell you how to make pizza with the current information I have. My purpose is to provide a summary of meetings.",
+                "key_points": [],
+                "follow_ups": []
+            }
+        }));
+
+        let payload = resolve_general_chat_payload(
+            &gateway,
+            Uuid::new_v4(),
+            "req-capability-locked-refusal",
+            "Can you tell me how to make pizza?",
+            None,
+        )
+        .await;
+
         assert_eq!(
             payload.summary,
             "Thanks for sharing that. I am here and listening."

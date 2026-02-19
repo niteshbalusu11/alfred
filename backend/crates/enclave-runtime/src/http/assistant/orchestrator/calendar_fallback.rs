@@ -1,6 +1,5 @@
 use std::cmp::Ordering;
 
-use serde_json::{Value, json};
 use shared::models::{AssistantQueryCapability, AssistantStructuredPayload};
 
 use super::super::notifications::non_empty;
@@ -20,43 +19,6 @@ pub(super) fn compare_meetings_by_start_time(
     }
     .then_with(|| left.title.cmp(&right.title))
     .then_with(|| left.event_id.cmp(&right.event_id))
-}
-
-pub(super) fn build_calendar_context_payload(
-    window: &CalendarQueryWindow,
-    meetings: &[shared::llm::GoogleCalendarMeetingSource],
-) -> Value {
-    let entries = meetings
-        .iter()
-        .enumerate()
-        .map(|(index, meeting)| {
-            json!({
-                "event_ref": meeting
-                    .event_id
-                    .clone()
-                    .unwrap_or_else(|| format!("meeting-{:03}", index + 1)),
-                "title": meeting
-                    .title
-                    .clone()
-                    .unwrap_or_else(|| "Untitled meeting".to_string()),
-                "start_at": meeting
-                    .start_at
-                    .map(|value| value.to_rfc3339())
-                    .unwrap_or_default(),
-                "end_at": meeting.end_at.map(|value| value.to_rfc3339()),
-                "attendee_count": meeting.attendee_emails.len(),
-            })
-        })
-        .collect::<Vec<_>>();
-
-    json!({
-        "version": shared::llm::CONTEXT_CONTRACT_VERSION_V1,
-        "range_label": window.label,
-        "time_min_utc": window.time_min.to_rfc3339(),
-        "time_max_utc": window.time_max.to_rfc3339(),
-        "meeting_count": meetings.len(),
-        "meetings": entries,
-    })
 }
 
 pub(super) fn deterministic_calendar_fallback_payload(
@@ -149,7 +111,7 @@ mod tests {
     use chrono::{DateTime, Utc};
     use shared::llm::GoogleCalendarMeetingSource;
 
-    use super::super::calendar_range::plan_calendar_query_window;
+    use super::super::calendar_range::CalendarQueryWindow;
     use super::deterministic_calendar_fallback_payload;
 
     fn utc(value: &str) -> DateTime<Utc> {
@@ -160,24 +122,28 @@ mod tests {
 
     #[test]
     fn deterministic_fallback_uses_window_label_for_no_events() {
-        let now = utc("2026-02-17T10:15:00Z");
-        let window = plan_calendar_query_window("show calendar for next 7 days", now, "UTC")
-            .expect("window should resolve");
+        let window = CalendarQueryWindow {
+            time_min: utc("2026-02-17T00:00:00Z"),
+            time_max: utc("2026-02-24T00:00:00Z"),
+            label: "2026-02-17 to 2026-02-23".to_string(),
+        };
 
         let payload = deterministic_calendar_fallback_payload(&window, &[]);
-        assert_eq!(payload.title, "No meetings for next 7 days");
+        assert_eq!(payload.title, "No meetings for 2026-02-17 to 2026-02-23");
         assert_eq!(
             payload.summary,
-            "No meetings are currently scheduled for next 7 days."
+            "No meetings are currently scheduled for 2026-02-17 to 2026-02-23."
         );
         assert!(payload.key_points.is_empty());
     }
 
     #[test]
     fn deterministic_fallback_is_grounded_to_event_times() {
-        let now = utc("2026-02-17T10:15:00Z");
-        let window = plan_calendar_query_window("what meetings today?", now, "UTC")
-            .expect("window should resolve");
+        let window = CalendarQueryWindow {
+            time_min: utc("2026-02-17T00:00:00Z"),
+            time_max: utc("2026-02-18T00:00:00Z"),
+            label: "today".to_string(),
+        };
 
         let meetings = vec![GoogleCalendarMeetingSource {
             event_id: Some("event-1".to_string()),

@@ -67,16 +67,33 @@ pub(super) fn format_email_key_point(
 
 #[cfg(test)]
 mod tests {
+    use chrono::{DateTime, Utc};
+    use shared::assistant_semantic_plan::AssistantSemanticEmailFilters;
+
     use super::super::email_plan::plan_email_query;
     use super::deterministic_email_fallback_payload;
 
+    fn utc(value: &str) -> DateTime<Utc> {
+        DateTime::parse_from_rfc3339(value)
+            .expect("timestamp should parse")
+            .with_timezone(&Utc)
+    }
+
     #[test]
     fn deterministic_fallback_reports_no_match_queries() {
-        let plan = plan_email_query("Any email from legal@example.com today?");
+        let plan = plan_email_query(
+            &AssistantSemanticEmailFilters {
+                sender: Some("legal@example.com".to_string()),
+                keywords: vec![],
+                lookback_days: 1,
+                unread_only: false,
+            },
+            utc("2026-02-18T00:00:00Z"),
+        );
         let payload = deterministic_email_fallback_payload(&plan, &[]);
 
         assert_eq!(payload.title, "No matching emails");
         assert!(payload.summary.contains("legal@example.com"));
-        assert!(payload.summary.contains("today"));
+        assert!(payload.summary.contains("past day"));
     }
 }

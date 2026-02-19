@@ -1,10 +1,10 @@
 use axum::response::Response;
+use shared::assistant_semantic_plan::{AssistantSemanticEmailFilters, AssistantSemanticTimeWindow};
 use shared::llm::safety::sanitize_untrusted_text;
 use shared::models::{AssistantQueryCapability, AssistantResponsePart, AssistantStructuredPayload};
 use tracing::warn;
 use uuid::Uuid;
 
-use super::super::session_state::EnclaveAssistantSessionState;
 use super::AssistantOrchestratorResult;
 use super::calendar;
 use super::email;
@@ -20,27 +20,18 @@ pub(super) async fn execute_mixed_query(
     user_id: Uuid,
     request_id: &str,
     query: &str,
-    user_time_zone: &str,
-    prior_state: Option<&EnclaveAssistantSessionState>,
+    time_window: &AssistantSemanticTimeWindow,
+    email_filters: &AssistantSemanticEmailFilters,
 ) -> Result<AssistantOrchestratorResult, Response> {
     let (calendar_result, email_result) = tokio::join!(
         calendar::execute_calendar_query(
             state,
             user_id,
             request_id,
-            query,
             AssistantQueryCapability::CalendarLookup,
-            user_time_zone,
-            prior_state,
+            time_window,
         ),
-        email::execute_email_query(
-            state,
-            user_id,
-            request_id,
-            query,
-            user_time_zone,
-            prior_state,
-        ),
+        email::execute_email_query(state, user_id, request_id, email_filters,),
     );
 
     match (calendar_result, email_result) {

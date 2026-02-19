@@ -8,9 +8,9 @@ use crate::assistant_semantic_plan::{
 };
 
 use super::contracts::{
-    AssistantCapability, AssistantOutputContract, MeetingsSummaryContract, MeetingsSummaryOutput,
-    MorningBriefContract, MorningBriefOutput, OUTPUT_CONTRACT_VERSION_V1, UrgencyLevel,
-    UrgentEmailSummaryContract, UrgentEmailSummaryOutput,
+    AssistantCapability, AssistantOutputContract, GeneralChatContract, MeetingsSummaryContract,
+    MeetingsSummaryOutput, MorningBriefContract, MorningBriefOutput, OUTPUT_CONTRACT_VERSION_V1,
+    UrgencyLevel, UrgentEmailSummaryContract, UrgentEmailSummaryOutput,
 };
 use super::validation::validate_output_value;
 
@@ -91,6 +91,9 @@ fn deterministic_fallback_contract(
         AssistantCapability::MeetingsSummary => {
             AssistantOutputContract::MeetingsSummary(fallback_meetings_summary(context_payload))
         }
+        AssistantCapability::GeneralChat => {
+            AssistantOutputContract::GeneralChat(fallback_general_chat(context_payload))
+        }
         AssistantCapability::MorningBrief => {
             AssistantOutputContract::MorningBrief(fallback_morning_brief(context_payload))
         }
@@ -100,6 +103,29 @@ fn deterministic_fallback_contract(
         AssistantCapability::AssistantSemanticPlan => {
             AssistantOutputContract::AssistantSemanticPlan(fallback_assistant_semantic_plan())
         }
+    }
+}
+
+fn fallback_general_chat(context_payload: &Value) -> GeneralChatContract {
+    let context = serde_json::from_value::<FallbackGeneralChatContext>(context_payload.clone())
+        .unwrap_or_else(|_| FallbackGeneralChatContext {
+            query_context: String::new(),
+        });
+
+    let summary = if context.query_context.trim().is_empty() {
+        "I am here and listening.".to_string()
+    } else {
+        "I can help with that. Tell me how detailed you want the answer.".to_string()
+    };
+
+    GeneralChatContract {
+        version: OUTPUT_CONTRACT_VERSION_V1.to_string(),
+        output: MeetingsSummaryOutput {
+            title: "General conversation".to_string(),
+            summary,
+            key_points: Vec::new(),
+            follow_ups: Vec::new(),
+        },
     }
 }
 
@@ -251,6 +277,7 @@ fn fallback_assistant_semantic_plan() -> AssistantSemanticPlanContract {
             time_window: None,
             email_filters: None,
             language: None,
+            response: None,
         },
     }
 }
@@ -274,6 +301,22 @@ fn passes_action_safety_policy(contract: &AssistantOutputContract) -> bool {
 
 fn contract_within_bounds(contract: &AssistantOutputContract) -> bool {
     match contract {
+        AssistantOutputContract::GeneralChat(chat) => {
+            fits_chars(&chat.output.title, MAX_OUTPUT_TITLE_CHARS)
+                && fits_chars(&chat.output.summary, MAX_OUTPUT_TEXT_CHARS)
+                && chat.output.key_points.len() <= MAX_OUTPUT_LIST_ITEMS
+                && chat.output.follow_ups.len() <= MAX_OUTPUT_LIST_ITEMS
+                && chat
+                    .output
+                    .key_points
+                    .iter()
+                    .all(|item| fits_chars(item, MAX_OUTPUT_TEXT_CHARS))
+                && chat
+                    .output
+                    .follow_ups
+                    .iter()
+                    .all(|item| fits_chars(item, MAX_OUTPUT_TEXT_CHARS))
+        }
         AssistantOutputContract::MeetingsSummary(summary) => {
             fits_chars(&summary.output.title, MAX_OUTPUT_TITLE_CHARS)
                 && fits_chars(&summary.output.summary, MAX_OUTPUT_TEXT_CHARS)
@@ -391,6 +434,12 @@ struct FallbackMeetingsContext {
     meeting_count: usize,
     #[serde(default)]
     meetings: Vec<FallbackMeetingEntry>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct FallbackGeneralChatContext {
+    #[serde(default)]
+    query_context: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
