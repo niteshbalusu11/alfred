@@ -48,15 +48,15 @@ fn should_clarify(
     used_deterministic_fallback: bool,
     capability: &AssistantQueryCapability,
 ) -> bool {
+    if *capability == AssistantQueryCapability::GeneralChat {
+        return false;
+    }
+
     if plan.needs_clarification {
         return true;
     }
 
     if used_deterministic_fallback {
-        return false;
-    }
-
-    if *capability == AssistantQueryCapability::GeneralChat {
         return false;
     }
 
@@ -216,6 +216,20 @@ mod tests {
             AssistantQueryCapability::GeneralChat,
             0.1,
             false,
+            false,
+        ));
+        assert!(matches!(
+            planned,
+            PlannedRoute::Execute(AssistantQueryCapability::GeneralChat)
+        ));
+    }
+
+    #[test]
+    fn planner_requested_clarification_does_not_block_general_chat_lane() {
+        let planned = resolve_route_policy(&resolution(
+            AssistantQueryCapability::GeneralChat,
+            0.95,
+            true,
             false,
         ));
         assert!(matches!(

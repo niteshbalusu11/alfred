@@ -114,8 +114,8 @@ fn normalize_rejects_invalid_time_window() {
 }
 
 #[test]
-fn normalize_requires_clarifying_question() {
-    let err = normalize_semantic_plan_contract(
+fn normalize_allows_missing_clarifying_question() {
+    let plan = normalize_semantic_plan_contract(
         AssistantSemanticPlanContract {
             version: ASSISTANT_SEMANTIC_PLAN_VERSION_V1.to_string(),
             output: AssistantSemanticPlanOutput {
@@ -131,10 +131,7 @@ fn normalize_requires_clarifying_question() {
         "UTC",
         utc("2026-02-18T00:00:00Z"),
     )
-    .expect_err("clarification requires question");
-
-    assert!(matches!(
-        err,
-        AssistantSemanticPlanNormalizationError::MissingClarifyingQuestion
-    ));
+    .expect("clarifying question should be optional");
+    assert!(plan.needs_clarification);
+    assert!(plan.clarifying_question.is_none());
 }

@@ -66,37 +66,51 @@ pub fn resolve_query_capability(
 }
 
 fn looks_like_follow_up_query(query: &str) -> bool {
-    let normalized = query.trim().to_ascii_lowercase();
+    let normalized = query.trim();
     if normalized.is_empty() {
         return false;
     }
 
-    let token_count = normalized.split_whitespace().count();
-    if token_count > 10 {
+    let normalized_lower = normalized.to_ascii_lowercase();
+    let tokens = normalized_lower.split_whitespace().collect::<Vec<_>>();
+    let token_count = tokens.len();
+    if token_count == 0 || token_count > 8 {
         return false;
     }
 
-    let follow_up_markers = [
-        "what about",
-        "how about",
-        "and then",
-        "then",
-        "next",
-        "after that",
-        "afterwards",
-        "same",
-        "again",
-        "also",
-        "those",
-        "them",
-        "what else",
-        "same window",
-        "same timeframe",
-    ];
+    // Treat compact, elliptical prompts as likely follow-ups to prior intent.
+    // This is intentionally generic (question form + omitted context), not
+    // capability keyword routing.
+    if normalized.ends_with('?') || normalized.ends_with("?!") || normalized.ends_with("...") {
+        return !contains_standalone_question_verb(&tokens);
+    }
 
-    follow_up_markers
-        .iter()
-        .any(|marker| normalized.contains(marker))
+    if token_count <= 5
+        && starts_with_any(&tokens, &["what", "how"])
+        && !contains_standalone_question_verb(&tokens)
+    {
+        return true;
+    }
+
+    token_count <= 4
+        && (starts_with_any(&tokens, &["same", "again", "then"])
+            || contains_any_token(&tokens, &["afterward", "afterwards"]))
+}
+
+fn starts_with_any(tokens: &[&str], values: &[&str]) -> bool {
+    tokens.first().is_some_and(|token| values.contains(token))
+}
+
+fn contains_any_token(tokens: &[&str], values: &[&str]) -> bool {
+    tokens.iter().any(|token| values.contains(token))
+}
+
+fn contains_standalone_question_verb(tokens: &[&str]) -> bool {
+    const QUESTION_VERBS: &[&str] = &[
+        "is", "are", "am", "was", "were", "do", "does", "did", "can", "could", "will", "would",
+        "should", "has", "have", "had",
+    ];
+    contains_any_token(tokens, QUESTION_VERBS)
 }
 
 fn contains_any(query: &str, terms: &[&str]) -> bool {
@@ -153,7 +167,7 @@ mod tests {
     fn resolve_capability_uses_prior_for_follow_up_queries() {
         assert_eq!(
             resolve_query_capability(
-                "what about after that",
+                "what about India?",
                 None,
                 Some(AssistantQueryCapability::EmailLookup),
             ),
@@ -161,19 +175,27 @@ mod tests {
         );
         assert_eq!(
             resolve_query_capability(
-                "what else afterwards",
+                "tomorrow?",
                 None,
                 Some(AssistantQueryCapability::CalendarLookup),
             ),
             Some(AssistantQueryCapability::CalendarLookup)
         );
         assert_eq!(
-            resolve_query_capability(
-                "same timeframe please",
-                None,
-                Some(AssistantQueryCapability::Mixed),
-            ),
+            resolve_query_capability("same window?", None, Some(AssistantQueryCapability::Mixed),),
             Some(AssistantQueryCapability::Mixed)
+        );
+        assert_eq!(
+            resolve_query_capability("thanks", None, Some(AssistantQueryCapability::Mixed)),
+            None
+        );
+        assert_eq!(
+            resolve_query_capability(
+                "what is the capital of india?",
+                None,
+                Some(AssistantQueryCapability::EmailLookup),
+            ),
+            None
         );
     }
 

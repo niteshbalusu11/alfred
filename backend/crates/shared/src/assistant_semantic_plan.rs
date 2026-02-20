@@ -116,8 +116,6 @@ pub enum AssistantSemanticPlanNormalizationError {
     ContractVersionMismatch(String),
     #[error("semantic planner confidence must be a finite number between 0.0 and 1.0")]
     InvalidConfidence,
-    #[error("semantic planner requires clarifying_question when needs_clarification is true")]
-    MissingClarifyingQuestion,
     #[error("semantic planner time_window start/end must be valid RFC3339 timestamps")]
     InvalidTimeWindowTimestamp,
     #[error("semantic planner time_window end must be after start")]
@@ -155,10 +153,6 @@ pub fn normalize_semantic_plan_output(
         output.clarifying_question.as_deref(),
         MAX_CLARIFYING_QUESTION_CHARS,
     );
-
-    if needs_clarification && clarifying_question.is_none() {
-        return Err(AssistantSemanticPlanNormalizationError::MissingClarifyingQuestion);
-    }
 
     let time_window = match output.time_window {
         Some(window) => Some(normalize_time_window(window, user_time_zone)?),
