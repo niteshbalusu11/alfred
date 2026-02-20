@@ -5,7 +5,6 @@ struct HomeView: View {
     @StateObject private var transcriptionController = VoiceTranscriptionController()
     @State private var responseSpeaker = AssistantResponseSpeaker()
     @State private var composerText = ""
-    @State private var isThreadDrawerPresented = false
     @State private var lastSpokenAssistantMessageID: UUID?
     @FocusState private var isComposerFocused: Bool
 
@@ -66,12 +65,6 @@ struct HomeView: View {
             inputDock
         }
         .appScreenBackground()
-        .overlay {
-            if isThreadDrawerPresented {
-                threadDrawerOverlay
-            }
-        }
-        .simultaneousGesture(threadDrawerEdgeGesture)
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer(minLength: 0)
@@ -83,7 +76,6 @@ struct HomeView: View {
         .onDisappear {
             transcriptionController.stopRecording()
             responseSpeaker.stop()
-            isThreadDrawerPresented = false
         }
         .onChange(of: transcriptionController.transcript) { _, newValue in
             guard transcriptionController.isListening else { return }
@@ -93,8 +85,8 @@ struct HomeView: View {
 
     private var topBar: some View {
         HStack(spacing: 10) {
-            circleIconButton(systemName: "line.3.horizontal") {
-                openThreadDrawer()
+            circleIconButton(systemName: "text.bubble") {
+                openThreadsScreen()
             }
 
             Spacer(minLength: 0)
@@ -102,46 +94,6 @@ struct HomeView: View {
                 clearChat()
             }
         }
-    }
-
-    private var threadDrawerOverlay: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .leading) {
-                Color.black.opacity(0.52)
-                    .ignoresSafeArea()
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        closeThreadDrawer()
-                    }
-                    .simultaneousGesture(threadDrawerDismissGesture)
-
-                AssistantThreadDrawerView(
-                    model: model,
-                    onSelectThread: { threadID in
-                        model.selectAssistantThread(threadID)
-                        closeThreadDrawer()
-                    },
-                    onDeleteThread: { threadID in
-                        model.deleteAssistantThread(threadID)
-                    },
-                    onDeleteAll: {
-                        model.deleteAllAssistantThreads()
-                    },
-                    onRetrySync: {
-                        model.retryAssistantThreadSync()
-                    },
-                    onClose: {
-                        closeThreadDrawer()
-                    }
-                )
-                .frame(width: min(360, proxy.size.width * 0.86))
-                .padding(.leading, 10)
-                .padding(.vertical, 10)
-                .transition(.move(edge: .leading).combined(with: .opacity))
-                .simultaneousGesture(threadDrawerDismissGesture)
-            }
-        }
-        .zIndex(20)
     }
 
     private var inputDock: some View {
@@ -334,44 +286,11 @@ struct HomeView: View {
         model.clearAssistantConversation()
     }
 
-    private func openThreadDrawer() {
+    private func openThreadsScreen() {
         isComposerFocused = false
-        withAnimation(.spring(response: 0.26, dampingFraction: 0.9)) {
-            isThreadDrawerPresented = true
-        }
-    }
-
-    private func closeThreadDrawer() {
         withAnimation(.spring(response: 0.24, dampingFraction: 0.92)) {
-            isThreadDrawerPresented = false
+            model.selectedTab = .threads
         }
-    }
-
-    private var threadDrawerEdgeGesture: some Gesture {
-        DragGesture(minimumDistance: 16, coordinateSpace: .local)
-            .onEnded { value in
-                guard !isThreadDrawerPresented else { return }
-
-                let horizontalDistance = value.translation.width
-                let verticalDistance = abs(value.translation.height)
-                let startedNearLeadingEdge = value.startLocation.x <= 36
-
-                guard startedNearLeadingEdge, horizontalDistance > 64, verticalDistance < 54 else { return }
-                openThreadDrawer()
-            }
-    }
-
-    private var threadDrawerDismissGesture: some Gesture {
-        DragGesture(minimumDistance: 16, coordinateSpace: .local)
-            .onEnded { value in
-                guard isThreadDrawerPresented else { return }
-
-                let horizontalDistance = value.translation.width
-                let verticalDistance = abs(value.translation.height)
-                guard horizontalDistance < -56, verticalDistance < 54 else { return }
-
-                closeThreadDrawer()
-            }
     }
 }
 

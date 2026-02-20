@@ -2,6 +2,7 @@ import Foundation
 
 enum AppTab: Hashable, CaseIterable {
     case home
+    case threads
     case activity
     case connectors
 
@@ -9,6 +10,8 @@ enum AppTab: Hashable, CaseIterable {
         switch self {
         case .home:
             return "Home"
+        case .threads:
+            return "Threads"
         case .activity:
             return "Activity"
         case .connectors:
@@ -20,6 +23,8 @@ enum AppTab: Hashable, CaseIterable {
         switch self {
         case .home:
             return "house"
+        case .threads:
+            return "text.bubble"
         case .activity:
             return "clock.arrow.circlepath"
         case .connectors:

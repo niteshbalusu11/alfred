@@ -91,6 +91,8 @@ struct AppTabShellView: View {
         switch tab {
         case .home:
             HomeView(model: model)
+        case .threads:
+            AssistantThreadsView(model: model)
         case .activity:
             ActivityView(model: model)
         case .connectors:
