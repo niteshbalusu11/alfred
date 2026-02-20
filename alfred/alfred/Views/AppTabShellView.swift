@@ -6,13 +6,15 @@ struct AppTabShellView: View {
     @Environment(Clerk.self) private var clerk
     @ObservedObject var model: AppModel
     @State private var tabPaths: [AppTab: NavigationPath] = AppTabShellView.defaultPaths()
+    private let swipeTabs: [AppTab] = [.threads, .home, .activity, .connectors]
+    private let visibleTopTabs: [AppTab] = [.home, .activity, .connectors]
 
     var body: some View {
         VStack(spacing: 0) {
             topTabHeader
 
             TabView(selection: $model.selectedTab) {
-                ForEach(AppTab.allCases, id: \.self) { tab in
+                ForEach(swipeTabs, id: \.self) { tab in
                     NavigationStack(path: binding(for: tab)) {
                         tabContent(for: tab)
                             .toolbar(.hidden, for: .navigationBar)
@@ -76,14 +78,25 @@ struct AppTabShellView: View {
     }
 
     private var tabPicker: some View {
-        Picker("Top Tabs", selection: $model.selectedTab) {
-            ForEach(AppTab.allCases, id: \.self) { tab in
+        Picker("Top Tabs", selection: topTabSelectionBinding) {
+            ForEach(visibleTopTabs, id: \.self) { tab in
                 Text(tab.title)
                     .tag(tab)
             }
         }
         .pickerStyle(.segmented)
         .accessibilityLabel("Top tabs")
+    }
+
+    private var topTabSelectionBinding: Binding<AppTab> {
+        Binding(
+            get: {
+                visibleTopTabs.contains(model.selectedTab) ? model.selectedTab : .home
+            },
+            set: { newValue in
+                model.selectedTab = newValue
+            }
+        )
     }
 
     @ViewBuilder
