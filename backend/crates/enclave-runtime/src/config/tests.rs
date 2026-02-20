@@ -6,8 +6,8 @@ use shared::enclave_runtime::AssistantAttestedKeyChallengeRequest;
 use shared::enclave_runtime::{AlfredEnvironment, AttestationChallengeRequest, EnclaveRuntimeMode};
 
 use super::{
-    AttestationSource, RuntimeConfig, validate_non_local_runtime_base_url,
-    validate_non_local_security_posture,
+    AttestationSource, DEFAULT_ASSISTANT_INGRESS_SESSION_TTL_SECONDS, RuntimeConfig,
+    validate_non_local_runtime_base_url, validate_non_local_security_posture,
 };
 
 fn build_config(mode: EnclaveRuntimeMode) -> RuntimeConfig {
@@ -51,10 +51,18 @@ fn build_config(mode: EnclaveRuntimeMode) -> RuntimeConfig {
             previous: None,
         },
         assistant_ingress_key_ttl_seconds: 900,
-        assistant_session_ttl_seconds: 3600,
+        assistant_session_ttl_seconds: DEFAULT_ASSISTANT_INGRESS_SESSION_TTL_SECONDS,
         attestation_source: AttestationSource::Missing,
         attestation_signing_private_key: [7_u8; 32],
     }
+}
+
+#[test]
+fn assistant_session_ttl_default_targets_sixty_days() {
+    assert_eq!(
+        DEFAULT_ASSISTANT_INGRESS_SESSION_TTL_SECONDS,
+        60 * 24 * 60 * 60
+    );
 }
 
 #[test]

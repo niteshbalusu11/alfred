@@ -208,3 +208,115 @@ async fn assistant_encrypted_session_is_user_scoped_and_expires() {
     .expect("session count query should succeed");
     assert_eq!(remaining_rows, 0);
 }
+
+#[tokio::test]
+#[serial]
+async fn assistant_encrypted_session_global_purge_is_bounded_and_non_traffic_dependent() {
+    let store = support::test_store().await;
+    support::reset_database(store.pool()).await;
+
+    let now = Utc::now();
+    let expired_now = now - Duration::days(61);
+    let user_a = Uuid::new_v4();
+    let user_b = Uuid::new_v4();
+    let user_c = Uuid::new_v4();
+    let session_a = Uuid::new_v4();
+    let session_b = Uuid::new_v4();
+    let session_c = Uuid::new_v4();
+
+    let expired_state = AssistantSessionStateEnvelope {
+        version: "v1".to_string(),
+        algorithm: "x25519-chacha20poly1305".to_string(),
+        key_id: "assistant-ingress-v1".to_string(),
+        nonce: "nonce-expired".to_string(),
+        ciphertext: "ciphertext-expired".to_string(),
+        expires_at: expired_now,
+    };
+    let active_state = AssistantSessionStateEnvelope {
+        version: "v1".to_string(),
+        algorithm: "x25519-chacha20poly1305".to_string(),
+        key_id: "assistant-ingress-v1".to_string(),
+        nonce: "nonce-active".to_string(),
+        ciphertext: "ciphertext-active".to_string(),
+        expires_at: now + Duration::days(30),
+    };
+
+    store
+        .upsert_assistant_encrypted_session(user_a, session_a, &expired_state, expired_now, 1)
+        .await
+        .expect("user-a expired session insert should succeed");
+    store
+        .upsert_assistant_encrypted_session(user_b, session_b, &expired_state, expired_now, 1)
+        .await
+        .expect("user-b expired session insert should succeed");
+    store
+        .upsert_assistant_encrypted_session(
+            user_c,
+            session_c,
+            &active_state,
+            now,
+            60 * 24 * 60 * 60,
+        )
+        .await
+        .expect("user-c active session insert should succeed");
+
+    let expired_before: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)::bigint
+         FROM assistant_encrypted_sessions
+         WHERE expires_at <= $1",
+    )
+    .bind(now)
+    .fetch_one(store.pool())
+    .await
+    .expect("expired session pre-count query should succeed");
+    assert_eq!(expired_before, 2);
+
+    let first_batch = store
+        .purge_expired_assistant_encrypted_sessions_batch(now, 1)
+        .await
+        .expect("first global purge batch should succeed");
+    assert_eq!(first_batch, 1);
+
+    let expired_after_first_batch: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)::bigint
+         FROM assistant_encrypted_sessions
+         WHERE expires_at <= $1",
+    )
+    .bind(now)
+    .fetch_one(store.pool())
+    .await
+    .expect("expired session count after first batch should succeed");
+    assert_eq!(expired_after_first_batch, 1);
+
+    let second_batch = store
+        .purge_expired_assistant_encrypted_sessions_batch(now, 10)
+        .await
+        .expect("second global purge batch should succeed");
+    assert_eq!(second_batch, 1);
+
+    let expired_after_second_batch: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)::bigint
+         FROM assistant_encrypted_sessions
+         WHERE expires_at <= $1",
+    )
+    .bind(now)
+    .fetch_one(store.pool())
+    .await
+    .expect("expired session count after second batch should succeed");
+    assert_eq!(expired_after_second_batch, 0);
+
+    let active_remaining: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)::bigint
+         FROM assistant_encrypted_sessions
+         WHERE user_id = $1
+           AND session_id = $2
+           AND expires_at > $3",
+    )
+    .bind(user_c)
+    .bind(session_c)
+    .bind(now)
+    .fetch_one(store.pool())
+    .await
+    .expect("active session remaining query should succeed");
+    assert_eq!(active_remaining, 1);
+}
