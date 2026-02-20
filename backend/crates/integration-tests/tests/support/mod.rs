@@ -83,8 +83,8 @@ fn assert_test_database_url(database_url: &str) {
     let base = database_url.split('?').next().unwrap_or(database_url);
     let database_name = base.rsplit('/').next().unwrap_or_default();
     assert!(
-        database_name.ends_with("_test"),
-        "integration tests require a *_test database URL, got: {database_url}"
+        is_isolated_test_database(database_name),
+        "integration tests require an isolated test database (*_test or *_ci), got: {database_url}"
     );
 }
 
@@ -94,7 +94,11 @@ async fn assert_test_database_pool(pool: &PgPool) {
         .await
         .expect("current database lookup should succeed");
     assert!(
-        current_database.ends_with("_test"),
-        "integration tests may only reset *_test databases, got: {current_database}"
+        is_isolated_test_database(current_database.as_str()),
+        "integration tests may only reset isolated test databases (*_test or *_ci), got: {current_database}"
     );
+}
+
+fn is_isolated_test_database(database_name: &str) -> bool {
+    database_name.ends_with("_test") || database_name.ends_with("_ci")
 }
