@@ -7,33 +7,26 @@ struct HomeView: View {
     @State private var composerText = ""
     @FocusState private var isComposerFocused: Bool
 
-    private var statusBadge: (title: String, style: AppStatusBadge.Style) {
-        switch transcriptionController.status {
-        case .idle:
-            return ("Ready", .neutral)
-        case .requestingPermissions:
-            return ("Checking access", .warning)
-        case .listening:
-            return ("Listening", .success)
-        case .permissionDenied:
-            return ("Permission needed", .danger)
-        case .restricted:
-            return ("Restricted", .danger)
-        case .unavailable:
-            return ("Unavailable", .danger)
-        case .failed:
-            return ("Error", .danger)
-        }
+    private var liveDraftText: String {
+        transcriptionController.isListening ? transcriptionController.transcript : ""
     }
 
-    private var statusMessage: String {
+    private var hasTypedMessage: Bool {
+        !composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var canSendMessage: Bool {
+        hasTypedMessage && !model.isLoading(.queryAssistant)
+    }
+
+    private var voiceStatusText: String? {
         switch transcriptionController.status {
         case .idle:
-            return "Type a message or tap the mic to speak."
-        case .requestingPermissions:
-            return "Requesting microphone and speech access."
+            return nil
         case .listening:
-            return "Listening on-device. Transcript updates live."
+            return "Listening on-device..."
+        case .requestingPermissions:
+            return "Requesting microphone and speech access..."
         case .permissionDenied:
             return "Enable Microphone and Speech Recognition in iOS Settings."
         case .restricted:
@@ -45,34 +38,26 @@ struct HomeView: View {
         }
     }
 
-    private var liveDraftText: String {
-        transcriptionController.isListening ? transcriptionController.transcript : ""
-    }
-
-    private var canSendMessage: Bool {
-        !composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !model.isLoading(.queryAssistant)
-    }
-
     var body: some View {
-        VStack(spacing: 12) {
-            statusHeader
-                .padding(.horizontal, AppTheme.Layout.screenPadding)
+        VStack(spacing: 0) {
+            topBar
+                .padding(.horizontal, 10)
                 .padding(.top, 8)
+                .padding(.bottom, 6)
 
             AssistantConversationView(
                 messages: model.assistantConversation,
                 draftMessage: liveDraftText,
                 isLoading: model.isLoading(.queryAssistant),
                 showsHeader: false,
-                emptyStateText: "Start a chat with Alfred. You can type or use the mic."
+                emptyStateText: "Ask Anything"
             )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding(.horizontal, AppTheme.Layout.screenPadding)
-            .padding(.bottom, 8)
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+            .padding(.bottom, 6)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            composerBar
+            inputDock
         }
         .appScreenBackground()
         .onDisappear {
@@ -88,116 +73,215 @@ struct HomeView: View {
         }
     }
 
-    private var statusHeader: some View {
+    private var topBar: some View {
         HStack(spacing: 10) {
-            AppStatusBadge(title: statusBadge.title, style: statusBadge.style)
-
-            ListeningDotsIndicator(isActive: transcriptionController.isListening)
-                .frame(width: 28, height: 12)
-
-            Text(statusMessage)
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(AppTheme.Colors.textSecondary)
-                .lineLimit(2)
+            circleIconButton(systemName: "line.3.horizontal")
 
             Spacer(minLength: 0)
+
+            HStack(spacing: 6) {
+                modeChip(title: "Ask", isSelected: true)
+                modeChip(title: "Imagine", isSelected: false)
+            }
+            .padding(4)
+            .background(AppTheme.Colors.surface.opacity(0.62))
+            .clipShape(Capsule(style: .continuous))
+
+            Spacer(minLength: 0)
+
+            circleIconButton(systemName: "square.and.pencil")
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var composerBar: some View {
-        VStack(spacing: 10) {
-            HStack(alignment: .bottom, spacing: 10) {
+    private var inputDock: some View {
+        VStack(spacing: 8) {
+            quickActionsRow
+            composerContainer
+
+            if let voiceStatusText {
+                Text(voiceStatusText)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.Colors.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 6)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.top, 6)
+        .padding(.bottom, 10)
+        .background(
+            LinearGradient(
+                colors: [
+                    AppTheme.Colors.background.opacity(0.0),
+                    AppTheme.Colors.background.opacity(0.86),
+                    AppTheme.Colors.background.opacity(0.98),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+    }
+
+    private var quickActionsRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                quickActionChip(title: "Try Alfred", isPrimary: true)
+                quickActionChip(title: "Create Reminder", isPrimary: false)
+                quickActionChip(title: "Clear Chat", isPrimary: false) {
+                    clearChat()
+                }
+            }
+            .padding(.horizontal, 2)
+        }
+    }
+
+    @ViewBuilder
+    private var composerContainer: some View {
+        if #available(iOS 26, *) {
+            composerContent
+                .padding(10)
+                .glassEffect(.regular.tint(AppTheme.Colors.paper.opacity(0.05)).interactive(), in: .rect(cornerRadius: 22))
+        } else {
+            composerContent
+                .padding(10)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .stroke(AppTheme.Colors.paper.opacity(0.12), lineWidth: 1)
+                )
+        }
+    }
+
+    private var composerContent: some View {
+        VStack(spacing: 8) {
+            TextField("Ask Anything", text: $composerText, axis: .vertical)
+                .lineLimit(1...4)
+                .focused($isComposerFocused)
+                .submitLabel(.send)
+                .onSubmit {
+                    sendMessage()
+                }
+                .font(.system(size: 20.0 / 2.0, weight: .regular))
+                .foregroundStyle(AppTheme.Colors.textPrimary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+
+            HStack(spacing: 8) {
+                controlIconButton(systemName: "paperclip")
+
+                capsuleLabel("Auto")
+
+                Spacer(minLength: 0)
+
                 Button {
                     Task { await toggleRecording() }
                 } label: {
                     Image(systemName: transcriptionController.isListening ? "stop.fill" : "mic.fill")
-                        .font(.system(size: 18, weight: .black))
-                        .foregroundStyle(AppTheme.Colors.ink)
-                        .frame(width: 44, height: 44)
-                        .background(
-                            Circle()
-                                .fill(AppTheme.Colors.paper.opacity(
-                                    transcriptionController.isRequestingPermissions ? 0.5 : 1
-                                ))
-                        )
-                        .overlay(
-                            Circle()
-                                .stroke(AppTheme.Colors.ink, lineWidth: AppTheme.Layout.cartoonStrokeWidth)
-                        )
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(AppTheme.Colors.textPrimary)
+                        .frame(width: 30, height: 30)
+                        .background(AppTheme.Colors.surface.opacity(0.7), in: Circle())
                 }
                 .buttonStyle(.plain)
-                .disabled(transcriptionController.isRequestingPermissions)
-                .accessibilityLabel(transcriptionController.isListening ? "Stop recording" : "Start recording")
+                .disabled(transcriptionController.isRequestingPermissions || model.isLoading(.queryAssistant))
 
-                TextField("Message Alfred…", text: $composerText, axis: .vertical)
-                    .lineLimit(1...4)
-                    .focused($isComposerFocused)
-                    .submitLabel(.send)
-                    .onSubmit {
-                        sendMessage()
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 11)
-                    .foregroundStyle(AppTheme.Colors.textPrimary)
-                    .background(AppTheme.Colors.surfaceElevated)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(AppTheme.Colors.outline.opacity(0.8), lineWidth: 1)
-                    )
-
-                Button {
-                    sendMessage()
-                } label: {
-                    Image(systemName: model.isLoading(.queryAssistant) ? "hourglass" : "arrow.up")
-                        .font(.system(size: 18, weight: .black))
-                        .foregroundStyle(AppTheme.Colors.ink)
-                        .frame(width: 44, height: 44)
-                        .background(
-                            Circle()
-                                .fill(AppTheme.Colors.paper.opacity(canSendMessage ? 1 : 0.42))
-                        )
-                        .overlay(
-                            Circle()
-                                .stroke(AppTheme.Colors.ink, lineWidth: AppTheme.Layout.cartoonStrokeWidth)
-                        )
-                }
-                .buttonStyle(.plain)
-                .disabled(!canSendMessage)
-                .accessibilityLabel("Send message")
+                trailingActionButton
             }
+        }
+    }
 
-            HStack(spacing: 10) {
-                Button("Clear Chat") {
-                    clearChat()
-                }
-                .font(.caption.weight(.bold))
-                .foregroundStyle(AppTheme.Colors.textSecondary)
-                .buttonStyle(.plain)
-                .disabled(
-                    model.assistantConversation.isEmpty
-                        && composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    @ViewBuilder
+    private var trailingActionButton: some View {
+        if hasTypedMessage {
+            Button {
+                sendMessage()
+            } label: {
+                Image(systemName: model.isLoading(.queryAssistant) ? "hourglass" : "arrow.up")
+                    .font(.system(size: 14, weight: .black))
+                    .foregroundStyle(AppTheme.Colors.ink)
+                    .frame(width: 34, height: 34)
+                    .background(AppTheme.Colors.paper.opacity(canSendMessage ? 1 : 0.35), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!canSendMessage)
+        } else {
+            Button {
+                Task { await toggleRecording() }
+            } label: {
+                Text(transcriptionController.isListening ? "Stop" : "Speak")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(AppTheme.Colors.ink)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(AppTheme.Colors.paper, in: Capsule(style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .disabled(transcriptionController.isRequestingPermissions || model.isLoading(.queryAssistant))
+        }
+    }
+
+    private func modeChip(title: String, isSelected: Bool) -> some View {
+        Text(title)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(isSelected ? AppTheme.Colors.textPrimary : AppTheme.Colors.textSecondary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(isSelected ? AppTheme.Colors.surfaceElevated.opacity(0.9) : .clear)
+            )
+    }
+
+    private func quickActionChip(title: String, isPrimary: Bool, action: (() -> Void)? = nil) -> some View {
+        Button {
+            action?()
+        } label: {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(isPrimary ? AppTheme.Colors.paper : AppTheme.Colors.textPrimary)
+                .padding(.horizontal, 15)
+                .padding(.vertical, 9)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(isPrimary ? AppTheme.Colors.surfaceElevated : AppTheme.Colors.surface.opacity(0.82))
                 )
-
-                Spacer(minLength: 0)
-
-                if transcriptionController.isListening {
-                    Text("Listening…")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(AppTheme.Colors.textSecondary)
-                }
-            }
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(AppTheme.Colors.paper.opacity(0.1), lineWidth: 1)
+                )
         }
-        .padding(.horizontal, AppTheme.Layout.screenPadding)
-        .padding(.top, 10)
-        .padding(.bottom, 12)
-        .background(AppTheme.Colors.background.opacity(0.98))
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(AppTheme.Colors.outline.opacity(0.25))
-                .frame(height: 1)
+        .buttonStyle(.plain)
+    }
+
+    private func circleIconButton(systemName: String) -> some View {
+        Button {} label: {
+            Image(systemName: systemName)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(AppTheme.Colors.textPrimary)
+                .frame(width: 40, height: 40)
+                .background(AppTheme.Colors.surface.opacity(0.65), in: Circle())
         }
+        .buttonStyle(.plain)
+    }
+
+    private func controlIconButton(systemName: String) -> some View {
+        Button {} label: {
+            Image(systemName: systemName)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(AppTheme.Colors.textPrimary.opacity(0.85))
+                .frame(width: 30, height: 30)
+                .background(AppTheme.Colors.surface.opacity(0.55), in: Circle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func capsuleLabel(_ title: String) -> some View {
+        Text(title)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(AppTheme.Colors.textSecondary)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 6)
+            .background(AppTheme.Colors.surface.opacity(0.55), in: Capsule(style: .continuous))
     }
 
     private func toggleRecording() async {
@@ -226,30 +310,6 @@ struct HomeView: View {
         transcriptionController.clearTranscript()
         composerText = ""
         model.clearAssistantConversation()
-    }
-}
-
-private struct ListeningDotsIndicator: View {
-    let isActive: Bool
-
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 24.0, paused: !isActive)) { timeline in
-            let time = timeline.date.timeIntervalSinceReferenceDate
-
-            HStack(spacing: 4) {
-                ForEach(0..<3, id: \.self) { index in
-                    let phase = time * 5.1 + (Double(index) * 0.6)
-                    let progress = (sin(phase) + 1) * 0.5
-                    let height = isActive ? (5 + (progress * 5)) : 4.0
-                    let opacity = isActive ? (0.35 + (progress * 0.65)) : 0.3
-
-                    Capsule(style: .continuous)
-                        .fill(AppTheme.Colors.paper.opacity(opacity))
-                        .frame(width: 4, height: height)
-                }
-            }
-        }
-        .accessibilityHidden(true)
     }
 }
 

@@ -51,14 +51,15 @@ struct AssistantConversationView: View {
             Group {
                 if messages.isEmpty && normalizedDraftMessage == nil && !isLoading {
                     Text(emptyStateText)
-                        .font(.footnote.weight(.semibold))
+                        .font(.headline.weight(.semibold))
                         .foregroundStyle(AppTheme.Colors.textSecondary)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                        .padding(.horizontal, 28)
                 } else {
                     ScrollViewReader { proxy in
-                        ScrollView(.vertical, showsIndicators: true) {
-                            LazyVStack(spacing: 10) {
+                        ScrollView(.vertical, showsIndicators: false) {
+                            LazyVStack(spacing: 18) {
                                 ForEach(messages) { message in
                                     AssistantConversationMessageRow(message: message)
                                         .id(message.id)
@@ -74,7 +75,7 @@ struct AssistantConversationView: View {
                                         .id("loading-row")
                                 }
                             }
-                            .padding(.vertical, 8)
+                            .padding(.vertical, 10)
                         }
                         .onAppear {
                             scrollToBottom(with: proxy, animated: false)
@@ -92,17 +93,9 @@ struct AssistantConversationView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(AppTheme.Colors.surfaceElevated.opacity(0.65))
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(AppTheme.Colors.outline.opacity(0.6), lineWidth: 1)
-            )
+            .padding(.horizontal, 2)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.horizontal, 4)
     }
 
     private func scrollToBottom(with proxy: ScrollViewProxy, animated: Bool) {
@@ -120,43 +113,28 @@ struct AssistantConversationView: View {
 private struct AssistantConversationMessageRow: View {
     let message: AssistantConversationMessage
 
-    private var roleTitle: String {
-        switch message.role {
-        case .user:
-            return "Me"
-        case .assistant:
-            return "Alfred"
-        }
-    }
-
     var body: some View {
-        VStack(
-            alignment: message.role == .user ? .trailing : .leading,
-            spacing: 6
-        ) {
-            Text("\(roleTitle):")
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(AppTheme.Colors.textSecondary)
+        VStack(alignment: .leading, spacing: 8) {
+            if message.role == .user {
+                Text(message.text)
+                    .font(.system(size: 33.0 / 2.0, weight: .medium))
+                    .foregroundStyle(AppTheme.Colors.textPrimary)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(AppTheme.Colors.surfaceElevated.opacity(0.92))
+                    .clipShape(Capsule(style: .continuous))
+            } else {
+                Text(message.text)
+                    .font(.system(size: 34.0 / 2.0, weight: .regular))
+                    .foregroundStyle(AppTheme.Colors.textPrimary)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
-            Text(message.text)
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(AppTheme.Colors.textPrimary)
-                .multilineTextAlignment(message.role == .user ? .trailing : .leading)
-                .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(
-                    message.role == .user
-                        ? AppTheme.Colors.surface
-                        : AppTheme.Colors.surfaceElevated.opacity(0.9)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(AppTheme.Colors.outline.opacity(0.45), lineWidth: 1)
-                )
-
-            if message.role == .assistant {
+            if message.role == .assistant, !message.toolSummaries.isEmpty {
                 ForEach(message.toolSummaries) { summary in
                     AssistantToolSummaryCard(summary: summary)
                 }
@@ -170,54 +148,29 @@ private struct AssistantDraftMessageRow: View {
     let text: String
 
     var body: some View {
-        VStack(alignment: .trailing, spacing: 6) {
-            Text("Me:")
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(AppTheme.Colors.textSecondary)
-
-            Text(text)
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(AppTheme.Colors.textPrimary)
-                .multilineTextAlignment(.trailing)
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(AppTheme.Colors.surface.opacity(0.55))
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(AppTheme.Colors.outline.opacity(0.3), lineWidth: 1)
-                )
-        }
+        Text(text)
+            .font(.system(size: 33.0 / 2.0, weight: .medium))
+            .foregroundStyle(AppTheme.Colors.textPrimary.opacity(0.9))
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(AppTheme.Colors.surfaceElevated.opacity(0.65))
+            .clipShape(Capsule(style: .continuous))
         .frame(maxWidth: .infinity, alignment: .trailing)
     }
 }
 
 private struct AssistantLoadingRow: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Alfred:")
-                .font(.caption2.weight(.bold))
+        HStack(spacing: 8) {
+            ProgressView()
+                .progressViewStyle(.circular)
+                .tint(AppTheme.Colors.textPrimary)
+
+            Text("Thinking...")
+                .font(.footnote.weight(.semibold))
                 .foregroundStyle(AppTheme.Colors.textSecondary)
-
-            HStack(spacing: 8) {
-                ProgressView()
-                    .progressViewStyle(.circular)
-                    .tint(AppTheme.Colors.textPrimary)
-
-                Text("Thinking...")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(AppTheme.Colors.textSecondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .background(AppTheme.Colors.surfaceElevated.opacity(0.9))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(AppTheme.Colors.outline.opacity(0.45), lineWidth: 1)
-            )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
