@@ -1,6 +1,7 @@
 import XCTest
 @testable import alfred
 
+@MainActor
 final class KittenSpeechTextNormalizerTests: XCTestCase {
     func testNormalizeExpandsUtcTimeWithSeconds() {
         let normalized = KittenSpeechTextNormalizer.normalize("The server restarts at 12:00:00 UTC.")
