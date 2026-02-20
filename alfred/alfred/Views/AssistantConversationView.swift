@@ -1,5 +1,6 @@
 import AlfredAPIClient
 import SwiftUI
+import UIKit
 
 struct AssistantConversationView: View {
     let messages: [AssistantConversationMessage]
@@ -90,6 +91,12 @@ struct AssistantConversationView: View {
                         .onChange(of: isLoading) { _, _ in
                             scrollToBottom(with: proxy, animated: true)
                         }
+                        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+                            scrollToBottomAfterKeyboardTransition(with: proxy)
+                        }
+                        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { _ in
+                            scrollToBottomAfterKeyboardTransition(with: proxy)
+                        }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
@@ -109,6 +116,15 @@ struct AssistantConversationView: View {
             proxy.scrollTo(scrollTargetID, anchor: .bottom)
         }
     }
+
+    private func scrollToBottomAfterKeyboardTransition(with proxy: ScrollViewProxy) {
+        DispatchQueue.main.async {
+            scrollToBottom(with: proxy, animated: true)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            scrollToBottom(with: proxy, animated: true)
+        }
+    }
 }
 
 private struct AssistantConversationMessageRow: View {
@@ -121,11 +137,11 @@ private struct AssistantConversationMessageRow: View {
                     .font(.system(size: 33.0 / 2.0, weight: .medium))
                     .foregroundStyle(AppTheme.Colors.textPrimary)
                     .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
                     .background(AppTheme.Colors.surfaceElevated.opacity(0.92))
-                    .clipShape(Capsule(style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             } else {
                 Text(message.text)
                     .font(.system(size: 34.0 / 2.0, weight: .regular))
@@ -153,11 +169,11 @@ private struct AssistantDraftMessageRow: View {
             .font(.system(size: 33.0 / 2.0, weight: .medium))
             .foregroundStyle(AppTheme.Colors.textPrimary.opacity(0.9))
             .multilineTextAlignment(.leading)
-            .frame(maxWidth: .infinity, alignment: .trailing)
+            .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .background(AppTheme.Colors.surfaceElevated.opacity(0.65))
-            .clipShape(Capsule(style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .frame(maxWidth: .infinity, alignment: .trailing)
     }
 }

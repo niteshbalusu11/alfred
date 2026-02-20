@@ -148,7 +148,7 @@ final class AssistantConversationMapperTests: XCTestCase {
         XCTAssertTrue(assistantMessage.toolSummaries.isEmpty)
     }
 
-    func testLegacyGeneralChatWithPlanKeyPointsProducesToolSummaryCard() throws {
+    func testLegacyGeneralChatWithPlanKeyPointsDoesNotProduceToolSummaryCard() throws {
         let response = try decodeAssistantResponse(
             """
             {
@@ -171,9 +171,7 @@ final class AssistantConversationMapperTests: XCTestCase {
         )
 
         let assistantMessage = AssistantConversationMapper.assistantMessage(from: response)
-        XCTAssertEqual(assistantMessage.toolSummaries.count, 1)
-        XCTAssertEqual(assistantMessage.toolSummaries.first?.capability, .generalChat)
-        XCTAssertEqual(assistantMessage.toolSummaries.first?.keyPoints.count, 2)
+        XCTAssertTrue(assistantMessage.toolSummaries.isEmpty)
     }
 
     private func decodeAssistantResponse(_ json: String) throws -> AssistantPlaintextQueryResponse {

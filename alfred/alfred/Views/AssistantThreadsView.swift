@@ -94,13 +94,6 @@ struct AssistantThreadsView: View {
                 .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
-                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                    Button(role: .destructive) {
-                        model.deleteAssistantThread(thread.id)
-                    } label: {
-                        Label("Delete", systemImage: "trash")
-                    }
-                }
                 .contextMenu {
                     Button("Delete Thread", role: .destructive) {
                         model.deleteAssistantThread(thread.id)

@@ -54,6 +54,11 @@ static MEETINGS_SUMMARY_VALIDATOR: LazyLock<Result<JSONSchema, String>> = LazyLo
         .map_err(|err| err.to_string())
 });
 
+static GENERAL_CHAT_SUMMARY_VALIDATOR: LazyLock<Result<JSONSchema, String>> = LazyLock::new(|| {
+    JSONSchema::compile(&output_schema(AssistantCapability::GeneralChatSummary))
+        .map_err(|err| err.to_string())
+});
+
 static MORNING_BRIEF_VALIDATOR: LazyLock<Result<JSONSchema, String>> = LazyLock::new(|| {
     JSONSchema::compile(&output_schema(AssistantCapability::MorningBrief))
         .map_err(|err| err.to_string())
@@ -75,6 +80,7 @@ fn validator_for_capability(
 ) -> Result<&'static JSONSchema, OutputValidationError> {
     let validator_result = match capability {
         AssistantCapability::MeetingsSummary => &*MEETINGS_SUMMARY_VALIDATOR,
+        AssistantCapability::GeneralChatSummary => &*GENERAL_CHAT_SUMMARY_VALIDATOR,
         AssistantCapability::MorningBrief => &*MORNING_BRIEF_VALIDATOR,
         AssistantCapability::UrgentEmailSummary => &*URGENT_EMAIL_SUMMARY_VALIDATOR,
         AssistantCapability::AssistantSemanticPlan => &*ASSISTANT_SEMANTIC_PLAN_VALIDATOR,

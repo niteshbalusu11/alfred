@@ -13,6 +13,7 @@ pub const OUTPUT_CONTRACT_VERSION_V1: &str = "2026-02-15";
 #[serde(rename_all = "snake_case")]
 pub enum AssistantCapability {
     MeetingsSummary,
+    GeneralChatSummary,
     MorningBrief,
     UrgentEmailSummary,
     AssistantSemanticPlan,
@@ -36,6 +37,13 @@ pub struct MeetingsSummaryContract {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+pub struct GeneralChatSummaryContract {
+    pub version: String,
+    pub output: GeneralChatSummaryOutput,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct MorningBriefContract {
     pub version: String,
     pub output: MorningBriefOutput,
@@ -55,6 +63,23 @@ pub struct MeetingsSummaryOutput {
     pub summary: String,
     pub key_points: Vec<String>,
     pub follow_ups: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct GeneralChatSummaryOutput {
+    pub title: String,
+    pub summary: String,
+    pub key_points: Vec<String>,
+    pub follow_ups: Vec<String>,
+    pub response_style: ChatResponseStyle,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ChatResponseStyle {
+    Conversational,
+    Structured,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -89,6 +114,7 @@ pub enum UrgencyLevel {
 #[derive(Debug, Clone)]
 pub enum AssistantOutputContract {
     MeetingsSummary(MeetingsSummaryContract),
+    GeneralChatSummary(GeneralChatSummaryContract),
     MorningBrief(MorningBriefContract),
     UrgentEmailSummary(UrgentEmailSummaryContract),
     AssistantSemanticPlan(AssistantSemanticPlanContract),
@@ -114,6 +140,10 @@ pub fn output_schema(capability: AssistantCapability) -> Value {
             serde_json::to_value(schema_for!(MeetingsSummaryContract))
                 .expect("meetings summary schema should be serializable")
         }
+        AssistantCapability::GeneralChatSummary => {
+            serde_json::to_value(schema_for!(GeneralChatSummaryContract))
+                .expect("general chat summary schema should be serializable")
+        }
         AssistantCapability::MorningBrief => {
             serde_json::to_value(schema_for!(MorningBriefContract))
                 .expect("morning brief schema should be serializable")
@@ -138,6 +168,11 @@ pub fn parse_contract(
             let contract: MeetingsSummaryContract = serde_json::from_value(payload)?;
             ensure_contract_version(capability, &contract.version)?;
             Ok(AssistantOutputContract::MeetingsSummary(contract))
+        }
+        AssistantCapability::GeneralChatSummary => {
+            let contract: GeneralChatSummaryContract = serde_json::from_value(payload)?;
+            ensure_contract_version(capability, &contract.version)?;
+            Ok(AssistantOutputContract::GeneralChatSummary(contract))
         }
         AssistantCapability::MorningBrief => {
             let contract: MorningBriefContract = serde_json::from_value(payload)?;
