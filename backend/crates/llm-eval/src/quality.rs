@@ -27,6 +27,24 @@ pub fn evaluate_quality(
                 &mut issues,
             );
         }
+        AssistantOutputContract::GeneralChatSummary(summary) => {
+            require_non_empty_text("output.title", &summary.output.title, &mut issues);
+            require_non_empty_text("output.summary", &summary.output.summary, &mut issues);
+            require_all_non_empty("output.key_points", &summary.output.key_points, &mut issues);
+            require_all_non_empty("output.follow_ups", &summary.output.follow_ups, &mut issues);
+            require_min_len(
+                "output.key_points",
+                summary.output.key_points.len(),
+                expectations.min_key_points,
+                &mut issues,
+            );
+            require_min_len(
+                "output.follow_ups",
+                summary.output.follow_ups.len(),
+                expectations.min_follow_ups,
+                &mut issues,
+            );
+        }
         AssistantOutputContract::MorningBrief(brief) => {
             require_non_empty_text("output.headline", &brief.output.headline, &mut issues);
             require_non_empty_text("output.summary", &brief.output.summary, &mut issues);

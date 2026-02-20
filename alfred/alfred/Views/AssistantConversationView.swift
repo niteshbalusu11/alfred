@@ -1,5 +1,6 @@
 import AlfredAPIClient
 import SwiftUI
+import UIKit
 
 struct AssistantConversationView: View {
     let messages: [AssistantConversationMessage]
@@ -90,6 +91,12 @@ struct AssistantConversationView: View {
                         .onChange(of: isLoading) { _, _ in
                             scrollToBottom(with: proxy, animated: true)
                         }
+                        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+                            scrollToBottomAfterKeyboardTransition(with: proxy)
+                        }
+                        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { _ in
+                            scrollToBottomAfterKeyboardTransition(with: proxy)
+                        }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
@@ -107,6 +114,15 @@ struct AssistantConversationView: View {
             }
         } else {
             proxy.scrollTo(scrollTargetID, anchor: .bottom)
+        }
+    }
+
+    private func scrollToBottomAfterKeyboardTransition(with proxy: ScrollViewProxy) {
+        DispatchQueue.main.async {
+            scrollToBottom(with: proxy, animated: true)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            scrollToBottom(with: proxy, animated: true)
         }
     }
 }

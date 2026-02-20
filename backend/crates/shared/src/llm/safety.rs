@@ -8,9 +8,10 @@ use crate::assistant_semantic_plan::{
 };
 
 use super::contracts::{
-    AssistantCapability, AssistantOutputContract, MeetingsSummaryContract, MeetingsSummaryOutput,
-    MorningBriefContract, MorningBriefOutput, OUTPUT_CONTRACT_VERSION_V1, UrgencyLevel,
-    UrgentEmailSummaryContract, UrgentEmailSummaryOutput,
+    AssistantCapability, AssistantOutputContract, ChatResponseStyle, GeneralChatSummaryContract,
+    GeneralChatSummaryOutput, MeetingsSummaryContract, MeetingsSummaryOutput, MorningBriefContract,
+    MorningBriefOutput, OUTPUT_CONTRACT_VERSION_V1, UrgencyLevel, UrgentEmailSummaryContract,
+    UrgentEmailSummaryOutput,
 };
 use super::validation::validate_output_value;
 
@@ -91,6 +92,9 @@ fn deterministic_fallback_contract(
         AssistantCapability::MeetingsSummary => {
             AssistantOutputContract::MeetingsSummary(fallback_meetings_summary(context_payload))
         }
+        AssistantCapability::GeneralChatSummary => AssistantOutputContract::GeneralChatSummary(
+            fallback_general_chat_summary(context_payload),
+        ),
         AssistantCapability::MorningBrief => {
             AssistantOutputContract::MorningBrief(fallback_morning_brief(context_payload))
         }
@@ -208,6 +212,19 @@ fn fallback_morning_brief(context_payload: &Value) -> MorningBriefContract {
     }
 }
 
+fn fallback_general_chat_summary(_context_payload: &Value) -> GeneralChatSummaryContract {
+    GeneralChatSummaryContract {
+        version: OUTPUT_CONTRACT_VERSION_V1.to_string(),
+        output: GeneralChatSummaryOutput {
+            title: "General conversation".to_string(),
+            summary: "I am here and listening.".to_string(),
+            key_points: Vec::new(),
+            follow_ups: Vec::new(),
+            response_style: ChatResponseStyle::Conversational,
+        },
+    }
+}
+
 fn fallback_urgent_email_summary(context_payload: &Value) -> UrgentEmailSummaryContract {
     let context = serde_json::from_value::<FallbackUrgentEmailContext>(context_payload.clone())
         .unwrap_or_else(|_| FallbackUrgentEmailContext {
@@ -275,6 +292,22 @@ fn passes_action_safety_policy(contract: &AssistantOutputContract) -> bool {
 fn contract_within_bounds(contract: &AssistantOutputContract) -> bool {
     match contract {
         AssistantOutputContract::MeetingsSummary(summary) => {
+            fits_chars(&summary.output.title, MAX_OUTPUT_TITLE_CHARS)
+                && fits_chars(&summary.output.summary, MAX_OUTPUT_TEXT_CHARS)
+                && summary.output.key_points.len() <= MAX_OUTPUT_LIST_ITEMS
+                && summary.output.follow_ups.len() <= MAX_OUTPUT_LIST_ITEMS
+                && summary
+                    .output
+                    .key_points
+                    .iter()
+                    .all(|item| fits_chars(item, MAX_OUTPUT_TEXT_CHARS))
+                && summary
+                    .output
+                    .follow_ups
+                    .iter()
+                    .all(|item| fits_chars(item, MAX_OUTPUT_TEXT_CHARS))
+        }
+        AssistantOutputContract::GeneralChatSummary(summary) => {
             fits_chars(&summary.output.title, MAX_OUTPUT_TITLE_CHARS)
                 && fits_chars(&summary.output.summary, MAX_OUTPUT_TEXT_CHARS)
                 && summary.output.key_points.len() <= MAX_OUTPUT_LIST_ITEMS

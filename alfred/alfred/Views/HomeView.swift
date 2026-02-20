@@ -7,10 +7,7 @@ struct HomeView: View {
     @State private var composerText = ""
     @State private var lastSpokenAssistantMessageID: UUID?
     @FocusState private var isComposerFocused: Bool
-
-    private var liveDraftText: String {
-        transcriptionController.isListening ? transcriptionController.transcript : ""
-    }
+    private let topActionButtonScale: CGFloat = 1.17
 
     private var hasTypedMessage: Bool {
         !composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -48,7 +45,7 @@ struct HomeView: View {
 
             AssistantConversationView(
                 messages: model.assistantConversation,
-                draftMessage: liveDraftText,
+                draftMessage: "",
                 isLoading: model.isLoading(.queryAssistant),
                 showsHeader: false,
                 emptyStateText: "Ask Anything"
@@ -86,12 +83,12 @@ struct HomeView: View {
 
     private var topBar: some View {
         HStack(spacing: 10) {
-            circleIconButton(systemName: "text.bubble", scale: 1.3) {
+            circleIconButton(systemName: "text.bubble", scale: topActionButtonScale) {
                 openThreadsScreen()
             }
 
             Spacer(minLength: 0)
-            circleIconButton(systemName: "square.and.pencil", scale: 1.3) {
+            circleIconButton(systemName: "square.and.pencil", scale: topActionButtonScale) {
                 clearChat()
             }
         }
@@ -166,12 +163,6 @@ struct HomeView: View {
                 .padding(.vertical, 6)
 
             HStack(spacing: 8) {
-                controlIconButton(systemName: "paperclip")
-
-                capsuleLabel("Auto")
-
-                Spacer(minLength: 0)
-
                 Button {
                     Task { await toggleRecording() }
                 } label: {
@@ -183,6 +174,8 @@ struct HomeView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(transcriptionController.isRequestingPermissions || model.isLoading(.queryAssistant))
+
+                Spacer(minLength: 0)
 
                 trailingActionButton
             }
@@ -232,26 +225,6 @@ struct HomeView: View {
                 .background(AppTheme.Colors.surface.opacity(0.65), in: Circle())
         }
         .buttonStyle(.plain)
-    }
-
-    private func controlIconButton(systemName: String) -> some View {
-        Button {} label: {
-            Image(systemName: systemName)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(AppTheme.Colors.textPrimary.opacity(0.85))
-                .frame(width: 30, height: 30)
-                .background(AppTheme.Colors.surface.opacity(0.55), in: Circle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func capsuleLabel(_ title: String) -> some View {
-        Text(title)
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(AppTheme.Colors.textSecondary)
-            .padding(.horizontal, 11)
-            .padding(.vertical, 6)
-            .background(AppTheme.Colors.surface.opacity(0.55), in: Capsule(style: .continuous))
     }
 
     private func toggleRecording() async {

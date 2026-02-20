@@ -67,15 +67,22 @@ struct AppTabShellView: View {
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
                         .glassEffect(
-                            .regular.tint(AppTheme.Colors.paper.opacity(0.12)).interactive(),
+                            .regular.tint(AppTheme.Colors.paper.opacity(0.02)),
                             in: .rect(cornerRadius: 18)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .stroke(AppTheme.Colors.paper.opacity(0.1), lineWidth: 0.8)
                         )
 
                     if clerk.user != nil {
                         UserButton()
                             .frame(width: 36, height: 36)
                             .padding(8)
-                            .glassEffect(.regular.interactive(), in: .circle)
+                            .glassEffect(
+                                .regular.tint(AppTheme.Colors.paper.opacity(0.04)).interactive(),
+                                in: .circle
+                            )
                     }
                 }
             }
@@ -105,6 +112,7 @@ struct AppTabShellView: View {
             }
         }
         .pickerStyle(.segmented)
+        .tint(AppTheme.Colors.paper.opacity(0.2))
         .accessibilityLabel("Top tabs")
     }
 
