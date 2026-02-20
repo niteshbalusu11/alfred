@@ -77,6 +77,7 @@ struct AssistantConversationView: View {
                             }
                             .padding(.vertical, 10)
                         }
+                        .scrollDismissesKeyboard(.interactively)
                         .onAppear {
                             scrollToBottom(with: proxy, animated: false)
                         }

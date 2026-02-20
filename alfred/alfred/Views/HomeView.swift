@@ -55,11 +55,23 @@ struct HomeView: View {
             .padding(.horizontal, 12)
             .padding(.top, 8)
             .padding(.bottom, 6)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                isComposerFocused = false
+            }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             inputDock
         }
         .appScreenBackground()
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer(minLength: 0)
+                Button("Done") {
+                    isComposerFocused = false
+                }
+            }
+        }
         .onDisappear {
             transcriptionController.stopRecording()
             responseSpeaker.stop()
@@ -78,24 +90,14 @@ struct HomeView: View {
             circleIconButton(systemName: "line.3.horizontal")
 
             Spacer(minLength: 0)
-
-            HStack(spacing: 6) {
-                modeChip(title: "Ask", isSelected: true)
-                modeChip(title: "Imagine", isSelected: false)
+            circleIconButton(systemName: "square.and.pencil") {
+                clearChat()
             }
-            .padding(4)
-            .background(AppTheme.Colors.surface.opacity(0.62))
-            .clipShape(Capsule(style: .continuous))
-
-            Spacer(minLength: 0)
-
-            circleIconButton(systemName: "square.and.pencil")
         }
     }
 
     private var inputDock: some View {
         VStack(spacing: 8) {
-            quickActionsRow
             composerContainer
 
             if let voiceStatusText {
@@ -120,19 +122,6 @@ struct HomeView: View {
                 endPoint: .bottom
             )
         )
-    }
-
-    private var quickActionsRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                quickActionChip(title: "Try Alfred", isPrimary: true)
-                quickActionChip(title: "Create Reminder", isPrimary: false)
-                quickActionChip(title: "Clear Chat", isPrimary: false) {
-                    clearChat()
-                }
-            }
-            .padding(.horizontal, 2)
-        }
     }
 
     @ViewBuilder
@@ -161,7 +150,7 @@ struct HomeView: View {
                 .onSubmit {
                     sendMessage()
                 }
-                .font(.system(size: 20.0 / 2.0, weight: .regular))
+                .font(.system(size: 17, weight: .regular))
                 .foregroundStyle(AppTheme.Colors.textPrimary)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
@@ -220,41 +209,8 @@ struct HomeView: View {
         }
     }
 
-    private func modeChip(title: String, isSelected: Bool) -> some View {
-        Text(title)
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(isSelected ? AppTheme.Colors.textPrimary : AppTheme.Colors.textSecondary)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(isSelected ? AppTheme.Colors.surfaceElevated.opacity(0.9) : .clear)
-            )
-    }
-
-    private func quickActionChip(title: String, isPrimary: Bool, action: (() -> Void)? = nil) -> some View {
-        Button {
-            action?()
-        } label: {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(isPrimary ? AppTheme.Colors.paper : AppTheme.Colors.textPrimary)
-                .padding(.horizontal, 15)
-                .padding(.vertical, 9)
-                .background(
-                    Capsule(style: .continuous)
-                        .fill(isPrimary ? AppTheme.Colors.surfaceElevated : AppTheme.Colors.surface.opacity(0.82))
-                )
-                .overlay(
-                    Capsule(style: .continuous)
-                        .stroke(AppTheme.Colors.paper.opacity(0.1), lineWidth: 1)
-                )
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func circleIconButton(systemName: String) -> some View {
-        Button {} label: {
+    private func circleIconButton(systemName: String, action: @escaping () -> Void = {}) -> some View {
+        Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 15, weight: .bold))
                 .foregroundStyle(AppTheme.Colors.textPrimary)
@@ -300,6 +256,7 @@ struct HomeView: View {
         guard !query.isEmpty else { return }
         transcriptionController.stopRecording()
         composerText = ""
+        isComposerFocused = false
         Task {
             await model.queryAssistant(query: query)
         }
@@ -309,6 +266,7 @@ struct HomeView: View {
         transcriptionController.stopRecording()
         transcriptionController.clearTranscript()
         composerText = ""
+        isComposerFocused = false
         model.clearAssistantConversation()
     }
 }
