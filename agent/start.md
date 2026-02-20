@@ -64,12 +64,20 @@ The project intentionally avoids smart-home control in v1 to reduce reliability 
 
 1. iOS App (`SwiftUI`):
    1. UX surface for authentication, connector setup, settings, and notifications.
+   2. Assistant TTS path is local/on-device KittenTTS (ONNX) playback.
 2. API Server (`Rust + axum`):
    1. Serves v1 REST endpoints aligned with OpenAPI.
 3. Worker (`Rust + tokio`):
    1. Periodic processing loop for scheduled/proactive jobs.
 4. Shared crate:
    1. Shared request/response models and basic runtime config.
+
+## iOS Speech Architecture (2026-02-19)
+
+1. User input transcription uses Apple's `Speech` framework (`VoiceLiveSpeechRecognizer`).
+2. Assistant output speech uses local KittenTTS synthesis and waveform playback.
+3. Do not reintroduce `AVSpeechSynthesizer` for assistant replies.
+4. Keep model and voice-style assets in `alfred/alfred/Resources/KittenTTS` aligned with `KittenSpeechModelStore` and `KittenVoiceStyleStore`.
 
 ## Authentication Source Of Truth (2026-02-14)
 
@@ -93,6 +101,9 @@ The project intentionally avoids smart-home control in v1 to reduce reliability 
    3. worker lease/retry/idempotency engine
    4. push pipeline
    5. audit/privacy controls
+8. Do not implement or expand backend English keyword routing lists (including temporal words like `today`/`tomorrow`) as primary intent/time logic.
+9. Always provide planner prompts with current timestamp + timezone + prior context and let schema-constrained planner outputs drive routing/time windows.
+10. Deterministic fallback is allowed only as a safety net and should rely on generic structural behavior, not hard-coded language phrase tables.
 
 ## Content Blindness Source Of Truth (2026-02-18)
 

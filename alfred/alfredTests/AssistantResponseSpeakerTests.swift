@@ -1,75 +1,74 @@
-import AVFoundation
 import XCTest
 @testable import alfred
 
 @MainActor
 final class AssistantResponseSpeakerTests: XCTestCase {
-    func testSpeakIgnoresEmptyText() {
-        let synthesizer = MockAssistantSpeechSynthesizer()
+    func testSpeakIgnoresEmptyText() async {
+        let speechEngine = MockAssistantSpeechEngine()
         let audioSession = MockAssistantSpeechAudioSessionController()
         let speaker = AssistantResponseSpeaker(
-            synthesizer: synthesizer,
+            speechEngine: speechEngine,
             audioSessionController: audioSession
         )
 
         speaker.speak("   ")
+        await Task.yield()
 
-        XCTAssertTrue(synthesizer.spokenUtterances.isEmpty)
+        XCTAssertTrue(speechEngine.spokenTexts.isEmpty)
         XCTAssertEqual(audioSession.prepareCallCount, 0)
     }
 
-    func testSpeakStopsInFlightSpeechBeforeNewUtterance() {
-        let synthesizer = MockAssistantSpeechSynthesizer()
-        synthesizer.isSpeakingValue = true
+    func testSpeakStopsInFlightSpeechBeforeNewUtterance() async {
+        let speechEngine = MockAssistantSpeechEngine()
+        speechEngine.isSpeakingValue = true
         let audioSession = MockAssistantSpeechAudioSessionController()
         let speaker = AssistantResponseSpeaker(
-            synthesizer: synthesizer,
+            speechEngine: speechEngine,
             audioSessionController: audioSession
         )
 
         speaker.speak("Hello from Alfred")
+        await Task.yield()
 
-        XCTAssertEqual(synthesizer.stopCallCount, 1)
-        XCTAssertEqual(synthesizer.spokenUtterances.count, 1)
-        XCTAssertEqual(synthesizer.spokenUtterances.first?.speechString, "Hello from Alfred")
+        XCTAssertEqual(speechEngine.stopCallCount, 1)
+        XCTAssertEqual(speechEngine.spokenTexts, ["Hello from Alfred"])
         XCTAssertEqual(audioSession.prepareCallCount, 1)
     }
 
     func testStopEndsSpeechAndDeactivatesAudioSession() {
-        let synthesizer = MockAssistantSpeechSynthesizer()
-        synthesizer.isSpeakingValue = true
+        let speechEngine = MockAssistantSpeechEngine()
+        speechEngine.isSpeakingValue = true
         let audioSession = MockAssistantSpeechAudioSessionController()
         let speaker = AssistantResponseSpeaker(
-            synthesizer: synthesizer,
+            speechEngine: speechEngine,
             audioSessionController: audioSession
         )
 
         speaker.stop()
 
-        XCTAssertEqual(synthesizer.stopCallCount, 1)
+        XCTAssertEqual(speechEngine.stopCallCount, 1)
         XCTAssertEqual(audioSession.deactivateCallCount, 1)
     }
 }
 
-private final class MockAssistantSpeechSynthesizer: AssistantSpeechSynthesizing {
+@MainActor
+private final class MockAssistantSpeechEngine: AssistantSpeechEngine {
     var isSpeakingValue = false
-    var spokenUtterances: [AVSpeechUtterance] = []
+    var spokenTexts: [String] = []
     var stopCallCount = 0
 
     var isSpeaking: Bool {
         isSpeakingValue
     }
 
-    func speak(_ utterance: AVSpeechUtterance) {
-        spokenUtterances.append(utterance)
+    func speak(_ text: String) async throws {
+        spokenTexts.append(text)
         isSpeakingValue = true
     }
 
-    @discardableResult
-    func stopSpeaking(at boundary: AVSpeechBoundary) -> Bool {
+    func stop() {
         stopCallCount += 1
         isSpeakingValue = false
-        return true
     }
 }
 

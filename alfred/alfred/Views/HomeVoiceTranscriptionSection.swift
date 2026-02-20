@@ -75,7 +75,7 @@ struct HomeVoiceTranscriptionSection: View {
             transcriptionController.stopRecording()
             responseSpeaker.stop()
         }
-        .onChange(of: model.assistantResponseText) { oldValue, newValue in
+        .onChange(of: model.assistantResponseText) { _, newValue in
             responseSpeaker.speak(newValue)
         }
     }

@@ -37,6 +37,9 @@ This file is intentionally at repository root so coding agents can auto-discover
 2. Assistant routing must remain planner-driven (schema-constrained), not keyword-driven.
 3. Current policy scope is English-first routing; non-English queries must clarify safely unless explicitly expanded.
 4. Preserve deterministic fallback and clarification behavior when planner confidence/contract validation fails.
+5. Do not add or expand backend keyword lists to steer intent or time interpretation (for example: hard-coding `today`, `tomorrow`, `last week`, etc.).
+6. Prefer planner/context-driven inference using provided current timestamps, timezone, prior turn context, and schema-validated outputs.
+7. If deterministic fallback is required, use generic structural heuristics and documented policy behavior, not English word matching as a primary routing mechanism.
 
 ## Content Blindness Migration (Important)
 
@@ -162,6 +165,13 @@ Code must remain modular by default. Do not keep adding logic to a single large 
    1. four-tone grayscale palette (`ink`, `charcoal`, `smoke`, `paper`)
    2. thick outlines + hard shadows for depth
    3. no ad hoc hue accents unless explicitly approved
+
+## Frontend Speech Direction (Important)
+
+1. Assistant text-to-speech must remain on-device using the local KittenTTS pipeline.
+2. Do not reintroduce Apple `AVSpeechSynthesizer` for assistant response playback.
+3. Keep iOS speech recognition (`Speech` framework) for user input separate from assistant TTS output.
+4. If model/voice assets change, keep bundled resource names and `KittenSpeechModelStore` resolution logic aligned.
 
 ## Planning and Issue Source of Truth
 

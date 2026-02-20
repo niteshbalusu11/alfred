@@ -10,6 +10,7 @@
 		C3AABD012F40C03E00D8F6E7 /* AlfredAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = C3AABD002F40C03E00D8F6E7 /* AlfredAPIClient */; };
 		C3AABD2A2F4133F400D8F6E7 /* ClerkKit in Frameworks */ = {isa = PBXBuildFile; productRef = C3AABD292F4133F400D8F6E7 /* ClerkKit */; };
 		C3AABD2C2F4133F400D8F6E7 /* ClerkKitUI in Frameworks */ = {isa = PBXBuildFile; productRef = C3AABD2B2F4133F400D8F6E7 /* ClerkKitUI */; };
+		D10100032F50000000D8F6E7 /* onnxruntime in Frameworks */ = {isa = PBXBuildFile; productRef = D10100022F50000000D8F6E7 /* onnxruntime */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -48,6 +49,7 @@
 				C3AABD012F40C03E00D8F6E7 /* AlfredAPIClient in Frameworks */,
 				C3AABD2A2F4133F400D8F6E7 /* ClerkKit in Frameworks */,
 				C3AABD2C2F4133F400D8F6E7 /* ClerkKitUI in Frameworks */,
+				D10100032F50000000D8F6E7 /* onnxruntime in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -102,6 +104,7 @@
 				C3AABD002F40C03E00D8F6E7 /* AlfredAPIClient */,
 				C3AABD292F4133F400D8F6E7 /* ClerkKit */,
 				C3AABD2B2F4133F400D8F6E7 /* ClerkKitUI */,
+				D10100022F50000000D8F6E7 /* onnxruntime */,
 			);
 			productName = alfred;
 			productReference = C3E6B8BE2F3FFFBC00C03FF0 /* alfred.app */;
@@ -161,6 +164,7 @@
 			packageReferences = (
 				C3AABCFF2F40C03E00D8F6E7 /* XCLocalSwiftPackageReference "Packages/AlfredAPIClient" */,
 				C3AABD282F4133F400D8F6E7 /* XCRemoteSwiftPackageReference "clerk-ios" */,
+				D10100012F50000000D8F6E7 /* XCRemoteSwiftPackageReference "onnxruntime-swift-package-manager" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = C3E6B8BF2F3FFFBC00C03FF0 /* Products */;
@@ -502,6 +506,14 @@
 				minimumVersion = 1.0.0;
 			};
 		};
+		D10100012F50000000D8F6E7 /* XCRemoteSwiftPackageReference "onnxruntime-swift-package-manager" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/microsoft/onnxruntime-swift-package-manager";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.20.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -518,6 +530,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = C3AABD282F4133F400D8F6E7 /* XCRemoteSwiftPackageReference "clerk-ios" */;
 			productName = ClerkKitUI;
+		};
+		D10100022F50000000D8F6E7 /* onnxruntime */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D10100012F50000000D8F6E7 /* XCRemoteSwiftPackageReference "onnxruntime-swift-package-manager" */;
+			productName = onnxruntime;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
