@@ -35,7 +35,7 @@ struct KittenVoiceStyleMatrix {
 }
 
 struct KittenVoiceStyleStore {
-    nonisolated static let defaultVoiceID: KittenVoiceID = .leo
+    nonisolated static let defaultVoiceID: KittenVoiceID = .jasper
 
     nonisolated init() {}
 
