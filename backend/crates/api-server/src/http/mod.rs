@@ -10,6 +10,7 @@ use uuid::Uuid;
 mod assistant;
 mod audit;
 mod authn;
+mod automations;
 mod clerk_identity;
 mod clerk_jwks_cache;
 mod connectors;
@@ -128,6 +129,24 @@ pub fn build_router(app_state: AppState) -> Router {
         .route(
             "/v1/preferences",
             get(preferences::get_preferences).put(preferences::update_preferences),
+        )
+        .route(
+            "/v1/automations",
+            get(automations::list_automations)
+                .post(automations::create_automation)
+                .layer(middleware::from_fn_with_state(
+                    protected_rate_limit_layer_state.clone(),
+                    rate_limit::sensitive_rate_limit_middleware,
+                )),
+        )
+        .route(
+            "/v1/automations/{rule_id}",
+            delete(automations::delete_automation)
+                .patch(automations::update_automation)
+                .layer(middleware::from_fn_with_state(
+                    protected_rate_limit_layer_state.clone(),
+                    rate_limit::sensitive_rate_limit_middleware,
+                )),
         )
         .route("/v1/audit-events", get(audit::list_audit_events))
         .route(
