@@ -10,6 +10,7 @@ tags:
   - name: Assistant
   - name: Connectors
   - name: Preferences
+  - name: Automations
   - name: Audit
   - name: Privacy
 paths:
@@ -306,6 +307,117 @@ paths:
                 $ref: "#/components/schemas/OkResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
+  /v1/automations:
+    get:
+      tags: [Automations]
+      summary: List automation rules for the current user
+      operationId: listAutomations
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+      responses:
+        "200":
+          description: Automation rules
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListAutomationsResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [Automations]
+      summary: Create a periodic automation rule
+      operationId: createAutomation
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAutomationRequest"
+      responses:
+        "200":
+          description: Automation rule created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationRuleSummary"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /v1/automations/{rule_id}:
+    patch:
+      tags: [Automations]
+      summary: Update an automation rule (schedule, prompt envelope, or status)
+      operationId: updateAutomation
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: rule_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAutomationRequest"
+      responses:
+        "200":
+          description: Automation rule updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationRuleSummary"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+    delete:
+      tags: [Automations]
+      summary: Delete an automation rule
+      operationId: deleteAutomation
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: rule_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Automation rule deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
   /v1/audit-events:
     get:
       tags: [Audit]
@@ -691,6 +803,135 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ConnectorSummary"
+    AutomationPromptEnvelope:
+      type: object
+      required:
+        [
+          version,
+          algorithm,
+          key_id,
+          request_id,
+          client_ephemeral_public_key,
+          nonce,
+          ciphertext
+        ]
+      properties:
+        version:
+          type: string
+          enum: [v1]
+        algorithm:
+          type: string
+          enum: [x25519-chacha20poly1305]
+        key_id:
+          type: string
+          minLength: 1
+        request_id:
+          type: string
+          minLength: 1
+        client_ephemeral_public_key:
+          type: string
+          description: Base64-encoded 32-byte X25519 public key.
+        nonce:
+          type: string
+          description: Base64-encoded 12-byte nonce.
+        ciphertext:
+          type: string
+          description: Base64-encoded encrypted automation prompt payload.
+    CreateAutomationRequest:
+      type: object
+      required: [interval_seconds, time_zone, prompt_envelope]
+      properties:
+        interval_seconds:
+          type: integer
+          format: int32
+          minimum: 60
+          maximum: 604800
+        time_zone:
+          type: string
+          description: IANA timezone identifier (for example, America/Los_Angeles).
+          minLength: 1
+          maxLength: 64
+        prompt_envelope:
+          $ref: "#/components/schemas/AutomationPromptEnvelope"
+    AutomationScheduleUpdate:
+      type: object
+      required: [interval_seconds, time_zone]
+      properties:
+        interval_seconds:
+          type: integer
+          format: int32
+          minimum: 60
+          maximum: 604800
+        time_zone:
+          type: string
+          description: IANA timezone identifier (for example, America/Los_Angeles).
+          minLength: 1
+          maxLength: 64
+    AutomationStatus:
+      type: string
+      enum: [ACTIVE, PAUSED]
+    UpdateAutomationRequest:
+      type: object
+      properties:
+        schedule:
+          $ref: "#/components/schemas/AutomationScheduleUpdate"
+        prompt_envelope:
+          $ref: "#/components/schemas/AutomationPromptEnvelope"
+        status:
+          $ref: "#/components/schemas/AutomationStatus"
+    AutomationScheduleType:
+      type: string
+      enum: [INTERVAL_SECONDS]
+    AutomationRuleSummary:
+      type: object
+      required:
+        [
+          rule_id,
+          status,
+          schedule_type,
+          interval_seconds,
+          time_zone,
+          next_run_at,
+          prompt_sha256,
+          created_at,
+          updated_at
+        ]
+      properties:
+        rule_id:
+          type: string
+          format: uuid
+        status:
+          $ref: "#/components/schemas/AutomationStatus"
+        schedule_type:
+          $ref: "#/components/schemas/AutomationScheduleType"
+        interval_seconds:
+          type: integer
+          format: int32
+        time_zone:
+          type: string
+        next_run_at:
+          type: string
+          format: date-time
+        last_run_at:
+          type: string
+          format: date-time
+          nullable: true
+        prompt_sha256:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    ListAutomationsResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AutomationRuleSummary"
     Preferences:
       type: object
       required:

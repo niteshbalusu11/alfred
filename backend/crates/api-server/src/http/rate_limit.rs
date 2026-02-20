@@ -23,6 +23,9 @@ enum SensitiveEndpoint {
     GoogleConnectCallback,
     RevokeConnector,
     PrivacyDeleteAll,
+    AutomationCreate,
+    AutomationUpdate,
+    AutomationDelete,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,6 +60,13 @@ impl SensitiveEndpoint {
                 Some(Self::RevokeConnector)
             }
             (&Method::POST, "/v1/privacy/delete-all") => Some(Self::PrivacyDeleteAll),
+            (&Method::POST, "/v1/automations") => Some(Self::AutomationCreate),
+            (&Method::PATCH, path) if path.starts_with("/v1/automations/") => {
+                Some(Self::AutomationUpdate)
+            }
+            (&Method::DELETE, path) if path.starts_with("/v1/automations/") => {
+                Some(Self::AutomationDelete)
+            }
             _ => None,
         }
     }
@@ -67,6 +77,9 @@ impl SensitiveEndpoint {
             Self::GoogleConnectCallback => "google_connect_callback",
             Self::RevokeConnector => "revoke_connector",
             Self::PrivacyDeleteAll => "privacy_delete_all",
+            Self::AutomationCreate => "automation_create",
+            Self::AutomationUpdate => "automation_update",
+            Self::AutomationDelete => "automation_delete",
         }
     }
 
@@ -87,6 +100,18 @@ impl SensitiveEndpoint {
             Self::PrivacyDeleteAll => RateLimitPolicy {
                 max_requests: 3,
                 window_seconds: 3600,
+            },
+            Self::AutomationCreate => RateLimitPolicy {
+                max_requests: 20,
+                window_seconds: 60,
+            },
+            Self::AutomationUpdate => RateLimitPolicy {
+                max_requests: 30,
+                window_seconds: 60,
+            },
+            Self::AutomationDelete => RateLimitPolicy {
+                max_requests: 20,
+                window_seconds: 60,
             },
         }
     }

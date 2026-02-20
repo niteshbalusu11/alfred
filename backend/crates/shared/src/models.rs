@@ -255,6 +255,76 @@ pub struct ListConnectorsResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AutomationPromptEnvelope {
+    pub version: String,
+    pub algorithm: String,
+    pub key_id: String,
+    pub request_id: String,
+    pub client_ephemeral_public_key: String,
+    pub nonce: String,
+    pub ciphertext: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CreateAutomationRequest {
+    pub interval_seconds: u32,
+    pub time_zone: String,
+    pub prompt_envelope: AutomationPromptEnvelope,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AutomationScheduleUpdate {
+    pub interval_seconds: u32,
+    pub time_zone: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum AutomationStatus {
+    Active,
+    Paused,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UpdateAutomationRequest {
+    #[serde(default)]
+    pub schedule: Option<AutomationScheduleUpdate>,
+    #[serde(default)]
+    pub prompt_envelope: Option<AutomationPromptEnvelope>,
+    #[serde(default)]
+    pub status: Option<AutomationStatus>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum AutomationScheduleKind {
+    IntervalSeconds,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutomationRuleSummary {
+    pub rule_id: String,
+    pub status: AutomationStatus,
+    pub schedule_type: AutomationScheduleKind,
+    pub interval_seconds: i32,
+    pub time_zone: String,
+    pub next_run_at: DateTime<Utc>,
+    pub last_run_at: Option<DateTime<Utc>>,
+    pub prompt_sha256: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ListAutomationsResponse {
+    pub items: Vec<AutomationRuleSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Preferences {
     pub meeting_reminder_minutes: u32,
     pub morning_brief_local_time: String,
