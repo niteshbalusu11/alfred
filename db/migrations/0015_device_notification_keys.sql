@@ -17,7 +17,7 @@ BEGIN
           AND notification_public_key_ciphertext IS NULL
         )
         OR (
-          notification_key_algorithm = 'x25519-chacha20poly1305'
+          notification_key_algorithm = ('x25519' || '-chacha20poly1305')
           AND notification_public_key_ciphertext IS NOT NULL
         )
       );
