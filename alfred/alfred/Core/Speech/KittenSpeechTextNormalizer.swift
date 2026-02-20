@@ -264,7 +264,7 @@ enum KittenSpeechTextNormalizer {
     private static func replacingMatches(
         in text: String,
         using regex: NSRegularExpression,
-        replacement: (String, NSTextCheckingResult) -> String
+        replacement: @MainActor (String, NSTextCheckingResult) -> String
     ) -> String {
         let nsRange = NSRange(text.startIndex..., in: text)
         let matches = regex.matches(in: text, options: [], range: nsRange)
