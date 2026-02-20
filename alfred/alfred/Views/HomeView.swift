@@ -130,6 +130,10 @@ struct HomeView: View {
             composerContent
                 .padding(10)
                 .glassEffect(.regular.tint(AppTheme.Colors.paper.opacity(0.05)).interactive(), in: .rect(cornerRadius: 22))
+                .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .onTapGesture {
+                    isComposerFocused = true
+                }
         } else {
             composerContent
                 .padding(10)
@@ -138,6 +142,10 @@ struct HomeView: View {
                     RoundedRectangle(cornerRadius: 22, style: .continuous)
                         .stroke(AppTheme.Colors.paper.opacity(0.12), lineWidth: 1)
                 )
+                .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .onTapGesture {
+                    isComposerFocused = true
+                }
         }
     }
 
@@ -152,6 +160,7 @@ struct HomeView: View {
                 }
                 .font(.system(size: 17, weight: .regular))
                 .foregroundStyle(AppTheme.Colors.textPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
 
