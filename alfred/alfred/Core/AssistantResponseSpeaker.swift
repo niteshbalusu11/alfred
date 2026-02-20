@@ -1,15 +1,6 @@
 import AVFoundation
 import Foundation
 
-nonisolated protocol AssistantSpeechSynthesizing: AnyObject {
-    var isSpeaking: Bool { get }
-    func speak(_ utterance: AVSpeechUtterance)
-    @discardableResult
-    func stopSpeaking(at boundary: AVSpeechBoundary) -> Bool
-}
-
-extension AVSpeechSynthesizer: AssistantSpeechSynthesizing {}
-
 nonisolated protocol AssistantSpeechAudioSessionControlling: AnyObject {
     func prepareForPlayback() throws
     func deactivate() throws
@@ -23,7 +14,11 @@ nonisolated final class AssistantSpeechAudioSessionController: AssistantSpeechAu
     }
 
     func prepareForPlayback() throws {
-        try session.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
+        try session.setCategory(
+            .playAndRecord,
+            mode: .spokenAudio,
+            options: [.duckOthers, .defaultToSpeaker, .allowBluetoothHFP]
+        )
         try session.setActive(true, options: .notifyOthersOnDeactivation)
     }
 
@@ -33,22 +28,24 @@ nonisolated final class AssistantSpeechAudioSessionController: AssistantSpeechAu
 }
 
 nonisolated final class AssistantResponseSpeaker {
-    private let synthesizer: AssistantSpeechSynthesizing
+    private let speechEngine: AssistantSpeechEngine
     private let audioSessionController: AssistantSpeechAudioSessionControlling
+    private var speechTask: Task<Void, Never>?
 
     @MainActor
     convenience init() {
         self.init(
-            synthesizer: AVSpeechSynthesizer(),
+            speechEngine: KittenAssistantSpeechEngine(),
             audioSessionController: AssistantSpeechAudioSessionController()
         )
     }
 
+    @MainActor
     init(
-        synthesizer: AssistantSpeechSynthesizing,
+        speechEngine: AssistantSpeechEngine,
         audioSessionController: AssistantSpeechAudioSessionControlling
     ) {
-        self.synthesizer = synthesizer
+        self.speechEngine = speechEngine
         self.audioSessionController = audioSessionController
     }
 
@@ -57,23 +54,46 @@ nonisolated final class AssistantResponseSpeaker {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        if synthesizer.isSpeaking {
-            _ = synthesizer.stopSpeaking(at: .immediate)
+        speechTask?.cancel()
+
+        if speechEngine.isSpeaking {
+            speechEngine.stop()
         }
 
-        try? audioSessionController.prepareForPlayback()
+        do {
+            try audioSessionController.prepareForPlayback()
+        } catch {
+            AppLogger.warning("Assistant speech audio session setup failed: \(error.localizedDescription)")
+        }
 
-        let utterance = AVSpeechUtterance(string: trimmed)
-        utterance.voice = AVSpeechSynthesisVoice(language: Locale.current.identifier)
-            ?? AVSpeechSynthesisVoice(language: "en-US")
-        synthesizer.speak(utterance)
+        speechTask = Task { [speechEngine] in
+            do {
+                try await speechEngine.speak(trimmed)
+            } catch is CancellationError {
+                // Canceling in-flight speech is expected when new responses arrive.
+            } catch {
+                AppLogger.error("Assistant speech synthesis failed: \(error.localizedDescription)")
+            }
+        }
     }
 
     @MainActor
     func stop() {
-        if synthesizer.isSpeaking {
-            _ = synthesizer.stopSpeaking(at: .immediate)
+        speechTask?.cancel()
+        speechTask = nil
+
+        if speechEngine.isSpeaking {
+            speechEngine.stop()
         }
-        try? audioSessionController.deactivate()
+
+        do {
+            try audioSessionController.deactivate()
+        } catch {
+            AppLogger.warning("Assistant speech audio session deactivate failed: \(error.localizedDescription)")
+        }
+    }
+
+    deinit {
+        speechTask?.cancel()
     }
 }

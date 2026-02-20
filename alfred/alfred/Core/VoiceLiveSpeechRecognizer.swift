@@ -78,7 +78,13 @@ final class AppleVoiceLiveSpeechRecognizer: VoiceLiveSpeechRecognizing {
         let audioSession = AVAudioSession.sharedInstance()
 
         do {
-            try audioSession.setCategory(.record, mode: .measurement, options: [.duckOthers])
+            try audioSession.setCategory(
+                .playAndRecord,
+                mode: .measurement,
+                options: [.duckOthers, .defaultToSpeaker, .allowBluetoothHFP]
+            )
+            try audioSession.setPreferredSampleRate(44_100)
+            try audioSession.setPreferredIOBufferDuration(0.01)
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
             throw VoiceLiveSpeechRecognizerError.startFailed
