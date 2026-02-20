@@ -42,6 +42,7 @@ enum KittenSpeechTextNormalizer {
         options: []
     )
 
+    @MainActor
     static func normalize(_ text: String) -> String {
         var normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return "" }
