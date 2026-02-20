@@ -1,23 +1,276 @@
-import ClerkKit
 import SwiftUI
 
 struct HomeView: View {
     @ObservedObject var model: AppModel
+    @StateObject private var transcriptionController = VoiceTranscriptionController()
+    @State private var responseSpeaker = AssistantResponseSpeaker()
+    @State private var composerText = ""
+    @FocusState private var isComposerFocused: Bool
+
+    private var liveDraftText: String {
+        transcriptionController.isListening ? transcriptionController.transcript : ""
+    }
+
+    private var hasTypedMessage: Bool {
+        !composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var canSendMessage: Bool {
+        hasTypedMessage && !model.isLoading(.queryAssistant)
+    }
+
+    private var voiceStatusText: String? {
+        switch transcriptionController.status {
+        case .idle:
+            return nil
+        case .listening:
+            return "Listening on-device..."
+        case .requestingPermissions:
+            return "Requesting microphone and speech access..."
+        case .permissionDenied:
+            return "Enable Microphone and Speech Recognition in iOS Settings."
+        case .restricted:
+            return "Speech recognition is restricted on this device."
+        case .unavailable:
+            return "Speech recognition is unavailable for this locale."
+        case .failed(let message):
+            return message
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
-            HomeVoiceTranscriptionSection(model: model)
-                .frame(maxWidth: 560, maxHeight: .infinity, alignment: .top)
-                .padding(.horizontal, AppTheme.Layout.screenPadding)
-                .padding(.top, 12)
-                .padding(.bottom, 10)
+            topBar
+                .padding(.horizontal, 10)
+                .padding(.top, 8)
+                .padding(.bottom, 6)
+
+            AssistantConversationView(
+                messages: model.assistantConversation,
+                draftMessage: liveDraftText,
+                isLoading: model.isLoading(.queryAssistant),
+                showsHeader: false,
+                emptyStateText: "Ask Anything"
+            )
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+            .padding(.bottom, 6)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                isComposerFocused = false
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            inputDock
+        }
         .appScreenBackground()
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer(minLength: 0)
+                Button("Done") {
+                    isComposerFocused = false
+                }
+            }
+        }
+        .onDisappear {
+            transcriptionController.stopRecording()
+            responseSpeaker.stop()
+        }
+        .onChange(of: transcriptionController.transcript) { _, newValue in
+            guard transcriptionController.isListening else { return }
+            composerText = newValue
+        }
+        .onChange(of: model.assistantResponseText) { _, newValue in
+            responseSpeaker.speak(newValue)
+        }
+    }
+
+    private var topBar: some View {
+        HStack(spacing: 10) {
+            circleIconButton(systemName: "line.3.horizontal")
+
+            Spacer(minLength: 0)
+            circleIconButton(systemName: "square.and.pencil") {
+                clearChat()
+            }
+        }
+    }
+
+    private var inputDock: some View {
+        VStack(spacing: 8) {
+            composerContainer
+
+            if let voiceStatusText {
+                Text(voiceStatusText)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.Colors.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 6)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.top, 6)
+        .padding(.bottom, 10)
+        .background(
+            LinearGradient(
+                colors: [
+                    AppTheme.Colors.background.opacity(0.0),
+                    AppTheme.Colors.background.opacity(0.86),
+                    AppTheme.Colors.background.opacity(0.98),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+    }
+
+    @ViewBuilder
+    private var composerContainer: some View {
+        if #available(iOS 26, *) {
+            composerContent
+                .padding(10)
+                .glassEffect(.regular.tint(AppTheme.Colors.paper.opacity(0.05)).interactive(), in: .rect(cornerRadius: 22))
+        } else {
+            composerContent
+                .padding(10)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .stroke(AppTheme.Colors.paper.opacity(0.12), lineWidth: 1)
+                )
+        }
+    }
+
+    private var composerContent: some View {
+        VStack(spacing: 8) {
+            TextField("Ask Anything", text: $composerText, axis: .vertical)
+                .lineLimit(1...4)
+                .focused($isComposerFocused)
+                .submitLabel(.send)
+                .onSubmit {
+                    sendMessage()
+                }
+                .font(.system(size: 17, weight: .regular))
+                .foregroundStyle(AppTheme.Colors.textPrimary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+
+            HStack(spacing: 8) {
+                controlIconButton(systemName: "paperclip")
+
+                capsuleLabel("Auto")
+
+                Spacer(minLength: 0)
+
+                Button {
+                    Task { await toggleRecording() }
+                } label: {
+                    Image(systemName: transcriptionController.isListening ? "stop.fill" : "mic.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(AppTheme.Colors.textPrimary)
+                        .frame(width: 30, height: 30)
+                        .background(AppTheme.Colors.surface.opacity(0.7), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .disabled(transcriptionController.isRequestingPermissions || model.isLoading(.queryAssistant))
+
+                trailingActionButton
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var trailingActionButton: some View {
+        if hasTypedMessage {
+            Button {
+                sendMessage()
+            } label: {
+                Image(systemName: model.isLoading(.queryAssistant) ? "hourglass" : "arrow.up")
+                    .font(.system(size: 14, weight: .black))
+                    .foregroundStyle(AppTheme.Colors.ink)
+                    .frame(width: 34, height: 34)
+                    .background(AppTheme.Colors.paper.opacity(canSendMessage ? 1 : 0.35), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!canSendMessage)
+        } else {
+            Button {
+                Task { await toggleRecording() }
+            } label: {
+                Text(transcriptionController.isListening ? "Stop" : "Speak")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(AppTheme.Colors.ink)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(AppTheme.Colors.paper, in: Capsule(style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .disabled(transcriptionController.isRequestingPermissions || model.isLoading(.queryAssistant))
+        }
+    }
+
+    private func circleIconButton(systemName: String, action: @escaping () -> Void = {}) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(AppTheme.Colors.textPrimary)
+                .frame(width: 40, height: 40)
+                .background(AppTheme.Colors.surface.opacity(0.65), in: Circle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func controlIconButton(systemName: String) -> some View {
+        Button {} label: {
+            Image(systemName: systemName)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(AppTheme.Colors.textPrimary.opacity(0.85))
+                .frame(width: 30, height: 30)
+                .background(AppTheme.Colors.surface.opacity(0.55), in: Circle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func capsuleLabel(_ title: String) -> some View {
+        Text(title)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(AppTheme.Colors.textSecondary)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 6)
+            .background(AppTheme.Colors.surface.opacity(0.55), in: Capsule(style: .continuous))
+    }
+
+    private func toggleRecording() async {
+        if transcriptionController.isListening {
+            transcriptionController.stopRecording()
+            return
+        }
+
+        responseSpeaker.stop()
+        isComposerFocused = false
+        await transcriptionController.startRecording()
+    }
+
+    private func sendMessage() {
+        let query = composerText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return }
+        transcriptionController.stopRecording()
+        composerText = ""
+        isComposerFocused = false
+        Task {
+            await model.queryAssistant(query: query)
+        }
+    }
+
+    private func clearChat() {
+        transcriptionController.stopRecording()
+        transcriptionController.clearTranscript()
+        composerText = ""
+        isComposerFocused = false
+        model.clearAssistantConversation()
     }
 }
 
 #Preview {
-    let clerk = Clerk.preview()
-    HomeView(model: AppModel(clerk: clerk))
+    HomeView(model: AppModel())
 }

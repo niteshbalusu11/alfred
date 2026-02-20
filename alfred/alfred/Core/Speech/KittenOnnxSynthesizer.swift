@@ -23,7 +23,7 @@ actor KittenOnnxSynthesizer: AssistantWaveformSynthesizing {
         styleStore: KittenVoiceStyleStore = KittenVoiceStyleStore(),
         phonemizer: KittenEnglishPhonemizer = KittenEnglishPhonemizer(),
         voiceID: KittenVoiceID = KittenVoiceStyleStore.defaultVoiceID,
-        baseSpeed: Float = 1.6
+        baseSpeed: Float = 1.26
     ) {
         self.modelStore = modelStore
         self.styleStore = styleStore
@@ -51,7 +51,7 @@ actor KittenOnnxSynthesizer: AssistantWaveformSynthesizing {
             guard !inputTokens.isEmpty else { continue }
 
             let styleVector = activeStyleMatrix.styleVector(forTextLength: inputTokens.count)
-            let chunkSpeed = chunkIndex == 0 ? min(speed * 1.15, 2.2) : speed
+            let chunkSpeed = Self.expressiveSpeed(baseSpeed: speed, for: chunk)
             let chunkSamples = try run(
                 session: activeSession,
                 tokens: inputTokens,
@@ -62,6 +62,13 @@ actor KittenOnnxSynthesizer: AssistantWaveformSynthesizing {
             guard !chunkSamples.isEmpty else { continue }
 
             Self.appendChunk(chunkSamples, to: &allSamples)
+
+            if chunkIndex < chunks.count - 1 {
+                let pause = Self.pauseSampleCount(after: chunk)
+                if pause > 0 {
+                    allSamples.append(contentsOf: repeatElement(0, count: pause))
+                }
+            }
         }
 
         try Task.checkCancellation()
@@ -181,6 +188,48 @@ actor KittenOnnxSynthesizer: AssistantWaveformSynthesizing {
             return 1.0
         }
         return baseSpeed
+    }
+
+    nonisolated private static func expressiveSpeed(baseSpeed: Float, for chunk: String) -> Float {
+        var adjusted = baseSpeed
+
+        if chunk.contains("?") {
+            adjusted *= 1.04
+        }
+        if chunk.contains("!") {
+            adjusted *= 1.05
+        }
+        if chunk.contains(",") {
+            adjusted *= 0.98
+        }
+        if chunk.contains(";") || chunk.contains(":") {
+            adjusted *= 0.97
+        }
+        if chunk.count < 32 {
+            adjusted *= 1.03
+        }
+
+        return min(max(adjusted, 1.0), 1.6)
+    }
+
+    nonisolated private static func pauseSampleCount(after chunk: String) -> Int {
+        let sampleRate = 24_000
+        guard let last = chunk.trimmingCharacters(in: .whitespacesAndNewlines).last else {
+            return 0
+        }
+
+        switch last {
+        case ",":
+            return Int(Double(sampleRate) * 0.045)
+        case ";", ":":
+            return Int(Double(sampleRate) * 0.06)
+        case "?", "!":
+            return Int(Double(sampleRate) * 0.065)
+        case ".":
+            return Int(Double(sampleRate) * 0.075)
+        default:
+            return 0
+        }
     }
 
     nonisolated private static func appendChunk(_ chunk: [Float], to allSamples: inout [Float]) {

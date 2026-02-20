@@ -248,6 +248,16 @@ actor KittenEnglishPhonemizer {
         "usa": "jˈuː ˈɛs ˈeɪ",
         "us": "jˈuː ˈɛs",
         "dc": "dˈiː sˈiː",
+        "utc": "jˈuː tˈiː sˈiː",
+        "gmt": "dʒˈiː ˈɛm tˈiː",
+        "pst": "pˈiː ˈɛs tˈiː",
+        "pdt": "pˈiː dˈiː tˈiː",
+        "est": "ˈiː ˈɛs tˈiː",
+        "edt": "ˈiː dˈiː tˈiː",
+        "cst": "sˈiː ˈɛs tˈiː",
+        "cdt": "sˈiː dˈiː tˈiː",
+        "mst": "ˈɛm ˈɛs tˈiː",
+        "mdt": "ˈɛm dˈiː tˈiː",
     ]
     nonisolated private static let letterPhonemes: [Character: String] = [
         "a": "ˈeɪ",

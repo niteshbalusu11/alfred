@@ -98,3 +98,7 @@ All LLM-backed backend behavior must follow these controls:
 6. Assistant routing integrity:
    1. Keep semantic planner contract validation in the enclave decision path.
    2. Do not reintroduce keyword-only capability routing as primary behavior.
+7. Intent/time interpretation policy:
+   1. Do not hard-code English temporal/intent keyword lists in backend routing logic (for example: `today`, `tomorrow`, `last week`).
+   2. Pass current timestamp, timezone, and prior conversation context into planner/model contracts and derive routing/time windows from structured outputs.
+   3. If fallback is needed for reliability, keep it generic and policy-driven; avoid brittle phrase-based steering logic.

@@ -8,34 +8,21 @@ struct AppTabShellView: View {
     @State private var tabPaths: [AppTab: NavigationPath] = AppTabShellView.defaultPaths()
 
     var body: some View {
-        TabView(selection: $model.selectedTab) {
-            ForEach(AppTab.allCases, id: \.self) { tab in
-                Group {
-                    if tab == .home {
+        VStack(spacing: 0) {
+            topTabHeader
+
+            TabView(selection: $model.selectedTab) {
+                ForEach(AppTab.allCases, id: \.self) { tab in
+                    NavigationStack(path: binding(for: tab)) {
                         tabContent(for: tab)
-                    } else {
-                        NavigationStack(path: binding(for: tab)) {
-                            tabContent(for: tab)
-                                .navigationTitle(tab.title)
-                                .toolbarBackground(AppTheme.Colors.background, for: .navigationBar)
-                                .toolbarBackground(.visible, for: .navigationBar)
-                                .toolbar {
-                                    ToolbarItem(placement: .topBarTrailing) {
-                                        if clerk.user != nil {
-                                            UserButton()
-                                                .frame(width: 36, height: 36)
-                                        }
-                                    }
-                                }
-                        }
+                            .toolbar(.hidden, for: .navigationBar)
                     }
+                    .tag(tab)
                 }
-                .tabItem {
-                    Label(tab.title, systemImage: tab.systemImage)
-                }
-                .tag(tab)
             }
+            .tabViewStyle(.page(indexDisplayMode: .never))
         }
+        .appScreenBackground()
     }
 
     private static func defaultPaths() -> [AppTab: NavigationPath] {
@@ -47,6 +34,56 @@ struct AppTabShellView: View {
             get: { tabPaths[tab] ?? NavigationPath() },
             set: { tabPaths[tab] = $0 }
         )
+    }
+
+    @ViewBuilder
+    private var topTabHeader: some View {
+        if #available(iOS 26, *) {
+            GlassEffectContainer(spacing: 12) {
+                HStack(spacing: 10) {
+                    tabPicker
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .glassEffect(
+                            .regular.tint(AppTheme.Colors.paper.opacity(0.12)).interactive(),
+                            in: .rect(cornerRadius: 18)
+                        )
+
+                    if clerk.user != nil {
+                        UserButton()
+                            .frame(width: 36, height: 36)
+                            .padding(8)
+                            .glassEffect(.regular.interactive(), in: .circle)
+                    }
+                }
+            }
+            .padding(.horizontal, AppTheme.Layout.screenPadding)
+            .padding(.top, 8)
+            .padding(.bottom, 10)
+        } else {
+            HStack(spacing: 10) {
+                tabPicker
+
+                if clerk.user != nil {
+                    UserButton()
+                        .frame(width: 36, height: 36)
+                }
+            }
+            .padding(.horizontal, AppTheme.Layout.screenPadding)
+            .padding(.top, 8)
+            .padding(.bottom, 10)
+        }
+    }
+
+    private var tabPicker: some View {
+        Picker("Top Tabs", selection: $model.selectedTab) {
+            ForEach(AppTab.allCases, id: \.self) { tab in
+                Text(tab.title)
+                    .tag(tab)
+            }
+        }
+        .pickerStyle(.segmented)
+        .accessibilityLabel("Top tabs")
     }
 
     @ViewBuilder
