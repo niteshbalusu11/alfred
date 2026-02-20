@@ -23,7 +23,7 @@ actor KittenOnnxSynthesizer: AssistantWaveformSynthesizing {
         styleStore: KittenVoiceStyleStore = KittenVoiceStyleStore(),
         phonemizer: KittenEnglishPhonemizer = KittenEnglishPhonemizer(),
         voiceID: KittenVoiceID = KittenVoiceStyleStore.defaultVoiceID,
-        baseSpeed: Float = 1.1
+        baseSpeed: Float = 1.6
     ) {
         self.modelStore = modelStore
         self.styleStore = styleStore
@@ -44,18 +44,19 @@ actor KittenOnnxSynthesizer: AssistantWaveformSynthesizing {
         var allSamples: [Float] = []
         allSamples.reserveCapacity(chunks.count * 24_000)
 
-        for chunk in chunks {
+        for (chunkIndex, chunk) in chunks.enumerated() {
             try Task.checkCancellation()
             let phonemeText = (try? await phonemizer.phonemize(chunk)) ?? chunk
             let inputTokens = Self.tokenize(phonemeText)
             guard !inputTokens.isEmpty else { continue }
 
-            let styleVector = activeStyleMatrix.styleVector(forTextLength: chunk.count)
+            let styleVector = activeStyleMatrix.styleVector(forTextLength: inputTokens.count)
+            let chunkSpeed = chunkIndex == 0 ? min(speed * 1.15, 2.2) : speed
             let chunkSamples = try run(
                 session: activeSession,
                 tokens: inputTokens,
                 styleVector: styleVector,
-                speed: speed
+                speed: chunkSpeed
             )
 
             guard !chunkSamples.isEmpty else { continue }
@@ -260,7 +261,7 @@ actor KittenOnnxSynthesizer: AssistantWaveformSynthesizing {
         if ".!?,;:".contains(last) {
             return text
         }
-        return text + ","
+        return text + "."
     }
 
     nonisolated private static func tokenize(_ text: String) -> [Int64] {

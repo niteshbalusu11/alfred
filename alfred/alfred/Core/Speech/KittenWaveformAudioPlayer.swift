@@ -40,7 +40,7 @@ final class KittenWaveformAudioPlayer: NSObject, AssistantWaveformPlaying, AVAud
     }
 
     nonisolated private static func makeWaveData(samples: [Float], sampleRate: Int) -> Data {
-        let prepared = normalizeAndApplyEndpointFades(samples)
+        let prepared = normalizeAndApplyEndpointFades(samples, sampleRate: sampleRate)
         let sanitized: [Int16] = prepared.map { sample in
             let clamped = max(-1.0, min(1.0, sample))
             return Int16(clamped * Float(Int16.max))
@@ -77,10 +77,20 @@ final class KittenWaveformAudioPlayer: NSObject, AssistantWaveformPlaying, AVAud
         return data
     }
 
-    nonisolated private static func normalizeAndApplyEndpointFades(_ samples: [Float]) -> [Float] {
+    nonisolated private static func normalizeAndApplyEndpointFades(
+        _ samples: [Float],
+        sampleRate: Int
+    ) -> [Float] {
         guard !samples.isEmpty else { return samples }
 
         var prepared = samples.map { $0.isFinite ? $0 : 0 }
+        prepared = trimLowEnergyEdges(prepared, sampleRate: sampleRate)
+        if prepared.isEmpty {
+            return samples
+        }
+
+        removeDCOffset(&prepared)
+
         let peak = prepared.reduce(Float(0)) { partial, sample in
             max(partial, abs(sample))
         }
@@ -92,7 +102,7 @@ final class KittenWaveformAudioPlayer: NSObject, AssistantWaveformPlaying, AVAud
             }
         }
 
-        let fadeSampleCount = min(128, prepared.count / 2)
+        let fadeSampleCount = min(480, prepared.count / 2)
         if fadeSampleCount > 0 {
             for index in 0 ..< fadeSampleCount {
                 let gain = Float(index) / Float(fadeSampleCount)
@@ -103,6 +113,47 @@ final class KittenWaveformAudioPlayer: NSObject, AssistantWaveformPlaying, AVAud
         }
 
         return prepared
+    }
+
+    nonisolated private static func trimLowEnergyEdges(_ samples: [Float], sampleRate: Int) -> [Float] {
+        guard samples.count > 2 else { return samples }
+
+        let peak = samples.reduce(Float(0)) { partial, sample in
+            max(partial, abs(sample))
+        }
+        let energyThreshold = max(0.0025, peak * 0.02)
+        let maxTrimSamples = min(sampleRate / 25, samples.count / 8)
+
+        var leadingTrim = 0
+        while leadingTrim < maxTrimSamples && abs(samples[leadingTrim]) < energyThreshold {
+            leadingTrim += 1
+        }
+
+        var trailingTrim = 0
+        while trailingTrim < maxTrimSamples
+            && abs(samples[samples.count - 1 - trailingTrim]) < energyThreshold {
+            trailingTrim += 1
+        }
+
+        let startIndex = leadingTrim
+        let endExclusive = samples.count - trailingTrim
+        guard startIndex < endExclusive else { return samples }
+
+        let trimmed = Array(samples[startIndex ..< endExclusive])
+        return trimmed.count >= samples.count / 2 ? trimmed : samples
+    }
+
+    nonisolated private static func removeDCOffset(_ samples: inout [Float]) {
+        guard !samples.isEmpty else { return }
+
+        let mean = samples.reduce(Float(0), +) / Float(samples.count)
+        if abs(mean) < 0.0001 {
+            return
+        }
+
+        for index in samples.indices {
+            samples[index] -= mean
+        }
     }
 
     nonisolated private static func appendLittleEndian<T: FixedWidthInteger>(_ value: T, to data: inout Data) {
