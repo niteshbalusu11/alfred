@@ -10,7 +10,7 @@ use shared::assistant_planner::{
 use shared::llm::safety::sanitize_untrusted_text;
 use shared::models::AssistantQueryCapability;
 
-const SESSION_MEMORY_MAX_TURNS: usize = 6;
+const SESSION_MEMORY_MAX_TURNS: usize = 25;
 const SESSION_MEMORY_QUERY_MAX_CHARS: usize = 180;
 const SESSION_MEMORY_SUMMARY_MAX_CHARS: usize = 280;
 const SESSION_CONTEXT_QUERY_MAX_CHARS: usize = 280;
@@ -109,7 +109,7 @@ mod tests {
     fn resolve_capability_uses_prior_for_follow_up_queries() {
         assert_eq!(
             resolve_query_capability(
-                "what about after that",
+                "what about after that?",
                 None,
                 Some(AssistantQueryCapability::EmailLookup),
             ),

@@ -70,36 +70,41 @@ infra-logs:
 backend-build:
     cd {{ backend_dir }} && cargo build --workspace
 
+# Prepare isolated Postgres database for all test workflows.
+backend-test-db-prepare:
+    @set -euo pipefail; \
+      just check-infra-tools; \
+      just infra-up; \
+      just install-sqlx-cli; \
+      docker compose exec -T postgres psql -U postgres -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='{{ test_database_name }}'" | grep -q 1 || docker compose exec -T postgres psql -U postgres -d postgres -c "CREATE DATABASE {{ test_database_name }}"; \
+      attempts=0; \
+      until cd {{ backend_dir }} && DATABASE_URL="{{ test_database_url }}" sqlx migrate run --source ../db/migrations; do \
+        attempts=$((attempts + 1)); \
+        if [ $attempts -ge 20 ]; then \
+          echo "backend-test-db-prepare failed: integration test database did not become ready for migrations"; \
+          exit 1; \
+        fi; \
+        sleep 1; \
+      done
+
 # Run Rust backend tests.
 backend-test:
-    cd {{ backend_dir }} && cargo test --workspace --exclude integration-tests
+    @set -euo pipefail; \
+      just backend-test-db-prepare; \
+      cd {{ backend_dir }} && DATABASE_URL="{{ test_database_url }}" cargo test --workspace --exclude integration-tests
 
 # Run full backend test workflow with local infra and migrations.
 backend-tests:
     @set -euo pipefail; \
-      just check-infra-tools; \
-      just infra-up; \
-      docker compose exec -T postgres psql -U postgres -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='{{ test_database_name }}'" | grep -q 1 || docker compose exec -T postgres psql -U postgres -d postgres -c "CREATE DATABASE {{ test_database_name }}"; \
-      attempts=0; \
-      until DATABASE_URL="{{ test_database_url }}" just backend-migrate; do \
-        attempts=$((attempts + 1)); \
-        if [ $attempts -ge 20 ]; then \
-          echo "backend-tests failed: integration test database did not become ready for migrations"; \
-          exit 1; \
-        fi; \
-        sleep 1; \
-      done; \
-      DATABASE_URL="{{ test_database_url }}" just backend-test; \
-      DATABASE_URL="{{ test_database_url }}" just backend-integration-test; \
-      DATABASE_URL="{{ test_database_url }}" just backend-eval
+      just backend-test; \
+      just backend-integration-test; \
+      just backend-eval
 
-# Run backend integration tests (uses isolated test DATABASE_URL when unset).
+# Run backend integration tests against isolated test database.
 backend-integration-test:
     @set -euo pipefail; \
-      just check-infra-tools; \
-      just infra-up; \
-      docker compose exec -T postgres psql -U postgres -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='{{ test_database_name }}'" | grep -q 1 || docker compose exec -T postgres psql -U postgres -d postgres -c "CREATE DATABASE {{ test_database_name }}"; \
-      cd {{ backend_dir }} && DATABASE_URL="${DATABASE_URL:-{{ test_database_url }}}" cargo test -p integration-tests
+      just backend-test-db-prepare; \
+      cd {{ backend_dir }} && DATABASE_URL="{{ test_database_url }}" cargo test -p integration-tests
 
 # Run deterministic LLM eval/regression checks with mocked outputs.
 backend-eval:
@@ -146,10 +151,12 @@ backend-verify:
 
 # CI backend gate (non-mutating).
 backend-ci:
+    @set -euo pipefail; \
+      just backend-test-db-prepare
     cd {{ backend_dir }} && cargo fmt --all --check
     cd {{ backend_dir }} && cargo clippy --workspace --all-targets -- -D warnings
-    cd {{ backend_dir }} && cargo test --workspace --exclude integration-tests
-    cd {{ backend_dir }} && cargo test -p integration-tests
+    cd {{ backend_dir }} && DATABASE_URL="{{ test_database_url }}" cargo test --workspace --exclude integration-tests
+    cd {{ backend_dir }} && DATABASE_URL="{{ test_database_url }}" cargo test -p integration-tests
     cd {{ backend_dir }} && cargo build --workspace
 
 # Security-focused dependency audit for backend.
@@ -159,7 +166,9 @@ backend-security-audit:
 
 # Bug-focused checks for backend code quality.
 backend-bug-check:
-    cd {{ backend_dir }} && cargo test --workspace --exclude integration-tests
+    @set -euo pipefail; \
+      just backend-test-db-prepare; \
+      cd {{ backend_dir }} && DATABASE_URL="{{ test_database_url }}" cargo test --workspace --exclude integration-tests
     @if rg -n "todo!\\(|unimplemented!\\(|dbg!\\(|panic!\\(" {{ backend_dir }}/crates; then \
       echo "Bug check failed: remove debug or placeholder macros (todo!/unimplemented!/dbg!/panic!)."; \
       exit 1; \

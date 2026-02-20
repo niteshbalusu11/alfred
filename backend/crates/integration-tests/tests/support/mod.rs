@@ -13,12 +13,13 @@ use tokio::sync::OnceCell;
 
 static MIGRATIONS_APPLIED: OnceCell<()> = OnceCell::const_new();
 
-pub const DEFAULT_DATABASE_URL: &str = "postgres://postgres:postgres@127.0.0.1:5432/alfred";
+pub const DEFAULT_DATABASE_URL: &str = "postgres://postgres:postgres@127.0.0.1:5432/alfred_test";
 pub const DEFAULT_DATA_ENCRYPTION_KEY: &str = "integration-tests-data-key";
 pub const DEFAULT_REDIS_URL: &str = "redis://127.0.0.1:6379/0";
 
 pub async fn test_store() -> Store {
     let database_url = test_database_url();
+    assert_test_database_url(database_url.as_str());
     apply_migrations_once(&database_url).await;
 
     Store::connect(&database_url, 10, DEFAULT_DATA_ENCRYPTION_KEY)
@@ -27,6 +28,7 @@ pub async fn test_store() -> Store {
 }
 
 pub async fn reset_database(pool: &PgPool) {
+    assert_test_database_pool(pool).await;
     sqlx::query(
         "TRUNCATE TABLE
             outbound_action_idempotency,
@@ -75,4 +77,24 @@ async fn apply_migrations_once(database_url: &str) {
                 .expect("migrations should apply successfully");
         })
         .await;
+}
+
+fn assert_test_database_url(database_url: &str) {
+    let base = database_url.split('?').next().unwrap_or(database_url);
+    let database_name = base.rsplit('/').next().unwrap_or_default();
+    assert!(
+        database_name.ends_with("_test"),
+        "integration tests require a *_test database URL, got: {database_url}"
+    );
+}
+
+async fn assert_test_database_pool(pool: &PgPool) {
+    let current_database: String = sqlx::query_scalar("SELECT current_database()")
+        .fetch_one(pool)
+        .await
+        .expect("current database lookup should succeed");
+    assert!(
+        current_database.ends_with("_test"),
+        "integration tests may only reset *_test databases, got: {current_database}"
+    );
 }
