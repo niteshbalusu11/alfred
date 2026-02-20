@@ -10,8 +10,8 @@ use crate::{
     WorkerTickMetrics, apns_environment_label,
 };
 
+mod automation;
 mod context;
-mod google;
 mod helpers;
 
 pub(crate) use context::JobActionContext;
@@ -29,17 +29,6 @@ pub(super) async fn dispatch_job_action(
     }
     let request_id = helpers::extract_request_id(job.payload_ciphertext.as_deref());
 
-    let preferences = context
-        .store
-        .get_or_create_preferences(job.user_id)
-        .await
-        .map_err(|err| {
-            JobExecutionError::transient(
-                "PREFERENCES_READ_FAILED",
-                format!("failed to read user preferences: {err}"),
-            )
-        })?;
-
     let mut action = if let Some(content) =
         helpers::parse_notification_payload(job.payload_ciphertext.as_deref())
     {
@@ -53,15 +42,7 @@ pub(super) async fn dispatch_job_action(
             metadata,
         }
     } else {
-        google::resolve_job_action(
-            context.store,
-            context.config,
-            context.secret_runtime,
-            context.oauth_client,
-            job,
-            &preferences,
-        )
-        .await?
+        automation::resolve_job_action(job)?
     };
 
     action
@@ -89,6 +70,17 @@ pub(super) async fn dispatch_job_action(
 
         return Ok(());
     };
+
+    let preferences = context
+        .store
+        .get_or_create_preferences(job.user_id)
+        .await
+        .map_err(|err| {
+            JobExecutionError::transient(
+                "PREFERENCES_READ_FAILED",
+                format!("failed to read user preferences: {err}"),
+            )
+        })?;
 
     let now_local_time = user_local_time(Utc::now(), &preferences.time_zone);
     if helpers::is_within_quiet_hours(

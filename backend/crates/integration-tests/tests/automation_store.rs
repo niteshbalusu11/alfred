@@ -2,6 +2,7 @@ mod support;
 
 use chrono::{Duration as ChronoDuration, Utc};
 use serial_test::serial;
+use shared::repos::JobType;
 use tokio::join;
 use uuid::Uuid;
 
@@ -246,4 +247,73 @@ async fn run_materialization_is_idempotent_for_same_rule_and_scheduled_time() {
         runs[0].scheduled_for.timestamp_micros(),
         scheduled_for.timestamp_micros()
     );
+}
+
+#[tokio::test]
+#[serial]
+async fn materialized_run_can_be_enqueued_with_stable_job_reference() {
+    let store = support::test_store().await;
+    support::reset_database(store.pool()).await;
+
+    let user_id = Uuid::new_v4();
+    let now = Utc::now();
+    let scheduled_for = now - ChronoDuration::minutes(1);
+    let next_run_at = now + ChronoDuration::minutes(9);
+    let idempotency_key = format!("{}:{}", user_id, scheduled_for.timestamp_micros());
+
+    let rule = store
+        .create_automation_rule(
+            user_id,
+            600,
+            "UTC",
+            scheduled_for,
+            b"prompt-z",
+            PROMPT_HASH_A,
+        )
+        .await
+        .expect("rule should be created");
+    let worker_id = Uuid::new_v4();
+    let claims = store
+        .claim_due_automation_rules(now, worker_id, 1, 300)
+        .await
+        .expect("claim should succeed");
+    assert_eq!(claims.len(), 1);
+
+    let run = store
+        .materialize_automation_run(
+            rule.id,
+            worker_id,
+            scheduled_for,
+            next_run_at,
+            &idempotency_key,
+        )
+        .await
+        .expect("materialization should succeed")
+        .expect("lease owner should materialize run");
+
+    let job_id = store
+        .enqueue_job_with_idempotency_key(
+            user_id,
+            JobType::AutomationRun,
+            now,
+            Some(b"{\"automation_run_id\":\"placeholder\"}"),
+            &idempotency_key,
+        )
+        .await
+        .expect("job enqueue should succeed");
+
+    let marked = store
+        .mark_automation_run_enqueued(run.id, user_id, job_id)
+        .await
+        .expect("mark enqueued should succeed");
+    assert!(marked);
+
+    let runs = store
+        .list_automation_runs_for_rule(user_id, rule.id, 10)
+        .await
+        .expect("run list should succeed");
+    assert_eq!(runs.len(), 1);
+    assert_eq!(runs[0].id, run.id);
+    assert_eq!(runs[0].state.as_str(), "ENQUEUED");
+    assert_eq!(runs[0].job_id, Some(job_id));
 }

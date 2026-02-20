@@ -41,7 +41,7 @@ async fn purge_user_operational_data_removes_sensitive_rows_and_marks_user_delet
     store
         .enqueue_job(
             user_id,
-            JobType::MeetingReminder,
+            JobType::AutomationRun,
             now,
             Some(b"opaque-payload"),
         )

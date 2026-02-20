@@ -113,7 +113,7 @@ pub(super) async fn send_test_notification(
         .store
         .enqueue_job_with_idempotency_key(
             user.user_id,
-            JobType::MeetingReminder,
+            JobType::AutomationRun,
             Utc::now(),
             Some(&payload),
             &idempotency_key,
@@ -128,7 +128,7 @@ pub(super) async fn send_test_notification(
     metadata.insert("job_id".to_string(), job_id.to_string());
     metadata.insert(
         "job_type".to_string(),
-        JobType::MeetingReminder.as_str().to_string(),
+        JobType::AutomationRun.as_str().to_string(),
     );
 
     if let Err(err) = state
