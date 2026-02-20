@@ -8,7 +8,7 @@ use chrono::Utc;
 use shared::models::{
     CompleteGoogleConnectRequest, CompleteGoogleConnectResponse, ConnectorStatus,
 };
-use shared::repos::{AuditResult, JobType};
+use shared::repos::AuditResult;
 
 use super::super::errors::{bad_request_response, store_error_response};
 use super::super::tokens::hash_token;
@@ -70,14 +70,6 @@ pub(crate) async fn complete_google_connect(
         Ok(response) => response,
         Err(err) => return map_complete_connect_enclave_error(err),
     };
-
-    if let Err(err) = state
-        .store
-        .enqueue_job(user.user_id, JobType::UrgentEmailCheck, Utc::now(), None)
-        .await
-    {
-        return store_error_response(err);
-    }
 
     let mut metadata = HashMap::new();
     metadata.insert(

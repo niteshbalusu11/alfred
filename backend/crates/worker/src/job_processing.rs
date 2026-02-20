@@ -1,33 +1,27 @@
 use chrono::{Duration as ChronoDuration, Utc};
 use shared::config::WorkerConfig;
-use shared::repos::{ClaimedJob, Store};
-use shared::security::SecretRuntime;
+use shared::repos::{ClaimedJob, JobType, Store};
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
+use crate::automation_runs::AutomationRunJobPayload;
 use crate::{FailureClass, JobExecutionError, PushSender, WorkerTickMetrics, retry_delay_seconds};
 
 struct JobRuntime<'a> {
     store: &'a Store,
     config: &'a WorkerConfig,
-    secret_runtime: &'a SecretRuntime,
-    oauth_client: &'a reqwest::Client,
     push_sender: &'a PushSender,
 }
 
 pub(crate) async fn process_due_jobs(
     store: &Store,
     config: &WorkerConfig,
-    secret_runtime: &SecretRuntime,
-    oauth_client: &reqwest::Client,
     push_sender: &PushSender,
     worker_id: Uuid,
 ) {
     let runtime = JobRuntime {
         store,
         config,
-        secret_runtime,
-        oauth_client,
         push_sender,
     };
 
@@ -176,6 +170,7 @@ async fn process_claimed_job(
                     Ok(true) => {
                         metrics.permanent_failures += 1;
                         metrics.dead_lettered_jobs += 1;
+                        mark_automation_run_failed_if_needed(runtime, &job).await;
                         warn!(
                             worker_id = %worker_id,
                             job_id = %job.id,
@@ -202,6 +197,38 @@ async fn process_claimed_job(
                     }
                 }
             }
+        }
+    }
+}
+
+async fn mark_automation_run_failed_if_needed(runtime: &JobRuntime<'_>, job: &ClaimedJob) {
+    if !matches!(job.job_type, JobType::AutomationRun) {
+        return;
+    }
+
+    let Ok(payload) = AutomationRunJobPayload::parse(job.payload_ciphertext.as_deref()) else {
+        return;
+    };
+
+    match runtime
+        .store
+        .mark_automation_run_failed(payload.automation_run_id, job.user_id)
+        .await
+    {
+        Ok(true) => {}
+        Ok(false) => {
+            warn!(
+                job_id = %job.id,
+                run_id = %payload.automation_run_id,
+                "automation run state update skipped"
+            );
+        }
+        Err(err) => {
+            error!(
+                job_id = %job.id,
+                run_id = %payload.automation_run_id,
+                "failed to mark automation run failed: {err}"
+            );
         }
     }
 }
@@ -235,9 +262,6 @@ async fn execute_job(
     if let Err(err) = crate::job_actions::dispatch_job_action(
         crate::job_actions::JobActionContext {
             store: runtime.store,
-            config: runtime.config,
-            secret_runtime: runtime.secret_runtime,
-            oauth_client: runtime.oauth_client,
             push_sender: runtime.push_sender,
         },
         job,

@@ -2,7 +2,7 @@ mod support;
 
 use std::collections::HashMap;
 
-use chrono::Utc;
+use chrono::{Duration as ChronoDuration, Utc};
 use serial_test::serial;
 use shared::repos::{AuditResult, JobType, PrivacyDeleteStatus, StoreError};
 use sqlx::Row;
@@ -83,7 +83,7 @@ async fn outbound_action_idempotency_prevents_duplicate_effects() {
 
     let user_id = Uuid::new_v4();
     let job_id = store
-        .enqueue_job(user_id, JobType::MeetingReminder, Utc::now(), None)
+        .enqueue_job(user_id, JobType::AutomationRun, Utc::now(), None)
         .await
         .expect("job enqueue should succeed");
 
@@ -225,4 +225,70 @@ async fn connector_key_metadata_drift_conflict_fails_closed() {
         ),
         "expected drift conflict invalid data error, got: {rotation_result:?}"
     );
+}
+
+#[tokio::test]
+#[serial]
+async fn lease_expiry_requeues_then_dead_letters_automation_run_jobs() {
+    let store = support::test_store().await;
+    support::reset_database(store.pool()).await;
+
+    let user_id = Uuid::new_v4();
+    let now = Utc::now();
+    let job_id = store
+        .enqueue_job(user_id, JobType::AutomationRun, now, None)
+        .await
+        .expect("job enqueue should succeed");
+    sqlx::query("UPDATE jobs SET max_attempts = 2 WHERE id = $1")
+        .bind(job_id)
+        .execute(store.pool())
+        .await
+        .expect("max attempts update should succeed");
+
+    let first_claim = store
+        .claim_due_jobs(now, Uuid::new_v4(), 1, 1, 1)
+        .await
+        .expect("first claim should succeed");
+    assert_eq!(first_claim.len(), 1);
+    assert_eq!(first_claim[0].id, job_id);
+    assert_eq!(first_claim[0].attempts, 0);
+
+    let second_claim = store
+        .claim_due_jobs(now + ChronoDuration::seconds(2), Uuid::new_v4(), 1, 1, 1)
+        .await
+        .expect("second claim should succeed after lease expiry");
+    assert_eq!(second_claim.len(), 1);
+    assert_eq!(second_claim[0].id, job_id);
+    assert_eq!(second_claim[0].attempts, 1);
+
+    let exhausted_claim = store
+        .claim_due_jobs(now + ChronoDuration::seconds(4), Uuid::new_v4(), 1, 1, 1)
+        .await
+        .expect("third claim should succeed after second lease expiry");
+    assert!(exhausted_claim.is_empty());
+
+    let dead_letter =
+        sqlx::query("SELECT attempts, reason_code FROM dead_letter_jobs WHERE job_id = $1")
+            .bind(job_id)
+            .fetch_one(store.pool())
+            .await
+            .expect("dead letter row should exist");
+    let dead_letter_attempts: i32 = dead_letter
+        .try_get("attempts")
+        .expect("dead letter attempts should decode");
+    let dead_letter_reason: String = dead_letter
+        .try_get("reason_code")
+        .expect("dead letter reason should decode");
+    assert_eq!(dead_letter_attempts, 2);
+    assert_eq!(dead_letter_reason, "LEASE_EXPIRED_MAX_ATTEMPTS");
+
+    let job_row = sqlx::query("SELECT state, attempts FROM jobs WHERE id = $1")
+        .bind(job_id)
+        .fetch_one(store.pool())
+        .await
+        .expect("job row should exist");
+    let state: String = job_row.try_get("state").expect("state should decode");
+    let attempts: i32 = job_row.try_get("attempts").expect("attempts should decode");
+    assert_eq!(state, "FAILED");
+    assert_eq!(attempts, 2);
 }

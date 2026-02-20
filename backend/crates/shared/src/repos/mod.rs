@@ -9,6 +9,7 @@ mod assistant_encrypted_sessions;
 mod audit;
 mod auth;
 mod automation;
+mod automation_runs;
 mod connectors;
 mod devices;
 mod jobs;
@@ -43,25 +44,19 @@ impl AuditResult {
 
 #[derive(Debug, Clone)]
 pub enum JobType {
-    MeetingReminder,
-    MorningBrief,
-    UrgentEmailCheck,
+    AutomationRun,
 }
 
 impl JobType {
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::MeetingReminder => "MEETING_REMINDER",
-            Self::MorningBrief => "MORNING_BRIEF",
-            Self::UrgentEmailCheck => "URGENT_EMAIL_CHECK",
+            Self::AutomationRun => "AUTOMATION_RUN",
         }
     }
 
     fn from_db(value: &str) -> Result<Self, StoreError> {
         match value {
-            "MEETING_REMINDER" => Ok(Self::MeetingReminder),
-            "MORNING_BRIEF" => Ok(Self::MorningBrief),
-            "URGENT_EMAIL_CHECK" => Ok(Self::UrgentEmailCheck),
+            "AUTOMATION_RUN" => Ok(Self::AutomationRun),
             _ => Err(StoreError::InvalidData(format!(
                 "unknown job type persisted: {value}"
             ))),

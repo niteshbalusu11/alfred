@@ -8,6 +8,7 @@ use tracing::{error, info};
 use uuid::Uuid;
 
 mod assistant_session_purge;
+mod automation_runs;
 mod job_actions;
 mod job_processing;
 mod privacy_delete;
@@ -139,11 +140,15 @@ async fn main() {
                     &oauth_client,
                     worker_id,
                 ).await;
+                automation_runs::enqueue_due_automation_runs(
+                    &store,
+                    &config,
+                    worker_id,
+                )
+                .await;
                 process_due_jobs(
                     &store,
                     &config,
-                    &secret_runtime,
-                    &oauth_client,
                     &push_sender,
                     worker_id,
                 )
