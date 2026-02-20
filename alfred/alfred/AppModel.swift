@@ -69,22 +69,30 @@ final class AppModel: ObservableObject {
 
     @Published private(set) var auditEvents: [AuditEvent] = []
     @Published private(set) var nextAuditCursor: String?
-    @Published private(set) var assistantConversation: [AssistantConversationMessage] = []
-    @Published private(set) var assistantResponseText = ""
+    @Published var assistantThreads: [AssistantConversationThread] = []
+    @Published var activeAssistantThreadID: UUID?
+    @Published var assistantConversation: [AssistantConversationMessage] = []
+    @Published var assistantResponseText = ""
 
     let apiBaseURL: URL
 
     private let clerk: Clerk
-    private let apiClient: AlfredAPIClient
+    let apiClient: AlfredAPIClient
+    let assistantThreadStore: AssistantThreadStore
     private var authEventsTask: Task<Void, Never>?
     private var lastBootstrappedUserID: String?
-    private var assistantSessionID: UUID?
+    var assistantStorageUserID: String?
 
-    init(apiBaseURL: URL? = nil, clerk: Clerk? = nil) {
+    init(
+        apiBaseURL: URL? = nil,
+        clerk: Clerk? = nil,
+        assistantThreadStore: AssistantThreadStore = AssistantThreadStore()
+    ) {
         let clerk = clerk ?? Clerk.shared
         let resolvedAPIBaseURL = apiBaseURL ?? AppConfiguration.defaultAPIBaseURL
         self.apiBaseURL = resolvedAPIBaseURL
         self.clerk = clerk
+        self.assistantThreadStore = assistantThreadStore
 
         let accessTokenProvider = ClerkAccessTokenProvider(tokenSource: clerk.auth)
         self.apiClient = AlfredAPIClient(
@@ -105,6 +113,7 @@ final class AppModel: ObservableObject {
     func isLoading(_ action: Action) -> Bool { inFlightActions.contains(action) }
 
     func signOut() async {
+        let persistedUserID = currentAssistantPersistenceUserID()
         do {
             try await clerk.auth.signOut()
         } catch {
@@ -116,6 +125,7 @@ final class AppModel: ObservableObject {
             )
         }
 
+        await clearPersistedAssistantThreads(for: persistedUserID)
         resetAuthenticationState()
         resetGoogleOAuthState()
         resetRequestStatusState()
@@ -283,54 +293,7 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func queryAssistant(query: String) async {
-        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedQuery.isEmpty else {
-            errorBanner = ErrorBanner(
-                message: "Message is empty. Type or dictate something first.",
-                retryAction: nil,
-                sourceAction: nil
-            )
-            return
-        }
-
-        await run(action: .queryAssistant, retryAction: .queryAssistant(query: trimmedQuery)) { [self] in
-            let response = try await apiClient.queryAssistantEncrypted(
-                query: trimmedQuery,
-                sessionId: assistantSessionID,
-                attestationConfig: AppConfiguration.assistantAttestationVerificationConfig
-            )
-            AppLogger.info(
-                """
-                Assistant response received capability=\(response.capability.rawValue) \
-                response_parts=\(response.responseParts.count) \
-                payload_key_points=\(response.payload.keyPoints.count) \
-                payload_follow_ups=\(response.payload.followUps.count)
-                """,
-                category: .network
-            )
-            assistantSessionID = response.sessionId
-            assistantConversation.append(
-                AssistantConversationMapper.userMessage(from: trimmedQuery)
-            )
-
-            let assistantMessage = AssistantConversationMapper.assistantMessage(from: response)
-            AppLogger.info(
-                "Assistant message mapped tool_summaries=\(assistantMessage.toolSummaries.count)",
-                category: .network
-            )
-            assistantConversation.append(assistantMessage)
-            assistantResponseText = assistantMessage.text
-        }
-    }
-
-    func clearAssistantConversation() {
-        assistantConversation = []
-        assistantResponseText = ""
-        assistantSessionID = nil
-    }
-
-    private func run(action: Action, retryAction: RetryAction?, operation: () async throws -> Void) async {
+    func run(action: Action, retryAction: RetryAction?, operation: () async throws -> Void) async {
         guard !inFlightActions.contains(action) else {
             AppLogger.debug("Skipped duplicate action \(String(describing: action)).", category: .app)
             return
@@ -352,7 +315,9 @@ final class AppModel: ObservableObject {
                     "Unauthorized during action \(String(describing: action)). Resetting auth session.",
                     category: .auth
                 )
+                let persistedUserID = currentAssistantPersistenceUserID()
                 try? await clerk.auth.signOut()
+                await clearPersistedAssistantThreads(for: persistedUserID)
                 resetAuthenticationState()
                 resetGoogleOAuthState()
                 resetRequestStatusState()
@@ -406,12 +371,16 @@ final class AppModel: ObservableObject {
                         }
                         await self.retryAuthBootstrap(showLoadingState: false)
                     } else {
+                        let persistedUserID = self.currentAssistantPersistenceUserID()
+                        await self.clearPersistedAssistantThreads(for: persistedUserID)
                         self.resetAuthenticationState()
                         self.resetGoogleOAuthState()
                         self.resetRequestStatusState()
                     }
                 case .signedOut:
                     AppLogger.info("Signed out.", category: .auth)
+                    let persistedUserID = self.currentAssistantPersistenceUserID()
+                    await self.clearPersistedAssistantThreads(for: persistedUserID)
                     self.resetAuthenticationState()
                     self.resetGoogleOAuthState()
                     self.resetRequestStatusState()
@@ -430,6 +399,8 @@ final class AppModel: ObservableObject {
 
         guard isCurrentlyAuthenticated else {
             if wasAuthenticated {
+                let persistedUserID = currentAssistantPersistenceUserID()
+                await clearPersistedAssistantThreads(for: persistedUserID)
                 resetAuthenticationState()
                 resetGoogleOAuthState()
                 resetRequestStatusState()
@@ -456,7 +427,15 @@ final class AppModel: ObservableObject {
             }
         }
 
-        lastBootstrappedUserID = clerk.user?.id
+        let currentUserID = clerk.user?.id
+        assistantStorageUserID = currentUserID
+        if let currentUserID {
+            await restoreAssistantThreads(for: currentUserID)
+        } else {
+            resetAssistantThreadState()
+        }
+
+        lastBootstrappedUserID = currentUserID
         startupRoute = .signedIn
     }
 
@@ -464,6 +443,7 @@ final class AppModel: ObservableObject {
         isAuthenticated = false
         startupRoute = .signedOut
         lastBootstrappedUserID = nil
+        assistantStorageUserID = nil
         connectorID = ""
         auditEvents = []
         nextAuditCursor = nil
@@ -488,9 +468,7 @@ final class AppModel: ObservableObject {
         deleteAllStatus = ""
         revokeStatus = ""
         preferencesStatus = ""
-        assistantConversation = []
-        assistantResponseText = ""
-        assistantSessionID = nil
+        resetAssistantThreadState()
     }
 
     private func clearAuthBootstrapErrorBannerIfNeeded() {
@@ -503,5 +481,16 @@ final class AppModel: ObservableObject {
     private var hasAuthBootstrapFailure: Bool {
         guard let sourceAction = errorBanner?.sourceAction else { return false }
         return sourceAction == .loadConnectors || sourceAction == .loadPreferences || sourceAction == .loadAuditEvents
+    }
+
+    private func currentAssistantPersistenceUserID() -> String? {
+        for candidate in [assistantStorageUserID, clerk.user?.id, lastBootstrappedUserID] {
+            guard let candidate else { continue }
+            let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+        return nil
     }
 }

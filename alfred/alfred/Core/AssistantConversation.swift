@@ -1,8 +1,8 @@
 import AlfredAPIClient
 import Foundation
 
-struct AssistantConversationMessage: Identifiable, Equatable {
-    enum Role: String, Equatable {
+struct AssistantConversationMessage: Identifiable, Equatable, Codable, Sendable {
+    enum Role: String, Equatable, Codable, Sendable {
         case user
         case assistant
     }
@@ -15,7 +15,7 @@ struct AssistantConversationMessage: Identifiable, Equatable {
     let createdAt: Date
 }
 
-struct AssistantToolSummary: Identifiable, Equatable {
+struct AssistantToolSummary: Identifiable, Equatable, Codable, Sendable {
     let id: UUID
     let capability: AssistantQueryCapability
     let title: String
