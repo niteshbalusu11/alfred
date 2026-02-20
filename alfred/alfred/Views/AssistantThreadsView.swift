@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AssistantThreadsView: View {
     @ObservedObject var model: AppModel
+    var reservesTrailingOverlaySpace: Bool = false
     @State private var showDeleteAllConfirmation = false
 
     var body: some View {
@@ -42,7 +43,7 @@ struct AssistantThreadsView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 14) {
             Text("Threads")
                 .font(.title2.weight(.semibold))
                 .foregroundStyle(AppTheme.Colors.textPrimary)
@@ -54,9 +55,9 @@ struct AssistantThreadsView: View {
                 model.selectedTab = .home
             } label: {
                 Image(systemName: "square.and.pencil")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(AppTheme.Colors.textPrimary)
-                    .frame(width: 34, height: 34)
+                    .frame(width: 44, height: 44)
                     .background(AppTheme.Colors.surface.opacity(0.7), in: Circle())
             }
             .buttonStyle(.plain)
@@ -74,7 +75,8 @@ struct AssistantThreadsView: View {
             .disabled(model.assistantThreads.isEmpty)
             .opacity(model.assistantThreads.isEmpty ? 0.45 : 1)
         }
-        .padding(.horizontal, 16)
+        .padding(.leading, 16)
+        .padding(.trailing, reservesTrailingOverlaySpace ? 76 : 16)
         .padding(.top, 8)
         .padding(.bottom, 10)
     }

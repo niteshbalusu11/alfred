@@ -8,11 +8,16 @@ struct AppTabShellView: View {
     @State private var tabPaths: [AppTab: NavigationPath] = AppTabShellView.defaultPaths()
     private let swipeTabs: [AppTab] = [.threads, .home, .activity, .connectors]
     private let visibleTopTabs: [AppTab] = [.home, .activity, .connectors]
+    private let threadsHomeButtonSize: CGFloat = 47
 
     var body: some View {
         VStack(spacing: 0) {
             if !isThreadsSelected {
                 topTabHeader
+                    .transition(.asymmetric(
+                        insertion: .opacity.animation(.easeInOut(duration: 0.18)),
+                        removal: .opacity.animation(.easeInOut(duration: 0.14))
+                    ))
             }
 
             ZStack(alignment: .topTrailing) {
@@ -29,10 +34,13 @@ struct AppTabShellView: View {
 
                 if isThreadsSelected {
                     threadsBackToHomeButton
+                        .transition(.opacity.animation(.easeInOut(duration: 0.18)))
                 }
             }
         }
         .appScreenBackground()
+        .animation(.easeInOut(duration: 0.2), value: isThreadsSelected)
+        .sensoryFeedback(.selection, trigger: model.selectedTab)
     }
 
     private var isThreadsSelected: Bool {
@@ -122,8 +130,8 @@ struct AppTabShellView: View {
         if #available(iOS 26, *) {
             Button(action: action) {
                 Image(systemName: "chevron.right")
-                    .font(.headline.weight(.semibold))
-                    .frame(width: 36, height: 36)
+                    .font(.system(size: 18, weight: .semibold))
+                    .frame(width: threadsHomeButtonSize, height: threadsHomeButtonSize)
             }
             .buttonStyle(.plain)
             .glassEffect(.regular.interactive(), in: .circle)
@@ -133,9 +141,9 @@ struct AppTabShellView: View {
         } else {
             Button(action: action) {
                 Image(systemName: "chevron.right")
-                    .font(.headline.weight(.semibold))
+                    .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(AppTheme.Colors.textPrimary)
-                    .frame(width: 36, height: 36)
+                    .frame(width: threadsHomeButtonSize, height: threadsHomeButtonSize)
                     .background(AppTheme.Colors.surfaceElevated.opacity(0.95))
                     .clipShape(Circle())
                     .overlay(
@@ -156,7 +164,7 @@ struct AppTabShellView: View {
         case .home:
             HomeView(model: model)
         case .threads:
-            AssistantThreadsView(model: model)
+            AssistantThreadsView(model: model, reservesTrailingOverlaySpace: true)
         case .activity:
             ActivityView(model: model)
         case .connectors:

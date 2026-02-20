@@ -90,7 +90,7 @@ struct HomeView: View {
             }
 
             Spacer(minLength: 0)
-            circleIconButton(systemName: "square.and.pencil") {
+            circleIconButton(systemName: "square.and.pencil", scale: 1.3) {
                 clearChat()
             }
         }
@@ -209,12 +209,16 @@ struct HomeView: View {
         }
     }
 
-    private func circleIconButton(systemName: String, action: @escaping () -> Void = {}) -> some View {
+    private func circleIconButton(
+        systemName: String,
+        scale: CGFloat = 1.0,
+        action: @escaping () -> Void = {}
+    ) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 15, weight: .bold))
+                .font(.system(size: 15 * scale, weight: .bold))
                 .foregroundStyle(AppTheme.Colors.textPrimary)
-                .frame(width: 40, height: 40)
+                .frame(width: 40 * scale, height: 40 * scale)
                 .background(AppTheme.Colors.surface.opacity(0.65), in: Circle())
         }
         .buttonStyle(.plain)
