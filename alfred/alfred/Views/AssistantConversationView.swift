@@ -121,11 +121,11 @@ private struct AssistantConversationMessageRow: View {
                     .font(.system(size: 33.0 / 2.0, weight: .medium))
                     .foregroundStyle(AppTheme.Colors.textPrimary)
                     .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
                     .background(AppTheme.Colors.surfaceElevated.opacity(0.92))
-                    .clipShape(Capsule(style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             } else {
                 Text(message.text)
                     .font(.system(size: 34.0 / 2.0, weight: .regular))
@@ -153,11 +153,11 @@ private struct AssistantDraftMessageRow: View {
             .font(.system(size: 33.0 / 2.0, weight: .medium))
             .foregroundStyle(AppTheme.Colors.textPrimary.opacity(0.9))
             .multilineTextAlignment(.leading)
-            .frame(maxWidth: .infinity, alignment: .trailing)
+            .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .background(AppTheme.Colors.surfaceElevated.opacity(0.65))
-            .clipShape(Capsule(style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .frame(maxWidth: .infinity, alignment: .trailing)
     }
 }

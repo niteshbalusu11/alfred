@@ -100,10 +100,6 @@ enum AssistantConversationMapper {
     private static func shouldSurfaceLegacyPayloadAsToolSummary(
         response: AssistantPlaintextQueryResponse
     ) -> Bool {
-        if response.capability != .generalChat {
-            return true
-        }
-
-        return !response.payload.keyPoints.isEmpty || !response.payload.followUps.isEmpty
+        response.capability != .generalChat
     }
 }
