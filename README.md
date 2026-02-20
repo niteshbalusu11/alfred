@@ -6,6 +6,25 @@ Alfred is a privacy-first AI assistant for iOS with a hosted Rust backend.
 
 The product goal is proactive help over Google data (calendar + email) with strong privacy boundaries, not a generic chat app.
 
+## Active Migration: Automation v2 (Breaking)
+
+The current execution epic is `#208`: client-defined periodic prompt automations that replace hardcoded proactive worker jobs.
+
+Scope tracked in `#209` through `#214`:
+
+1. Automation rule/run schema and repository APIs.
+2. Automation CRUD API endpoints with encrypted prompt envelope input.
+3. Worker scheduler + generic `AUTOMATION_RUN` execution path.
+4. Enclave automation execution with encrypted notification artifact output.
+5. Encrypted APNs payload contract for automation notifications.
+6. iOS Notification Service Extension decrypt/render path.
+
+Migration rules:
+
+1. No feature flags.
+2. No backwards compatibility for legacy hardcoded proactive job behavior.
+3. No host plaintext prompt/output persistence or logging.
+
 ## What Exists In Code Today
 
 ### Backend (`backend/`)
@@ -21,9 +40,8 @@ The product goal is proactive help over Google data (calendar + email) with stro
    3. Encrypted session continuity state
 3. Enclave runtime orchestration for assistant and connector-sensitive operations.
 4. Worker pipeline with leased/idempotent jobs for:
-   1. Meeting reminders
-   2. Morning brief generation
-   3. Urgent email alerts
+   1. Active v1 runtime includes meeting reminders, morning brief generation, and urgent email alerts.
+   2. These hardcoded paths are being replaced by Automation v2 generic scheduling/execution (`#208`).
 5. LLM-backed assistant routing/orchestration with deterministic fallback and safety validation.
 
 ### Assistant Capabilities

@@ -8,6 +8,7 @@ use crate::models::ApnsEnvironment;
 mod assistant_encrypted_sessions;
 mod audit;
 mod auth;
+mod automation;
 mod connectors;
 mod devices;
 mod jobs;
@@ -68,6 +69,81 @@ impl JobType {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AutomationRuleStatus {
+    Active,
+    Paused,
+}
+
+impl AutomationRuleStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Active => "ACTIVE",
+            Self::Paused => "PAUSED",
+        }
+    }
+
+    fn from_db(value: &str) -> Result<Self, StoreError> {
+        match value {
+            "ACTIVE" => Ok(Self::Active),
+            "PAUSED" => Ok(Self::Paused),
+            _ => Err(StoreError::InvalidData(format!(
+                "unknown automation rule status persisted: {value}"
+            ))),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AutomationScheduleType {
+    IntervalSeconds,
+}
+
+impl AutomationScheduleType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::IntervalSeconds => "INTERVAL_SECONDS",
+        }
+    }
+
+    fn from_db(value: &str) -> Result<Self, StoreError> {
+        match value {
+            "INTERVAL_SECONDS" => Ok(Self::IntervalSeconds),
+            _ => Err(StoreError::InvalidData(format!(
+                "unknown automation schedule type persisted: {value}"
+            ))),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AutomationRunState {
+    Materialized,
+    Enqueued,
+    Failed,
+}
+
+impl AutomationRunState {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Materialized => "MATERIALIZED",
+            Self::Enqueued => "ENQUEUED",
+            Self::Failed => "FAILED",
+        }
+    }
+
+    fn from_db(value: &str) -> Result<Self, StoreError> {
+        match value {
+            "MATERIALIZED" => Ok(Self::Materialized),
+            "ENQUEUED" => Ok(Self::Enqueued),
+            "FAILED" => Ok(Self::Failed),
+            _ => Err(StoreError::InvalidData(format!(
+                "unknown automation run state persisted: {value}"
+            ))),
+        }
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum StoreError {
     #[error("database error: {0}")]
@@ -116,6 +192,45 @@ pub struct ClaimedJob {
     pub attempts: i32,
     pub max_attempts: i32,
     pub idempotency_key: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct AutomationRuleRecord {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub status: AutomationRuleStatus,
+    pub schedule_type: AutomationScheduleType,
+    pub interval_seconds: i32,
+    pub time_zone: String,
+    pub next_run_at: DateTime<Utc>,
+    pub last_run_at: Option<DateTime<Utc>>,
+    pub prompt_sha256: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ClaimedAutomationRule {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub interval_seconds: i32,
+    pub time_zone: String,
+    pub next_run_at: DateTime<Utc>,
+    pub prompt_ciphertext: Vec<u8>,
+    pub prompt_sha256: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct AutomationRunRecord {
+    pub id: Uuid,
+    pub rule_id: Uuid,
+    pub user_id: Uuid,
+    pub scheduled_for: DateTime<Utc>,
+    pub job_id: Option<Uuid>,
+    pub idempotency_key: String,
+    pub state: AutomationRunState,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone)]

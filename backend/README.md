@@ -5,9 +5,28 @@ This workspace contains the Alfred iOS v1 backend services.
 ## Crates
 
 1. `crates/api-server`: REST API aligned with `api/openapi.yaml` backed by Postgres + `sqlx`.
-2. `crates/worker`: scheduled/proactive job execution (lease/retry/idempotency, push dispatch, privacy delete workflows).
+2. `crates/worker`: scheduled/proactive job execution (lease/retry/idempotency, push dispatch, privacy delete workflows), now migrating to generic Automation v2 scheduling/execution.
 3. `crates/enclave-runtime`: enclave runtime baseline process with health and attestation endpoints.
 4. `crates/shared`: shared models, repositories, security runtime, and LLM gateway modules.
+
+## Active Migration: Automation v2 (Breaking)
+
+Source-of-truth tracker: GitHub issue `#208` with execution issues `#209` through `#214`.
+
+Target backend changes:
+
+1. Replace hardcoded proactive job actions (`MeetingReminder`, `MorningBrief`, `UrgentEmailCheck`) with generic `AUTOMATION_RUN`.
+2. Persist automation schedule metadata with sealed prompt ciphertext only.
+3. Materialize due runs with deterministic idempotency keying and lease-safe multi-worker behavior.
+4. Execute automation prompt workflows through enclave RPC so host never receives plaintext prompt/output.
+5. Emit encrypted APNs payloads for iOS Notification Service Extension decrypt/render.
+
+Migration policy:
+
+1. No feature flags.
+2. No backward compatibility layer for legacy proactive runtime behavior.
+3. Preserve reliability invariants: lease ownership, deterministic retries, idempotency, dead-letter behavior.
+4. Preserve privacy boundary: metadata-only host logging/audit; no automation plaintext persistence.
 
 ## Local Infrastructure
 

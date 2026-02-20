@@ -1,6 +1,6 @@
 # Engineering Standards (Scalability + Security)
 
-- Last Updated: 2026-02-18
+- Last Updated: 2026-02-20
 - Priority: Mandatory for all issue execution
 
 ## 1) Post-Issue Deep Review (Required)
@@ -48,9 +48,9 @@ Use strict separation of concerns:
 To prevent codebase entropy and scaling bottlenecks:
 
 1. Keep modules small and single-purpose; avoid "god files".
-2. Handwritten source files should target `<= 500` lines.
-3. Any handwritten source file above `500` lines must be actively decomposed when modified, unless there is a documented blocker.
-4. Do not add substantial new logic to existing files already above `500` lines without first extracting modules.
+2. Handwritten source files should target `<= 800` lines.
+3. Any handwritten source file above `800` lines must be actively decomposed when modified, unless there is a documented blocker.
+4. Do not add substantial new logic to existing files already above `800` lines without first extracting modules.
 5. Allowed size exceptions:
    1. generated files
    2. migration SQL
@@ -102,3 +102,23 @@ All LLM-backed backend behavior must follow these controls:
    1. Do not hard-code English temporal/intent keyword lists in backend routing logic (for example: `today`, `tomorrow`, `last week`).
    2. Pass current timestamp, timezone, and prior conversation context into planner/model contracts and derive routing/time windows from structured outputs.
    3. If fallback is needed for reliability, keep it generic and policy-driven; avoid brittle phrase-based steering logic.
+
+## 7) Automation v2 Migration Standards (Required)
+
+Source-of-truth tracker is issue `#208` with execution issues `#209` through `#214`.
+
+1. Breaking migration policy:
+   1. no feature flags
+   2. no backward compatibility for legacy proactive hardcoded worker flows
+2. Runtime architecture constraints:
+   1. worker scheduling/execution must move to generic `AUTOMATION_RUN` semantics
+   2. deterministic idempotency keying for run materialization/execution is required (`{rule_id}:{scheduled_for}` or equivalent)
+   3. lease/retry/dead-letter reliability primitives must be preserved
+3. Privacy boundary constraints:
+   1. host runtime must not process, persist, or log automation prompt/output plaintext
+   2. prompt content persistence must remain ciphertext/sealed-blob only
+   3. enclave boundary remains mandatory for sensitive automation execution paths
+4. Push delivery constraints:
+   1. host sends encrypted APNs payload with `mutable-content`
+   2. on-device Notification Service Extension decrypt/render is the plaintext display boundary
+   3. host logs/audit remain metadata-only

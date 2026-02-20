@@ -28,6 +28,16 @@ Use this file when an agent starts with minimal context.
 2. Planner-driven routing (schema-constrained) is the required primary path.
 3. Current policy is English-first; non-English routes to safe clarification until expanded.
 
+## Automation v2 Direction (Current)
+
+1. Source-of-truth tracker is issue `#208` with execution issues `#209` through `#214`.
+2. This migration is breaking by design:
+   1. no feature flags
+   2. no backwards compatibility with hardcoded proactive job flows
+3. Replace legacy worker proactive actions with generic `AUTOMATION_RUN` scheduling/execution.
+4. Privacy boundary: host never processes/persists automation prompt/output plaintext.
+5. Push model: host sends encrypted APNs payload (`mutable-content`), iOS Notification Service Extension decrypts and renders on-device.
+
 ## Execution Rule
 
 1. GitHub issues with `phase-1` are the execution source of truth (`P0` before `P1`).
