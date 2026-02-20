@@ -140,6 +140,19 @@ pub struct AssistantQueryResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssistantSessionSummary {
+    pub session_id: Uuid,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub expires_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ListAssistantSessionsResponse {
+    pub items: Vec<AssistantSessionSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AssistantPlaintextQueryRequest {
     pub query: String,
     #[serde(default)]

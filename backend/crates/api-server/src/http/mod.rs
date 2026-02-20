@@ -95,6 +95,15 @@ pub fn build_router(app_state: AppState) -> Router {
             )),
         )
         .route(
+            "/v1/assistant/sessions",
+            get(assistant::list_assistant_sessions)
+                .delete(assistant::delete_all_assistant_sessions),
+        )
+        .route(
+            "/v1/assistant/sessions/{session_id}",
+            delete(assistant::delete_assistant_session),
+        )
+        .route(
             "/v1/connectors/google/start",
             post(connectors::start_google_connect).layer(middleware::from_fn_with_state(
                 protected_rate_limit_layer_state.clone(),

@@ -13,7 +13,56 @@ pub struct AssistantEncryptedSessionRecord {
     pub expires_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone)]
+pub struct AssistantEncryptedSessionMetadataRecord {
+    pub session_id: Uuid,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub expires_at: DateTime<Utc>,
+}
+
 impl Store {
+    pub async fn list_assistant_encrypted_sessions(
+        &self,
+        user_id: Uuid,
+        now: DateTime<Utc>,
+        limit: i64,
+    ) -> Result<Vec<AssistantEncryptedSessionMetadataRecord>, StoreError> {
+        if limit <= 0 {
+            return Err(StoreError::InvalidData(
+                "assistant encrypted session list limit must be > 0".to_string(),
+            ));
+        }
+
+        self.purge_expired_assistant_encrypted_sessions(user_id, now)
+            .await?;
+
+        let rows = sqlx::query(
+            "SELECT session_id, created_at, updated_at, expires_at
+             FROM assistant_encrypted_sessions
+             WHERE user_id = $1
+               AND expires_at > $2
+             ORDER BY updated_at DESC, session_id DESC
+             LIMIT $3",
+        )
+        .bind(user_id)
+        .bind(now)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+
+        rows.into_iter()
+            .map(|row| {
+                Ok(AssistantEncryptedSessionMetadataRecord {
+                    session_id: row.try_get("session_id")?,
+                    created_at: row.try_get("created_at")?,
+                    updated_at: row.try_get("updated_at")?,
+                    expires_at: row.try_get("expires_at")?,
+                })
+            })
+            .collect()
+    }
+
     pub async fn load_assistant_encrypted_session(
         &self,
         user_id: Uuid,
@@ -99,6 +148,39 @@ impl Store {
         .await?;
 
         Ok(())
+    }
+
+    pub async fn delete_assistant_encrypted_session(
+        &self,
+        user_id: Uuid,
+        session_id: Uuid,
+    ) -> Result<bool, StoreError> {
+        let result = sqlx::query(
+            "DELETE FROM assistant_encrypted_sessions
+             WHERE user_id = $1
+               AND session_id = $2",
+        )
+        .bind(user_id)
+        .bind(session_id)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(result.rows_affected() > 0)
+    }
+
+    pub async fn delete_all_assistant_encrypted_sessions(
+        &self,
+        user_id: Uuid,
+    ) -> Result<u64, StoreError> {
+        let result = sqlx::query(
+            "DELETE FROM assistant_encrypted_sessions
+             WHERE user_id = $1",
+        )
+        .bind(user_id)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(result.rows_affected())
     }
 
     async fn purge_expired_assistant_encrypted_sessions(
