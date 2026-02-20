@@ -197,6 +197,49 @@ impl TryFrom<EnclaveRpcProcessAssistantQueryResponse> for ProcessAssistantQueryR
     }
 }
 
+impl TryFrom<EnclaveRpcExecuteAutomationResponse> for ExecuteAutomationResponse {
+    type Error = EnclaveRpcError;
+
+    fn try_from(value: EnclaveRpcExecuteAutomationResponse) -> Result<Self, Self::Error> {
+        if value.contract_version != ENCLAVE_RPC_CONTRACT_VERSION {
+            return Err(EnclaveRpcError::RpcResponseInvalid {
+                message: format!(
+                    "enclave rpc contract mismatch: expected={}, got={}",
+                    ENCLAVE_RPC_CONTRACT_VERSION, value.contract_version
+                ),
+            });
+        }
+
+        if value.request_id.trim().is_empty() {
+            return Err(EnclaveRpcError::RpcResponseInvalid {
+                message: "missing request_id in automation run response".to_string(),
+            });
+        }
+
+        Ok(Self {
+            should_notify: value.should_notify,
+            notification_artifacts: value
+                .notification_artifacts
+                .into_iter()
+                .map(|artifact| super::super::AutomationNotificationArtifact {
+                    device_id: artifact.device_id,
+                    envelope: super::super::EncryptedAutomationNotificationEnvelope {
+                        version: artifact.envelope.version,
+                        algorithm: artifact.envelope.algorithm,
+                        key_id: artifact.envelope.key_id,
+                        request_id: artifact.envelope.request_id,
+                        sender_public_key: artifact.envelope.sender_public_key,
+                        nonce: artifact.envelope.nonce,
+                        ciphertext: artifact.envelope.ciphertext,
+                    },
+                })
+                .collect(),
+            metadata: value.metadata,
+            attested_identity: value.attested_identity,
+        })
+    }
+}
+
 impl TryFrom<EnclaveRpcGenerateMorningBriefResponse> for GenerateMorningBriefResponse {
     type Error = EnclaveRpcError;
 

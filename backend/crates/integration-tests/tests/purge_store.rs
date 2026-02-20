@@ -34,7 +34,14 @@ async fn purge_user_operational_data_removes_sensitive_rows_and_marks_user_delet
         .expect("connector upsert should succeed");
 
     store
-        .register_device(user_id, "device-1", "apns-token", &ApnsEnvironment::Sandbox)
+        .register_device(
+            user_id,
+            "device-1",
+            "apns-token",
+            &ApnsEnvironment::Sandbox,
+            None,
+            None,
+        )
         .await
         .expect("device registration should succeed");
 

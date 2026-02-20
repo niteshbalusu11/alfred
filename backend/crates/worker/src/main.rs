@@ -1,4 +1,5 @@
 use shared::config::{WorkerConfig, load_dotenv};
+use shared::enclave::EnclaveRpcClient;
 use shared::enclave_runtime::{EnclaveRuntimeEndpointConfig, verify_connectivity};
 use shared::repos::Store;
 use shared::security::{KmsDecryptPolicy, SecretRuntime, TeeAttestationPolicy};
@@ -104,6 +105,14 @@ async fn main() {
         config.tee_attestation_challenge_timeout_ms,
         oauth_client.clone(),
     );
+    let enclave_client = EnclaveRpcClient::new(
+        config.enclave_runtime_base_url.clone(),
+        shared::enclave::EnclaveRpcAuthConfig {
+            shared_secret: config.enclave_rpc_shared_secret.clone(),
+            max_clock_skew_seconds: config.enclave_rpc_auth_max_skew_seconds,
+        },
+        oauth_client.clone(),
+    );
 
     let worker_id = Uuid::new_v4();
     info!(
@@ -150,6 +159,7 @@ async fn main() {
                     &store,
                     &config,
                     &push_sender,
+                    &enclave_client,
                     worker_id,
                 )
                 .await;

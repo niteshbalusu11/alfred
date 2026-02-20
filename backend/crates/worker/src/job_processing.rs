@@ -1,5 +1,6 @@
 use chrono::{Duration as ChronoDuration, Utc};
 use shared::config::WorkerConfig;
+use shared::enclave::EnclaveRpcClient;
 use shared::repos::{ClaimedJob, JobType, Store};
 use tracing::{error, info, warn};
 use uuid::Uuid;
@@ -11,18 +12,21 @@ struct JobRuntime<'a> {
     store: &'a Store,
     config: &'a WorkerConfig,
     push_sender: &'a PushSender,
+    enclave_client: &'a EnclaveRpcClient,
 }
 
 pub(crate) async fn process_due_jobs(
     store: &Store,
     config: &WorkerConfig,
     push_sender: &PushSender,
+    enclave_client: &EnclaveRpcClient,
     worker_id: Uuid,
 ) {
     let runtime = JobRuntime {
         store,
         config,
         push_sender,
+        enclave_client,
     };
 
     let now = Utc::now();
@@ -263,6 +267,7 @@ async fn execute_job(
         crate::job_actions::JobActionContext {
             store: runtime.store,
             push_sender: runtime.push_sender,
+            enclave_client: runtime.enclave_client,
         },
         job,
         metrics,

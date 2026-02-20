@@ -9,17 +9,29 @@ public struct RegisterDeviceRequest: Codable, Sendable {
     public let deviceId: String
     public let apnsToken: String
     public let environment: APNSEnvironment
+    public let notificationKeyAlgorithm: String?
+    public let notificationPublicKey: String?
 
     enum CodingKeys: String, CodingKey {
         case deviceId = "device_id"
         case apnsToken = "apns_token"
         case environment
+        case notificationKeyAlgorithm = "notification_key_algorithm"
+        case notificationPublicKey = "notification_public_key"
     }
 
-    public init(deviceId: String, apnsToken: String, environment: APNSEnvironment) {
+    public init(
+        deviceId: String,
+        apnsToken: String,
+        environment: APNSEnvironment,
+        notificationKeyAlgorithm: String? = nil,
+        notificationPublicKey: String? = nil
+    ) {
         self.deviceId = deviceId
         self.apnsToken = apnsToken
         self.environment = environment
+        self.notificationKeyAlgorithm = notificationKeyAlgorithm
+        self.notificationPublicKey = notificationPublicKey
     }
 }
 

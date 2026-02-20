@@ -4,8 +4,10 @@ use axum::Json;
 use axum::extract::{Extension, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
+use base64::Engine as _;
 use chrono::Utc;
 use serde_json::json;
+use shared::assistant_crypto::ASSISTANT_ENCRYPTION_ALGORITHM_X25519_CHACHA20POLY1305;
 use shared::models::{
     OkResponse, RegisterDeviceRequest, SendTestNotificationRequest, SendTestNotificationResponse,
 };
@@ -21,6 +23,12 @@ pub(super) async fn register_device(
     Extension(user): Extension<AuthUser>,
     Json(req): Json<RegisterDeviceRequest>,
 ) -> Response {
+    if let Some(response) = validate_notification_key_fields(&req) {
+        return response;
+    }
+    let notification_key_algorithm = normalized_optional(req.notification_key_algorithm.as_deref());
+    let notification_public_key = normalized_optional(req.notification_public_key.as_deref());
+
     if let Err(err) = state
         .store
         .register_device(
@@ -28,6 +36,8 @@ pub(super) async fn register_device(
             &req.device_id,
             &req.apns_token,
             &req.environment,
+            notification_key_algorithm.as_deref(),
+            notification_public_key.as_deref(),
         )
         .await
     {
@@ -36,6 +46,10 @@ pub(super) async fn register_device(
 
     let mut metadata = HashMap::new();
     metadata.insert("device_id".to_string(), req.device_id);
+    metadata.insert(
+        "notification_key_registered".to_string(),
+        notification_public_key.is_some().to_string(),
+    );
 
     if let Err(err) = state
         .store
@@ -153,4 +167,72 @@ pub(super) async fn send_test_notification(
         }),
     )
         .into_response()
+}
+
+fn validate_notification_key_fields(req: &RegisterDeviceRequest) -> Option<Response> {
+    let has_algorithm = req
+        .notification_key_algorithm
+        .as_deref()
+        .is_some_and(|value| !value.trim().is_empty());
+    let has_public_key = req
+        .notification_public_key
+        .as_deref()
+        .is_some_and(|value| !value.trim().is_empty());
+
+    if !has_algorithm && !has_public_key {
+        return None;
+    }
+
+    if !has_algorithm || !has_public_key {
+        return Some(bad_request_response(
+            "invalid_notification_key",
+            "notification_key_algorithm and notification_public_key must both be provided",
+        ));
+    }
+
+    let algorithm = req
+        .notification_key_algorithm
+        .as_deref()
+        .unwrap_or_default()
+        .trim();
+    if algorithm != ASSISTANT_ENCRYPTION_ALGORITHM_X25519_CHACHA20POLY1305 {
+        return Some(bad_request_response(
+            "invalid_notification_key_algorithm",
+            "notification_key_algorithm is not supported",
+        ));
+    }
+
+    let public_key_b64 = req
+        .notification_public_key
+        .as_deref()
+        .unwrap_or_default()
+        .trim();
+    let decoded = match base64::engine::general_purpose::STANDARD.decode(public_key_b64) {
+        Ok(bytes) => bytes,
+        Err(_) => {
+            return Some(bad_request_response(
+                "invalid_notification_public_key",
+                "notification_public_key must be valid base64",
+            ));
+        }
+    };
+    if decoded.len() != 32 {
+        return Some(bad_request_response(
+            "invalid_notification_public_key",
+            "notification_public_key must decode to 32 bytes",
+        ));
+    }
+
+    None
+}
+
+fn normalized_optional(value: Option<&str>) -> Option<String> {
+    value.and_then(|raw| {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        }
+    })
 }

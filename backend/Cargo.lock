@@ -682,11 +682,13 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "sha2",
  "shared",
  "tokio",
  "tracing",
  "tracing-subscriber",
  "uuid",
+ "x25519-dalek",
 ]
 
 [[package]]

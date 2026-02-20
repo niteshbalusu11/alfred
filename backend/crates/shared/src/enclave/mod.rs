@@ -16,17 +16,20 @@ pub use client::EnclaveRpcClient;
 pub use contract::{
     AttestedIdentityPayload, ENCLAVE_RPC_CONTRACT_VERSION,
     ENCLAVE_RPC_PATH_COMPLETE_GOOGLE_CONNECT, ENCLAVE_RPC_PATH_EXCHANGE_GOOGLE_TOKEN,
-    ENCLAVE_RPC_PATH_FETCH_ASSISTANT_ATTESTED_KEY, ENCLAVE_RPC_PATH_FETCH_GOOGLE_CALENDAR_EVENTS,
+    ENCLAVE_RPC_PATH_EXECUTE_AUTOMATION, ENCLAVE_RPC_PATH_FETCH_ASSISTANT_ATTESTED_KEY,
+    ENCLAVE_RPC_PATH_FETCH_GOOGLE_CALENDAR_EVENTS,
     ENCLAVE_RPC_PATH_FETCH_GOOGLE_URGENT_EMAIL_CANDIDATES, ENCLAVE_RPC_PATH_GENERATE_MORNING_BRIEF,
     ENCLAVE_RPC_PATH_GENERATE_URGENT_EMAIL_SUMMARY, ENCLAVE_RPC_PATH_PROCESS_ASSISTANT_QUERY,
-    ENCLAVE_RPC_PATH_REVOKE_GOOGLE_TOKEN, EnclaveGeneratedNotificationPayload,
-    EnclaveGoogleCalendarAttendee, EnclaveGoogleCalendarEvent, EnclaveGoogleCalendarEventDateTime,
-    EnclaveGoogleEmailCandidate, EnclaveRpcCompleteGoogleConnectRequest,
-    EnclaveRpcCompleteGoogleConnectResponse, EnclaveRpcErrorEnvelope, EnclaveRpcErrorPayload,
-    EnclaveRpcExchangeGoogleTokenRequest, EnclaveRpcExchangeGoogleTokenResponse,
-    EnclaveRpcFetchAssistantAttestedKeyRequest, EnclaveRpcFetchAssistantAttestedKeyResponse,
-    EnclaveRpcFetchGoogleCalendarEventsRequest, EnclaveRpcFetchGoogleCalendarEventsResponse,
-    EnclaveRpcFetchGoogleUrgentEmailCandidatesRequest,
+    ENCLAVE_RPC_PATH_REVOKE_GOOGLE_TOKEN, EnclaveAutomationEncryptedNotificationEnvelope,
+    EnclaveAutomationNotificationArtifact, EnclaveAutomationRecipientDevice,
+    EnclaveGeneratedNotificationPayload, EnclaveGoogleCalendarAttendee, EnclaveGoogleCalendarEvent,
+    EnclaveGoogleCalendarEventDateTime, EnclaveGoogleEmailCandidate,
+    EnclaveRpcCompleteGoogleConnectRequest, EnclaveRpcCompleteGoogleConnectResponse,
+    EnclaveRpcErrorEnvelope, EnclaveRpcErrorPayload, EnclaveRpcExchangeGoogleTokenRequest,
+    EnclaveRpcExchangeGoogleTokenResponse, EnclaveRpcExecuteAutomationRequest,
+    EnclaveRpcExecuteAutomationResponse, EnclaveRpcFetchAssistantAttestedKeyRequest,
+    EnclaveRpcFetchAssistantAttestedKeyResponse, EnclaveRpcFetchGoogleCalendarEventsRequest,
+    EnclaveRpcFetchGoogleCalendarEventsResponse, EnclaveRpcFetchGoogleUrgentEmailCandidatesRequest,
     EnclaveRpcFetchGoogleUrgentEmailCandidatesResponse, EnclaveRpcGenerateMorningBriefRequest,
     EnclaveRpcGenerateMorningBriefResponse, EnclaveRpcGenerateUrgentEmailSummaryRequest,
     EnclaveRpcGenerateUrgentEmailSummaryResponse, EnclaveRpcProcessAssistantQueryRequest,
@@ -128,6 +131,39 @@ pub struct GenerateUrgentEmailSummaryResponse {
     pub attested_identity: AttestedIdentityPayload,
 }
 
+#[derive(Debug, Clone)]
+pub struct AutomationRecipientDevice {
+    pub device_id: String,
+    pub key_id: String,
+    pub algorithm: String,
+    pub public_key: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct EncryptedAutomationNotificationEnvelope {
+    pub version: String,
+    pub algorithm: String,
+    pub key_id: String,
+    pub request_id: String,
+    pub sender_public_key: String,
+    pub nonce: String,
+    pub ciphertext: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct AutomationNotificationArtifact {
+    pub device_id: String,
+    pub envelope: EncryptedAutomationNotificationEnvelope,
+}
+
+#[derive(Debug, Clone)]
+pub struct ExecuteAutomationResponse {
+    pub should_notify: bool,
+    pub notification_artifacts: Vec<AutomationNotificationArtifact>,
+    pub metadata: HashMap<String, String>,
+    pub attested_identity: AttestedIdentityPayload,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProviderOperation {
     TokenRefresh,
@@ -139,6 +175,7 @@ pub enum ProviderOperation {
     AssistantQuery,
     AssistantMorningBrief,
     AssistantUrgentEmail,
+    AssistantAutomationRun,
 }
 
 impl fmt::Display for ProviderOperation {
@@ -153,6 +190,7 @@ impl fmt::Display for ProviderOperation {
             Self::AssistantQuery => write!(f, "assistant_query"),
             Self::AssistantMorningBrief => write!(f, "assistant_morning_brief"),
             Self::AssistantUrgentEmail => write!(f, "assistant_urgent_email"),
+            Self::AssistantAutomationRun => write!(f, "assistant_automation_run"),
         }
     }
 }

@@ -1,11 +1,12 @@
 use axum::response::Response;
 use shared::enclave::{
-    EnclaveRpcGenerateMorningBriefRequest, EnclaveRpcGenerateUrgentEmailSummaryRequest,
-    EnclaveRpcProcessAssistantQueryRequest,
+    EnclaveRpcExecuteAutomationRequest, EnclaveRpcGenerateMorningBriefRequest,
+    EnclaveRpcGenerateUrgentEmailSummaryRequest, EnclaveRpcProcessAssistantQueryRequest,
 };
 
 use crate::RuntimeState;
 
+mod automation;
 mod mapping;
 mod memory;
 mod notifications;
@@ -33,4 +34,11 @@ pub(super) async fn generate_urgent_email_summary(
     request: EnclaveRpcGenerateUrgentEmailSummaryRequest,
 ) -> Response {
     proactive::generate_urgent_email_summary(state, request).await
+}
+
+pub(super) async fn execute_automation(
+    state: RuntimeState,
+    request: EnclaveRpcExecuteAutomationRequest,
+) -> Response {
+    automation::execute_automation(state, request).await
 }

@@ -16,6 +16,10 @@ pub struct RegisterDeviceRequest {
     pub device_id: String,
     pub apns_token: String,
     pub environment: ApnsEnvironment,
+    #[serde(default)]
+    pub notification_key_algorithm: Option<String>,
+    #[serde(default)]
+    pub notification_public_key: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

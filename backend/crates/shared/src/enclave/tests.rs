@@ -4,15 +4,18 @@ use axum::extract::Json;
 use axum::http::StatusCode;
 use axum::routing::post;
 use axum::{Router, response::IntoResponse};
+use base64::Engine as _;
 use tokio::time::sleep;
 use uuid::Uuid;
 
 use super::{
     AttestedIdentityPayload, ConnectorSecretRequest, ENCLAVE_RPC_CONTRACT_VERSION,
-    ENCLAVE_RPC_PATH_EXCHANGE_GOOGLE_TOKEN, ENCLAVE_RPC_PATH_FETCH_GOOGLE_CALENDAR_EVENTS,
+    ENCLAVE_RPC_PATH_EXCHANGE_GOOGLE_TOKEN, ENCLAVE_RPC_PATH_EXECUTE_AUTOMATION,
+    ENCLAVE_RPC_PATH_FETCH_GOOGLE_CALENDAR_EVENTS,
     ENCLAVE_RPC_PATH_FETCH_GOOGLE_URGENT_EMAIL_CANDIDATES, EnclaveRpcAuthConfig, EnclaveRpcClient,
     EnclaveRpcError, EnclaveRpcErrorEnvelope, EnclaveRpcExchangeGoogleTokenRequest,
-    EnclaveRpcExchangeGoogleTokenResponse, EnclaveRpcFetchGoogleCalendarEventsRequest,
+    EnclaveRpcExchangeGoogleTokenResponse, EnclaveRpcExecuteAutomationRequest,
+    EnclaveRpcExecuteAutomationResponse, EnclaveRpcFetchGoogleCalendarEventsRequest,
     EnclaveRpcFetchGoogleCalendarEventsResponse, EnclaveRpcFetchGoogleUrgentEmailCandidatesRequest,
     EnclaveRpcFetchGoogleUrgentEmailCandidatesResponse, EnclaveRpcRevokeGoogleTokenRequest,
     EnclaveRpcRevokeGoogleTokenResponse,
@@ -400,6 +403,115 @@ async fn rpc_client_rejects_request_id_mismatch_in_gmail_fetch_response() {
         )
         .await
         .expect_err("gmail request_id mismatch must fail closed");
+
+    assert!(matches!(err, EnclaveRpcError::RpcResponseInvalid { .. }));
+}
+
+#[tokio::test]
+async fn rpc_client_rejects_request_id_mismatch_in_automation_execution_response() {
+    let app = Router::new().route(
+        ENCLAVE_RPC_PATH_EXECUTE_AUTOMATION,
+        post(
+            |_req: Json<EnclaveRpcExecuteAutomationRequest>| async move {
+                Json(EnclaveRpcExecuteAutomationResponse {
+                    contract_version: ENCLAVE_RPC_CONTRACT_VERSION.to_string(),
+                    request_id: "mismatched-request-id".to_string(),
+                    should_notify: true,
+                    notification_artifacts: Vec::new(),
+                    metadata: std::collections::HashMap::new(),
+                    attested_identity: AttestedIdentityPayload {
+                        runtime: "nitro".to_string(),
+                        measurement: "mr_enclave_1".to_string(),
+                    },
+                })
+            },
+        ),
+    );
+    let (base_url, _server) = start_test_server(app).await;
+
+    let client = EnclaveRpcClient::new(
+        base_url,
+        EnclaveRpcAuthConfig {
+            shared_secret: "local-secret".to_string(),
+            max_clock_skew_seconds: 30,
+        },
+        reqwest::Client::new(),
+    );
+
+    let err = client
+        .execute_automation_run(
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            chrono::Utc::now(),
+            crate::models::AutomationPromptEnvelope {
+                version: "v1".to_string(),
+                algorithm: "x25519-chacha20poly1305".to_string(),
+                key_id: "assistant-ingress-v1".to_string(),
+                request_id: "automation-req-1".to_string(),
+                client_ephemeral_public_key: base64::engine::general_purpose::STANDARD
+                    .encode([7_u8; 32]),
+                nonce: base64::engine::general_purpose::STANDARD.encode([8_u8; 12]),
+                ciphertext: base64::engine::general_purpose::STANDARD.encode([9_u8; 24]),
+            },
+            Vec::new(),
+        )
+        .await
+        .expect_err("automation response request_id mismatch must fail closed");
+
+    assert!(matches!(err, EnclaveRpcError::RpcResponseInvalid { .. }));
+}
+
+#[tokio::test]
+async fn rpc_client_rejects_automation_response_with_plaintext_fields() {
+    let app = Router::new().route(
+        ENCLAVE_RPC_PATH_EXECUTE_AUTOMATION,
+        post(|req: Json<EnclaveRpcExecuteAutomationRequest>| async move {
+            Json(serde_json::json!({
+                "contract_version": ENCLAVE_RPC_CONTRACT_VERSION,
+                "request_id": req.request_id,
+                "should_notify": true,
+                "notification_artifacts": [],
+                "metadata": {},
+                "attested_identity": {
+                    "runtime": "nitro",
+                    "measurement": "mr_enclave_1"
+                },
+                "title": "plaintext-leak"
+            }))
+        }),
+    );
+    let (base_url, _server) = start_test_server(app).await;
+
+    let client = EnclaveRpcClient::new(
+        base_url,
+        EnclaveRpcAuthConfig {
+            shared_secret: "local-secret".to_string(),
+            max_clock_skew_seconds: 30,
+        },
+        reqwest::Client::new(),
+    );
+
+    let err = client
+        .execute_automation_run(
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            chrono::Utc::now(),
+            crate::models::AutomationPromptEnvelope {
+                version: "v1".to_string(),
+                algorithm: "x25519-chacha20poly1305".to_string(),
+                key_id: "assistant-ingress-v1".to_string(),
+                request_id: "automation-req-2".to_string(),
+                client_ephemeral_public_key: base64::engine::general_purpose::STANDARD
+                    .encode([7_u8; 32]),
+                nonce: base64::engine::general_purpose::STANDARD.encode([8_u8; 12]),
+                ciphertext: base64::engine::general_purpose::STANDARD.encode([9_u8; 24]),
+            },
+            Vec::new(),
+        )
+        .await
+        .expect_err("automation response with plaintext fields must fail closed");
 
     assert!(matches!(err, EnclaveRpcError::RpcResponseInvalid { .. }));
 }
