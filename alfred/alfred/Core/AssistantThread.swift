@@ -1,6 +1,6 @@
 import Foundation
 
-struct AssistantConversationThread: Identifiable, Equatable, Codable, Sendable {
+nonisolated struct AssistantConversationThread: Identifiable, Equatable, Codable, Sendable {
     let id: UUID
     var sessionID: UUID?
     var title: String
@@ -83,7 +83,7 @@ struct AssistantConversationThread: Identifiable, Equatable, Codable, Sendable {
     }
 }
 
-struct AssistantThreadStoreSnapshot: Equatable, Codable, Sendable {
+nonisolated struct AssistantThreadStoreSnapshot: Equatable, Codable, Sendable {
     var activeThreadID: UUID?
     var threads: [AssistantConversationThread]
 
