@@ -1,6 +1,6 @@
 # Alfred UI Specification (Phase I)
 
-- Last Updated: 2026-02-17
+- Last Updated: 2026-02-20
 - Scope: iOS front-end design and implementation rules for Phase I
 - Audience: iOS engineers and autonomous coding agents
 
@@ -16,7 +16,7 @@ If a front-end issue conflicts with ad hoc styling choices, follow this spec and
 2. Monochrome cartoony visual language is the app-wide style baseline.
 3. Home is the primary interaction surface.
 4. Connectors must be first-class and future-extensible (Google now, others later).
-5. Native iOS bottom-tab navigation remains the primary app structure after auth.
+5. Top-tab navigation remains the primary app structure after auth, with swipe paging between tabs.
 
 ## 3) Startup + Auth Journey (FE12)
 
@@ -37,14 +37,15 @@ Primary tabs:
 1. Home
 2. Activity
 3. Connectors
-4. Profile
+4. Profile/account actions are accessed from the top-right account button.
 
 Architecture rules:
 
-1. Use `TabView` at app root.
-2. Use one `NavigationStack` per tab (independent history).
-3. Route deep links through centralized router logic, not per-screen ad hoc handlers.
-4. Keep tab identity centralized in one enum.
+1. Use `TabView` at app root with `.page` style for horizontal swipe navigation and no bottom system tab bar.
+2. Use a top tab control (segmented/native-feeling) bound to the same tab selection state.
+3. Use one `NavigationStack` per tab (independent history).
+4. Route deep links through centralized router logic, not per-screen ad hoc handlers.
+5. Keep tab identity centralized in one enum.
 
 ## 5) Screen Responsibilities
 
@@ -56,9 +57,10 @@ Architecture rules:
 
 ### Home
 
-1. Show actionable summary of the day.
-2. Show reminder/brief/urgent status cards.
-3. Expose quick actions (refresh, retry, open connector state).
+1. Home is a full-height assistant chat surface.
+2. Support keyboard-first messaging with a persistent bottom composer.
+3. Support optional voice input from the composer area (on-device transcription).
+4. Keep listening/speaking indicators subtle and unobtrusive.
 
 ### Activity
 

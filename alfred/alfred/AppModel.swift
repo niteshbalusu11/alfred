@@ -287,7 +287,7 @@ final class AppModel: ObservableObject {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuery.isEmpty else {
             errorBanner = ErrorBanner(
-                message: "Voice transcript is empty. Record something first.",
+                message: "Message is empty. Type or dictate something first.",
                 retryAction: nil,
                 sourceAction: nil
             )
