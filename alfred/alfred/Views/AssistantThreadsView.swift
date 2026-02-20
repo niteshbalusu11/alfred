@@ -92,11 +92,8 @@ struct AssistantThreadsView: View {
                 }
                 .buttonStyle(.plain)
                 .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
-                .listRowBackground(
-                    model.activeAssistantThreadID == thread.id
-                        ? AppTheme.Colors.surfaceElevated.opacity(0.5)
-                        : Color.clear
-                )
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                     Button(role: .destructive) {
                         model.deleteAssistantThread(thread.id)
@@ -131,29 +128,15 @@ struct AssistantThreadsView: View {
     }
 
     private func threadRow(for thread: AssistantConversationThread) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Circle()
-                .fill(model.activeAssistantThreadID == thread.id ? AppTheme.Colors.textPrimary : AppTheme.Colors.outline.opacity(0.45))
-                .frame(width: model.activeAssistantThreadID == thread.id ? 8 : 6, height: model.activeAssistantThreadID == thread.id ? 8 : 6)
-                .padding(.top, 8)
+        VStack(alignment: .leading, spacing: 6) {
+            Text(thread.title)
+                .font(.system(size: 20, weight: model.activeAssistantThreadID == thread.id ? .semibold : .regular))
+                .foregroundStyle(AppTheme.Colors.textPrimary)
+                .lineLimit(2)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(thread.title)
-                    .font(.system(size: 20, weight: model.activeAssistantThreadID == thread.id ? .semibold : .regular))
-                    .foregroundStyle(AppTheme.Colors.textPrimary)
-                    .lineLimit(1)
-
-                Text(thread.lastMessagePreview.isEmpty ? "No messages yet" : thread.lastMessagePreview)
-                    .font(.subheadline.weight(.regular))
-                    .foregroundStyle(AppTheme.Colors.textSecondary)
-                    .lineLimit(2)
-
-                Text(timeLabel(for: thread.updatedAt))
-                    .font(.caption.weight(.regular))
-                    .foregroundStyle(AppTheme.Colors.textSecondary.opacity(0.85))
-            }
-
-            Spacer(minLength: 0)
+            Text(timeLabel(for: thread.updatedAt))
+                .font(.system(size: 14, weight: .regular))
+                .foregroundStyle(AppTheme.Colors.textSecondary.opacity(0.9))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

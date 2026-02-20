@@ -85,7 +85,7 @@ struct HomeView: View {
 
     private var topBar: some View {
         HStack(spacing: 10) {
-            circleIconButton(systemName: "text.bubble") {
+            circleIconButton(systemName: "text.bubble", scale: 1.3) {
                 openThreadsScreen()
             }
 
