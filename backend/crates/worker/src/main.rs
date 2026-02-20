@@ -7,6 +7,7 @@ use tokio::time::{self, Duration};
 use tracing::{error, info};
 use uuid::Uuid;
 
+mod assistant_session_purge;
 mod job_actions;
 mod job_processing;
 mod privacy_delete;
@@ -108,6 +109,7 @@ async fn main() {
         worker_id = %worker_id,
         tick_seconds = config.tick_seconds,
         batch_size = config.batch_size,
+        assistant_session_purge_batch_size = config.assistant_session_purge_batch_size,
         lease_seconds = config.lease_seconds,
         per_user_concurrency_limit = config.per_user_concurrency_limit,
         apns_sandbox_endpoint_configured = config.apns_sandbox_endpoint.is_some(),
@@ -124,6 +126,12 @@ async fn main() {
                 break;
             }
             _ = ticker.tick() => {
+                assistant_session_purge::purge_expired_sessions(
+                    &store,
+                    &config,
+                    worker_id,
+                )
+                .await;
                 privacy_delete::process_delete_requests(
                     &store,
                     &config,

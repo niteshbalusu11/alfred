@@ -6,6 +6,8 @@ use crate::models::AssistantSessionStateEnvelope;
 
 use super::{Store, StoreError};
 
+const ASSISTANT_SESSION_USER_PURGE_BATCH_LIMIT: i64 = 200;
+
 #[derive(Debug, Clone)]
 pub struct AssistantEncryptedSessionRecord {
     pub session_id: Uuid,
@@ -183,18 +185,60 @@ impl Store {
         Ok(result.rows_affected())
     }
 
+    pub async fn purge_expired_assistant_encrypted_sessions_batch(
+        &self,
+        now: DateTime<Utc>,
+        limit: i64,
+    ) -> Result<u64, StoreError> {
+        if limit <= 0 {
+            return Err(StoreError::InvalidData(
+                "assistant encrypted session purge limit must be > 0".to_string(),
+            ));
+        }
+
+        let result = sqlx::query(
+            "WITH expired AS (
+                SELECT id
+                FROM assistant_encrypted_sessions
+                WHERE expires_at <= $1
+                ORDER BY expires_at ASC, id ASC
+                LIMIT $2
+                FOR UPDATE SKIP LOCKED
+             )
+             DELETE FROM assistant_encrypted_sessions sessions
+             USING expired
+             WHERE sessions.id = expired.id",
+        )
+        .bind(now)
+        .bind(limit)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(result.rows_affected())
+    }
+
     async fn purge_expired_assistant_encrypted_sessions(
         &self,
         user_id: Uuid,
         now: DateTime<Utc>,
     ) -> Result<(), StoreError> {
         sqlx::query(
-            "DELETE FROM assistant_encrypted_sessions
-             WHERE user_id = $1
-               AND expires_at <= $2",
+            "WITH expired AS (
+                SELECT id
+                FROM assistant_encrypted_sessions
+                WHERE user_id = $1
+                  AND expires_at <= $2
+                ORDER BY expires_at ASC, id ASC
+                LIMIT $3
+                FOR UPDATE SKIP LOCKED
+             )
+             DELETE FROM assistant_encrypted_sessions sessions
+             USING expired
+             WHERE sessions.id = expired.id",
         )
         .bind(user_id)
         .bind(now)
+        .bind(ASSISTANT_SESSION_USER_PURGE_BATCH_LIMIT)
         .execute(&self.pool)
         .await?;
 

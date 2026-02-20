@@ -60,6 +60,7 @@ pub struct ApiConfig {
 pub struct WorkerConfig {
     pub tick_seconds: u64,
     pub batch_size: u32,
+    pub assistant_session_purge_batch_size: u32,
     pub lease_seconds: u64,
     pub per_user_concurrency_limit: u32,
     pub retry_base_delay_seconds: u64,
@@ -285,6 +286,8 @@ impl WorkerConfig {
             Err(_) => 30,
         };
         let batch_size = parse_u32_env("WORKER_BATCH_SIZE", 25)?;
+        let assistant_session_purge_batch_size =
+            parse_u32_env("WORKER_ASSISTANT_SESSION_PURGE_BATCH_SIZE", 200)?;
         let lease_seconds = parse_u64_env("WORKER_LEASE_SECONDS", 60)?;
         let per_user_concurrency_limit = parse_u32_env("WORKER_PER_USER_CONCURRENCY_LIMIT", 1)?;
         let retry_base_delay_seconds = parse_u64_env("WORKER_RETRY_BASE_DELAY_SECONDS", 30)?;
@@ -297,6 +300,11 @@ impl WorkerConfig {
         if batch_size == 0 {
             return Err(ConfigError::InvalidConfiguration(
                 "WORKER_BATCH_SIZE must be greater than 0".to_string(),
+            ));
+        }
+        if assistant_session_purge_batch_size == 0 {
+            return Err(ConfigError::InvalidConfiguration(
+                "WORKER_ASSISTANT_SESSION_PURGE_BATCH_SIZE must be greater than 0".to_string(),
             ));
         }
         if lease_seconds == 0 {
@@ -384,6 +392,7 @@ impl WorkerConfig {
         Ok(Self {
             tick_seconds,
             batch_size,
+            assistant_session_purge_batch_size,
             lease_seconds,
             per_user_concurrency_limit,
             retry_base_delay_seconds,

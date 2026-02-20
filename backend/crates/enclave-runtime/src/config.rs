@@ -17,6 +17,8 @@ use shared::enclave_runtime::{
     assistant_key_attestation_signing_payload, attestation_signing_payload,
 };
 
+const DEFAULT_ASSISTANT_INGRESS_SESSION_TTL_SECONDS: u64 = 5_184_000;
+
 #[derive(Debug, Clone)]
 pub(crate) struct RuntimeConfig {
     pub(crate) bind_addr: String,
@@ -142,8 +144,10 @@ impl RuntimeConfig {
         if tee_attestation_challenge_timeout_ms == 0 {
             return Err("TEE_ATTESTATION_CHALLENGE_TIMEOUT_MS must be > 0".to_string());
         }
-        let assistant_session_ttl_seconds =
-            parse_u64_env("ASSISTANT_INGRESS_SESSION_TTL_SECONDS", 3600)?;
+        let assistant_session_ttl_seconds = parse_u64_env(
+            "ASSISTANT_INGRESS_SESSION_TTL_SECONDS",
+            DEFAULT_ASSISTANT_INGRESS_SESSION_TTL_SECONDS,
+        )?;
         if assistant_session_ttl_seconds == 0 {
             return Err("ASSISTANT_INGRESS_SESSION_TTL_SECONDS must be > 0".to_string());
         }

@@ -137,7 +137,7 @@ These vars control TEE/KMS-bound decrypt policy for connector refresh tokens:
 26. `ASSISTANT_INGRESS_PREVIOUS_PRIVATE_KEY` (optional previous base64 X25519 private key paired with previous key id)
 27. `ASSISTANT_INGRESS_PREVIOUS_KEY_EXPIRES_AT` (unix timestamp for previous key expiry; required outside local when previous key is configured)
 28. `ASSISTANT_INGRESS_KEY_TTL_SECONDS` (default: `900`; rolling attested-key expiry horizon returned to clients for the active ingress key)
-29. `ASSISTANT_INGRESS_SESSION_TTL_SECONDS` (default: `3600`; encrypted assistant session-state persistence TTL)
+29. `ASSISTANT_INGRESS_SESSION_TTL_SECONDS` (default: `5184000`; encrypted assistant session-state persistence TTL, 60 days)
 
 Non-local (`ALFRED_ENV=staging|production`) security guards:
 
@@ -170,6 +170,7 @@ Optional worker vars for APNs delivery abstraction:
 1. `APNS_SANDBOX_ENDPOINT` (HTTP endpoint used for sandbox device deliveries)
 2. `APNS_PRODUCTION_ENDPOINT` (HTTP endpoint used for production device deliveries)
 3. `APNS_AUTH_TOKEN` (optional bearer token attached to push delivery requests)
+4. `WORKER_ASSISTANT_SESSION_PURGE_BATCH_SIZE` (default: `200`; bounded expired assistant-session rows purged per worker tick)
 
 If no endpoint is configured for a device environment, worker delivery is simulated and still logged/audited for local development.
 
