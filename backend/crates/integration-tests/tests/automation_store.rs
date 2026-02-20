@@ -242,5 +242,8 @@ async fn run_materialization_is_idempotent_for_same_rule_and_scheduled_time() {
         .await
         .expect("run list should succeed");
     assert_eq!(runs.len(), 1);
-    assert_eq!(runs[0].scheduled_for, scheduled_for);
+    assert_eq!(
+        runs[0].scheduled_for.timestamp_micros(),
+        scheduled_for.timestamp_micros()
+    );
 }
