@@ -83,6 +83,12 @@ final class KittenEnglishPhonemizerTests: XCTestCase {
         XCTAssertEqual(result, "ˈaɪ ˈæm")
     }
 
+    func testTimezoneAbbreviationsUseLetterPronunciation() async throws {
+        let phonemizer = KittenEnglishPhonemizer(pronunciationDictionary: [:])
+        let result = try await phonemizer.phonemize("UTC PST")
+        XCTAssertEqual(result, "jˈuː tˈiː sˈiː pˈiː ˈɛs tˈiː")
+    }
+
     func testCityOverridesIncludeIndiaAndUSCities() async throws {
         let phonemizer = KittenEnglishPhonemizer(pronunciationDictionary: [:])
         let result = try await phonemizer.phonemize("Mumbai Chennai Kolkata Philadelphia")

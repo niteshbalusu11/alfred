@@ -29,7 +29,10 @@ final class KittenAssistantSpeechEngine: AssistantSpeechEngine {
 
     func speak(_ text: String) async throws {
         try Task.checkCancellation()
-        let samples = try await synthesizer.synthesize(text: text)
+        let normalizedText = KittenSpeechTextNormalizer.normalize(text)
+        guard !normalizedText.isEmpty else { return }
+
+        let samples = try await synthesizer.synthesize(text: normalizedText)
         try Task.checkCancellation()
         try audioPlayer.play(samples: samples)
     }
