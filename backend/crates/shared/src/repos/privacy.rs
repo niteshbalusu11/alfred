@@ -266,6 +266,10 @@ impl Store {
             .bind(user_id)
             .execute(&mut *tx)
             .await?;
+        sqlx::query("DELETE FROM automation_rules WHERE user_id = $1")
+            .bind(user_id)
+            .execute(&mut *tx)
+            .await?;
         sqlx::query("DELETE FROM user_preferences WHERE user_id = $1")
             .bind(user_id)
             .execute(&mut *tx)

@@ -52,6 +52,24 @@ This file is intentionally at repository root so coding agents can auto-discover
 5. Breaking protocol and contract changes are explicitly allowed pre-launch; optimize for clean boundaries rather than compatibility.
 6. Do not add new plaintext message-content logging or persistence in server-control-plane components.
 
+## Automation v2 Direction (Important)
+
+1. Automation migration tracker is GitHub issue `#208` with required sub-issues `#209` through `#214`.
+2. This migration is intentionally breaking:
+   1. no feature flags
+   2. no backward compatibility with legacy proactive job flows
+3. Replace hardcoded proactive worker actions (`MeetingReminder`, `MorningBrief`, `UrgentEmailCheck`) with generic `AUTOMATION_RUN` scheduling/execution.
+4. Target runtime flow:
+   1. iOS creates periodic automation rules with encrypted prompt envelopes
+   2. host stores sealed ciphertext prompt material and scheduling metadata only
+   3. worker claims due rules with lease safety and materializes runs idempotently (`{rule_id}:{scheduled_for}`)
+   4. automation execution happens through enclave RPC so prompt/output plaintext remains enclave-only
+   5. host sends encrypted APNs payload (`mutable-content`) and iOS Notification Service Extension decrypts/renders on-device
+5. Privacy boundary for this epic:
+   1. no host plaintext persistence/logging of automation prompt or result content
+   2. metadata-only audit/observability is allowed
+6. Keep existing reliability primitives intact: lease ownership, deterministic retries, idempotency, dead-letter handling.
+
 ## Required Workflow
 
 1. Run `just check-tools`.
@@ -131,9 +149,9 @@ Required architecture boundary:
 Code must remain modular by default. Do not keep adding logic to a single large file.
 
 1. Keep one clear responsibility per file/module.
-2. For handwritten source files, target `<= 500` lines.
-3. If a file grows beyond `500` lines, split it in the same issue unless there is a documented blocker.
-4. Do not increase line count in an already-large file (`> 500` lines) without first extracting modules/helpers.
+2. For handwritten source files, target `<= 800` lines.
+3. If a file grows beyond `800` lines, split it in the same issue unless there is a documented blocker.
+4. Do not increase line count in an already-large file (`> 800` lines) without first extracting modules/helpers.
 5. Allowed exceptions:
    1. generated code
    2. migration SQL
@@ -165,7 +183,7 @@ Code must remain modular by default. Do not keep adding logic to a single large 
 
 1. `docs/ui-spec.md` is the front-end source of truth for Phase I UI/UX.
 2. SwiftUI must stay modular and reusable; avoid monolithic screens.
-3. Target `<= 500` lines for handwritten Swift files.
+3. Target `<= 800` lines for handwritten Swift files.
 4. If touching a large front-end file, extract components/helpers in the same issue when practical.
 5. For front-end implementation, use relevant SwiftUI skills when applicable:
    1. `swiftui-ui-patterns`

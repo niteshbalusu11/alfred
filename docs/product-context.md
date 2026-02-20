@@ -1,6 +1,6 @@
 # Alfred Product Context (Canonical)
 
-- Last Updated: 2026-02-18
+- Last Updated: 2026-02-20
 - Audience: Engineers, coding agents, product collaborators
 - Purpose: Provide shared context on what Alfred is, why it exists, and how to build it safely.
 
@@ -14,6 +14,7 @@ Phase I (v1) focuses on iOS and Google integrations with LLM-backed assistant be
 2. Daily morning brief
 3. Urgent email alerts from Gmail
 4. Natural-language assistant queries over connected Google context
+5. Active migration (`#208`): replace hardcoded proactive worker jobs with client-defined periodic automation jobs, while keeping plaintext enclave-only
 
 Alfred is not trying to be a generic chatbot. It is a proactive assistant that takes useful actions and sends timely nudges with high reliability and explicit privacy controls.
 
@@ -77,6 +78,7 @@ Core components:
 6. Encrypted Postgres for operational state.
 7. TEE-backed sensitive execution path for token/data decryption and provider fetches.
 8. APNs pipeline for user notifications.
+9. Notification Service Extension decrypt/render path on iOS for encrypted automation push payloads.
 
 Reference docs:
 
@@ -100,6 +102,7 @@ Required controls:
 8. LLM prompt-injection safeguards and output schema validation before user-visible actions.
 9. Redacted LLM telemetry (model/latency/usage) without raw sensitive payload logging.
 10. Assistant intent resolution must remain enclave semantic-planner driven (no keyword-only routing in primary path).
+11. Automation prompt/output plaintext must remain enclave-only; host handles metadata + encrypted payloads only.
 
 Operating rule:
 

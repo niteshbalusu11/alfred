@@ -34,6 +34,7 @@ Current v1 scope:
 2. Daily morning brief (LLM-generated summary path).
 3. Urgent Gmail alerting (LLM prioritization path).
 4. Natural-language assistant query endpoint (for example, \"What meetings do I have today?\").
+5. Active migration: replace hardcoded proactive jobs with client-defined periodic automation jobs (tracker `#208`).
 
 The project intentionally avoids smart-home control in v1 to reduce reliability and liability risk.
 
@@ -117,6 +118,30 @@ The project intentionally avoids smart-home control in v1 to reduce reliability 
    2. User/assistant message body content must remain ciphertext outside the enclave.
 4. Breaking API/protocol changes remain acceptable pre-launch when preserving this boundary.
 5. Required labels for this workstream: `phase-1`, `P0`, `backend`, `content-blindness`.
+
+## Automation v2 Source Of Truth (2026-02-20)
+
+1. Tracker issue: `#208` (required execution issues `#209`, `#210`, `#211`, `#212`, `#213`, `#214`).
+2. Migration policy:
+   1. no feature flags
+   2. no backward compatibility with legacy proactive job behavior
+   3. remove legacy hardcoded worker dispatch paths as part of this line
+3. Architecture target:
+   1. iOS defines periodic automation rules and submits encrypted prompt envelope material
+   2. backend persists schedule metadata + sealed prompt ciphertext only
+   3. worker scheduler claims due rules via lease-safe claiming and materializes `AUTOMATION_RUN` jobs with deterministic idempotency keys (`{rule_id}:{scheduled_for}`)
+   4. enclave executes prompt workflow and returns encrypted notification artifacts (no host plaintext)
+   5. backend push sender emits encrypted APNs payload with `mutable-content`
+   6. iOS Notification Service Extension decrypts and rewrites visible notification content locally
+4. Non-negotiable privacy constraints:
+   1. host must not process or persist automation prompt/output plaintext
+   2. logs/audit must remain metadata-only and redacted
+   3. plaintext rendering happens on-device after NSE decrypt
+5. Worker reliability constraints remain mandatory:
+   1. lease ownership
+   2. deterministic retry classification
+   3. idempotent run materialization/execution
+   4. dead-letter behavior and observability metrics
 
 ## GitHub Issue-Driven Execution
 
@@ -306,8 +331,8 @@ Important:
 4. Run `just ios-test` when logic tests were added/changed or when explicitly requested.
 5. Follow `docs/ui-spec.md` for navigation, theme, state UX, and screen responsibilities.
 6. Keep SwiftUI files modular:
-   1. Target `<= 500` lines for handwritten files.
-   2. If a file exceeds `500` lines, split it unless blocked and explicitly documented.
+   1. Target `<= 800` lines for handwritten files.
+   2. If a file exceeds `800` lines, split it unless blocked and explicitly documented.
 7. Prefer reusable components and shared patterns over one-off large view files.
 8. Use SwiftUI skills when relevant:
    1. `swiftui-ui-patterns`
@@ -370,9 +395,9 @@ Use this sequence for most engineering tasks:
 Avoid monolithic files. New work should keep files focused and easy to review.
 
 1. Prefer one responsibility per file/module.
-2. For handwritten source files, keep a target size of `<= 500` lines.
-3. When a file exceeds `500` lines, split it into submodules in the same issue unless blocked.
-4. If touching a file already over `500` lines, do not add net-new complexity without extracting logic first.
+2. For handwritten source files, keep a target size of `<= 800` lines.
+3. When a file exceeds `800` lines, split it into submodules in the same issue unless blocked.
+4. If touching a file already over `800` lines, do not add net-new complexity without extracting logic first.
 5. Exceptions are limited to:
    1. generated files
    2. migration SQL

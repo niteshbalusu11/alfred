@@ -33,6 +33,8 @@ pub async fn reset_database(pool: &PgPool) {
         "TRUNCATE TABLE
             outbound_action_idempotency,
             dead_letter_jobs,
+            automation_runs,
+            automation_rules,
             jobs,
             audit_events,
             oauth_states,
