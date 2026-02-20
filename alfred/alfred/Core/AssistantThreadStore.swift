@@ -67,7 +67,9 @@ actor AssistantThreadStore {
         }()
         let normalizedSnapshot = AssistantThreadStoreSnapshot(
             activeThreadID: normalizedActiveID,
-            threads: normalizedThreads
+            threads: normalizedThreads,
+            pendingSessionDeletionIDs: normalizedPendingSessionDeletionIDs(snapshot.pendingSessionDeletionIDs),
+            pendingDeleteAll: snapshot.pendingDeleteAll
         )
         let data = try encoder.encode(normalizedSnapshot)
         try data.write(to: try fileURL(for: userID), options: [.atomic])
@@ -140,6 +142,10 @@ actor AssistantThreadStore {
             return lhs.createdAt > rhs.createdAt
         }
         return lhs.updatedAt > rhs.updatedAt
+    }
+
+    private func normalizedPendingSessionDeletionIDs(_ values: [UUID]) -> [UUID] {
+        Array(Set(values)).sorted { $0.uuidString < $1.uuidString }
     }
 }
 

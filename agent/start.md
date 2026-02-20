@@ -315,6 +315,16 @@ Important:
    3. `swiftui-performance-audit`
    4. `swift-concurrency-expert` for async/concurrency changes
 
+### Swift Concurrency Guardrails For iOS/Test Stability
+
+1. Prefer storing simple UI sync/flags state as value types on `AppModel` instead of separate actor-isolated reference helpers.
+2. Do not add `@MainActor ObservableObject` helper objects when the owning `AppModel` can hold the same state directly.
+3. Be strict about `Task` lifetime in tests and model helpers; cancel or scope tasks so teardown does not deallocate active actor-bound tasks.
+4. Any crash signature involving `swift_task_deinitOnExecutorMainActorBackDeploy` or `TaskLocal::StopLookupScope` is a blocker and must be fixed before merge.
+5. After concurrency-related changes, run:
+   1. `just ios-test`
+   2. targeted tests for model construction/deallocation paths
+
 ## Standard Agent Workflow
 
 Use this sequence for most engineering tasks:

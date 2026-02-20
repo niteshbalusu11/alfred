@@ -71,6 +71,24 @@ public final class AlfredAPIClient: Sendable {
         )
     }
 
+    public func deleteAssistantSession(sessionID: UUID) async throws -> OkResponse {
+        try await send(
+            method: "DELETE",
+            path: "/v1/assistant/sessions/\(sessionID.uuidString.lowercased())",
+            body: Optional<EmptyBody>.none,
+            requiresAuth: true
+        )
+    }
+
+    public func deleteAllAssistantSessions() async throws -> OkResponse {
+        try await send(
+            method: "DELETE",
+            path: "/v1/assistant/sessions",
+            body: Optional<EmptyBody>.none,
+            requiresAuth: true
+        )
+    }
+
     public func fetchAssistantAttestedKey(_ request: AssistantAttestedKeyRequest) async throws -> AssistantAttestedKeyResponse {
         try await send(
             method: "POST",

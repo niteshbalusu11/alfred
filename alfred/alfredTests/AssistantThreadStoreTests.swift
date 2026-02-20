@@ -72,7 +72,9 @@ final class AssistantThreadStoreTests: XCTestCase {
 
         let snapshot = AssistantThreadStoreSnapshot(
             activeThreadID: firstThread.id,
-            threads: [firstThread, secondThread]
+            threads: [firstThread, secondThread],
+            pendingSessionDeletionIDs: [firstSessionID],
+            pendingDeleteAll: false
         )
 
         try await store.save(snapshot, for: "user_123")
@@ -82,6 +84,8 @@ final class AssistantThreadStoreTests: XCTestCase {
         XCTAssertEqual(loadedSnapshot.threads.count, 2)
         XCTAssertEqual(loadedSnapshot.threads[0].id, secondThread.id)
         XCTAssertEqual(loadedSnapshot.threads[1].id, firstThread.id)
+        XCTAssertEqual(loadedSnapshot.pendingSessionDeletionIDs, [firstSessionID])
+        XCTAssertFalse(loadedSnapshot.pendingDeleteAll)
     }
 
     func testClearRemovesSavedSnapshot() async throws {
@@ -108,6 +112,28 @@ final class AssistantThreadStoreTests: XCTestCase {
         let loadedSnapshot = try await store.load(for: "user_123")
 
         XCTAssertEqual(loadedSnapshot, .empty)
+    }
+
+    func testLoadLegacySnapshotWithoutPendingDeletionFieldsDefaultsPendingState() async throws {
+        let directoryURL = makeTemporaryDirectoryURL()
+        let store = AssistantThreadStore(storageDirectoryURL: directoryURL)
+        let payload = """
+        {
+          "active_thread_id": null,
+          "threads": []
+        }
+        """
+        let fileURL = directoryURL
+            .appendingPathComponent("assistant_threads_dXNlcl8xMjM")
+            .appendingPathExtension("json")
+        try Data(payload.utf8).write(to: fileURL, options: [.atomic])
+
+        let loadedSnapshot = try await store.load(for: "user_123")
+
+        XCTAssertEqual(loadedSnapshot.activeThreadID, nil)
+        XCTAssertEqual(loadedSnapshot.threads, [])
+        XCTAssertEqual(loadedSnapshot.pendingSessionDeletionIDs, [])
+        XCTAssertFalse(loadedSnapshot.pendingDeleteAll)
     }
 
     private func makeTemporaryDirectoryURL() -> URL {

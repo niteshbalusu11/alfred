@@ -63,6 +63,45 @@ extension AppModel {
         }
     }
 
+    func deleteAssistantThread(_ threadID: UUID) {
+        let deletion = removeAssistantThreadLocally(threadID)
+        guard deletion.removed else { return }
+
+        if let sessionID = deletion.sessionID {
+            assistantThreadSyncState.pendingSessionDeletionIDs.insert(sessionID)
+            assistantThreadSyncState.lastSyncErrorMessage = nil
+        }
+
+        Task { [weak self] in
+            guard let self else { return }
+
+            await persistAssistantThreadsIgnoringErrors()
+            await syncAssistantThreadDeletionsIfNeeded()
+        }
+    }
+
+    func deleteAllAssistantThreads() {
+        let sessionIDs = assistantThreads.compactMap(\.sessionID)
+        resetAssistantThreadState()
+
+        assistantThreadSyncState.pendingDeleteAll = true
+        assistantThreadSyncState.pendingSessionDeletionIDs = Set(sessionIDs)
+        assistantThreadSyncState.lastSyncErrorMessage = nil
+
+        Task { [weak self] in
+            guard let self else { return }
+            await persistAssistantThreadsIgnoringErrors()
+            await syncAssistantThreadDeletionsIfNeeded()
+        }
+    }
+
+    func retryAssistantThreadSync() {
+        Task { [weak self] in
+            guard let self else { return }
+            await syncAssistantThreadDeletionsIfNeeded()
+        }
+    }
+
     func assistantSessionIDForActiveThread() -> UUID? {
         guard let activeAssistantThreadID else { return nil }
         return assistantThreads.first(where: { $0.id == activeAssistantThreadID })?.sessionID
@@ -74,6 +113,10 @@ extension AppModel {
         timestamp: Date = Date(),
         targetThreadID: UUID? = nil
     ) {
+        if assistantThreadSyncState.pendingDeleteAll {
+            assistantThreadSyncState.pendingDeleteAll = false
+        }
+
         let userMessage = AssistantConversationMapper.userMessage(from: query, createdAt: timestamp)
         let assistantMessage = AssistantConversationMapper.assistantMessage(from: response, createdAt: timestamp)
         let newMessages = [userMessage, assistantMessage]
@@ -111,6 +154,7 @@ extension AppModel {
         do {
             let snapshot = try await assistantThreadStore.load(for: userID)
             applyAssistantThreadSnapshot(snapshot)
+            await syncAssistantThreadDeletionsIfNeeded()
         } catch {
             AppLogger.error(
                 "Failed to restore assistant threads from local store for user \(userID).",
@@ -142,11 +186,16 @@ extension AppModel {
         activeAssistantThreadID = nil
         assistantConversation = []
         assistantResponseText = ""
+        assistantThreadSyncState = .empty
     }
 
     private func applyAssistantThreadSnapshot(_ snapshot: AssistantThreadStoreSnapshot) {
         let sortedThreads = snapshot.threads.sorted(by: assistantThreadUpdatedAtDescending)
         assistantThreads = sortedThreads
+        assistantThreadSyncState.pendingSessionDeletionIDs = Set(snapshot.pendingSessionDeletionIDs)
+        assistantThreadSyncState.pendingDeleteAll = snapshot.pendingDeleteAll
+        assistantThreadSyncState.syncInFlight = false
+        assistantThreadSyncState.lastSyncErrorMessage = nil
 
         if let activeThreadID = snapshot.activeThreadID,
            let activeThread = sortedThreads.first(where: { $0.id == activeThreadID })
@@ -174,9 +223,111 @@ extension AppModel {
 
         let snapshot = AssistantThreadStoreSnapshot(
             activeThreadID: activeAssistantThreadID,
-            threads: assistantThreads
+            threads: assistantThreads,
+            pendingSessionDeletionIDs: assistantThreadSyncState.pendingSessionIDsInStableOrder,
+            pendingDeleteAll: assistantThreadSyncState.pendingDeleteAll
         )
         try await assistantThreadStore.save(snapshot, for: userID)
+    }
+
+    private func removeAssistantThreadLocally(_ threadID: UUID) -> (removed: Bool, sessionID: UUID?) {
+        guard let index = assistantThreads.firstIndex(where: { $0.id == threadID }) else {
+            return (false, nil)
+        }
+
+        let removedThread = assistantThreads.remove(at: index)
+        selectFallbackAssistantThreadAfterLocalDeletion(deletedThreadID: threadID)
+        return (true, removedThread.sessionID)
+    }
+
+    private func selectFallbackAssistantThreadAfterLocalDeletion(deletedThreadID: UUID) {
+        guard activeAssistantThreadID == deletedThreadID else {
+            return
+        }
+
+        guard let latestThread = assistantThreads.first else {
+            activeAssistantThreadID = nil
+            assistantConversation = []
+            assistantResponseText = ""
+            return
+        }
+
+        activeAssistantThreadID = latestThread.id
+        assistantConversation = latestThread.messages
+        assistantResponseText = latestThread.messages.last(where: { $0.role == .assistant })?.text ?? ""
+    }
+
+    private func syncAssistantThreadDeletionsIfNeeded() async {
+        guard assistantStorageUserID != nil else { return }
+        guard !assistantThreadSyncState.syncInFlight, assistantThreadSyncState.hasPendingSync else { return }
+        assistantThreadSyncState.syncInFlight = true
+
+        defer {
+            assistantThreadSyncState.syncInFlight = false
+        }
+
+        if assistantThreadSyncState.pendingDeleteAll {
+            do {
+                _ = try await apiClient.deleteAllAssistantSessions()
+                assistantThreadSyncState.pendingDeleteAll = false
+                assistantThreadSyncState.pendingSessionDeletionIDs = []
+                assistantThreadSyncState.lastSyncErrorMessage = nil
+                await persistAssistantThreadsIgnoringErrors()
+                return
+            } catch {
+                assistantThreadSyncState.lastSyncErrorMessage = assistantThreadSyncErrorMessage(from: error)
+                return
+            }
+        }
+
+        for sessionID in assistantThreadSyncState.pendingSessionIDsInStableOrder {
+            do {
+                _ = try await apiClient.deleteAssistantSession(sessionID: sessionID)
+                assistantThreadSyncState.pendingSessionDeletionIDs.remove(sessionID)
+                if assistantThreadSyncState.pendingSessionDeletionIDs.isEmpty {
+                    assistantThreadSyncState.lastSyncErrorMessage = nil
+                }
+            } catch AlfredAPIClientError.serverError(let statusCode, _, _) where statusCode == 404 {
+                assistantThreadSyncState.pendingSessionDeletionIDs.remove(sessionID)
+                if assistantThreadSyncState.pendingSessionDeletionIDs.isEmpty {
+                    assistantThreadSyncState.lastSyncErrorMessage = nil
+                }
+            } catch {
+                assistantThreadSyncState.lastSyncErrorMessage = assistantThreadSyncErrorMessage(from: error)
+                await persistAssistantThreadsIgnoringErrors()
+                return
+            }
+        }
+
+        assistantThreadSyncState.lastSyncErrorMessage = nil
+        await persistAssistantThreadsIgnoringErrors()
+    }
+
+    private func persistAssistantThreadsIgnoringErrors() async {
+        do {
+            try await persistAssistantThreadsForCurrentUser()
+        } catch {
+            AppLogger.warning("Failed to persist assistant thread snapshot after local mutation.")
+        }
+    }
+
+    private func assistantThreadSyncErrorMessage(from error: Error) -> String {
+        switch error {
+        case let AlfredAPIClientError.serverError(statusCode, _, _):
+            if statusCode == 429 || (500...599).contains(statusCode) {
+                return "Thread deletion sync failed due to a temporary server issue. Retry to sync."
+            }
+            if statusCode == 401 {
+                return "Thread deletion sync requires a valid sign-in session."
+            }
+            return "Thread deletion sync failed (\(statusCode)). Retry to sync."
+        case is URLError:
+            return "Thread deletion sync failed due to a network issue. Retry to sync."
+        case AlfredAPIClientError.unauthorized:
+            return "Thread deletion sync requires a valid sign-in session."
+        default:
+            return "Thread deletion sync failed. Retry to sync."
+        }
     }
 
     private func assistantThreadUpdatedAtDescending(

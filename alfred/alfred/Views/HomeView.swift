@@ -5,6 +5,7 @@ struct HomeView: View {
     @StateObject private var transcriptionController = VoiceTranscriptionController()
     @State private var responseSpeaker = AssistantResponseSpeaker()
     @State private var composerText = ""
+    @State private var isThreadDrawerPresented = false
     @FocusState private var isComposerFocused: Bool
 
     private var liveDraftText: String {
@@ -64,6 +65,11 @@ struct HomeView: View {
             inputDock
         }
         .appScreenBackground()
+        .overlay {
+            if isThreadDrawerPresented {
+                threadDrawerOverlay
+            }
+        }
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer(minLength: 0)
@@ -75,6 +81,7 @@ struct HomeView: View {
         .onDisappear {
             transcriptionController.stopRecording()
             responseSpeaker.stop()
+            isThreadDrawerPresented = false
         }
         .onChange(of: transcriptionController.transcript) { _, newValue in
             guard transcriptionController.isListening else { return }
@@ -87,13 +94,53 @@ struct HomeView: View {
 
     private var topBar: some View {
         HStack(spacing: 10) {
-            circleIconButton(systemName: "line.3.horizontal")
+            circleIconButton(systemName: "line.3.horizontal") {
+                openThreadDrawer()
+            }
 
             Spacer(minLength: 0)
             circleIconButton(systemName: "square.and.pencil") {
                 clearChat()
             }
         }
+    }
+
+    private var threadDrawerOverlay: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Color.black.opacity(0.52)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        closeThreadDrawer()
+                    }
+
+                AssistantThreadDrawerView(
+                    model: model,
+                    onSelectThread: { threadID in
+                        model.selectAssistantThread(threadID)
+                        closeThreadDrawer()
+                    },
+                    onDeleteThread: { threadID in
+                        model.deleteAssistantThread(threadID)
+                    },
+                    onDeleteAll: {
+                        model.deleteAllAssistantThreads()
+                    },
+                    onRetrySync: {
+                        model.retryAssistantThreadSync()
+                    },
+                    onClose: {
+                        closeThreadDrawer()
+                    }
+                )
+                .frame(width: min(360, proxy.size.width * 0.86))
+                .padding(.leading, 10)
+                .padding(.vertical, 10)
+                .transition(.move(edge: .leading).combined(with: .opacity))
+            }
+        }
+        .zIndex(20)
     }
 
     private var inputDock: some View {
@@ -268,6 +315,19 @@ struct HomeView: View {
         composerText = ""
         isComposerFocused = false
         model.clearAssistantConversation()
+    }
+
+    private func openThreadDrawer() {
+        isComposerFocused = false
+        withAnimation(.spring(response: 0.26, dampingFraction: 0.9)) {
+            isThreadDrawerPresented = true
+        }
+    }
+
+    private func closeThreadDrawer() {
+        withAnimation(.spring(response: 0.24, dampingFraction: 0.92)) {
+            isThreadDrawerPresented = false
+        }
     }
 }
 

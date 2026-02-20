@@ -62,6 +62,72 @@ final class AppModelAssistantThreadStateTests: XCTestCase {
         XCTAssertEqual(model.assistantConversation.last?.text, "First thread answer")
     }
 
+    func testDeleteAssistantThreadRemovesLocalThreadAndPromotesMostRecentThread() {
+        let model = makeModel()
+        let firstSessionID = UUID()
+        let secondSessionID = UUID()
+
+        model.applySuccessfulAssistantTurn(
+            query: "first question",
+            response: makeAssistantResponse(sessionID: firstSessionID, text: "First thread answer"),
+            timestamp: Date(timeIntervalSince1970: 100)
+        )
+        let firstThreadID = try! XCTUnwrap(model.assistantThreads.first?.id)
+
+        model.clearAssistantConversation()
+        model.applySuccessfulAssistantTurn(
+            query: "second question",
+            response: makeAssistantResponse(sessionID: secondSessionID, text: "Second thread answer"),
+            timestamp: Date(timeIntervalSince1970: 200)
+        )
+
+        model.deleteAssistantThread(firstThreadID)
+
+        XCTAssertEqual(model.assistantThreads.count, 1)
+        XCTAssertEqual(model.assistantThreads.first?.sessionID, secondSessionID)
+        XCTAssertEqual(model.activeAssistantThreadID, model.assistantThreads.first?.id)
+        XCTAssertEqual(model.assistantConversation.last?.text, "Second thread answer")
+        XCTAssertTrue(model.assistantThreadSyncState.pendingSessionDeletionIDs.contains(firstSessionID))
+    }
+
+    func testDeleteAllAssistantThreadsClearsConversationAndMarksDeleteAllForSync() {
+        let model = makeModel()
+        let firstSessionID = UUID()
+        let secondSessionID = UUID()
+
+        model.applySuccessfulAssistantTurn(
+            query: "first question",
+            response: makeAssistantResponse(sessionID: firstSessionID, text: "First thread answer"),
+            timestamp: Date(timeIntervalSince1970: 100)
+        )
+        model.clearAssistantConversation()
+        model.applySuccessfulAssistantTurn(
+            query: "second question",
+            response: makeAssistantResponse(sessionID: secondSessionID, text: "Second thread answer"),
+            timestamp: Date(timeIntervalSince1970: 200)
+        )
+
+        model.deleteAllAssistantThreads()
+
+        XCTAssertTrue(model.assistantThreads.isEmpty)
+        XCTAssertNil(model.activeAssistantThreadID)
+        XCTAssertTrue(model.assistantConversation.isEmpty)
+        XCTAssertTrue(model.assistantThreadSyncState.pendingDeleteAll)
+        XCTAssertEqual(
+            Set(model.assistantThreadSyncState.pendingSessionDeletionIDs),
+            Set([firstSessionID, secondSessionID])
+        )
+    }
+
+    func testDeleteAllAssistantThreadsMarksDeleteAllEvenWithoutLocalThreads() {
+        let model = makeModel()
+
+        model.deleteAllAssistantThreads()
+
+        XCTAssertTrue(model.assistantThreadSyncState.pendingDeleteAll)
+        XCTAssertTrue(model.assistantThreadSyncState.pendingSessionDeletionIDs.isEmpty)
+    }
+
     private func makeModel() -> AppModel {
         let clerk = Clerk.preview { preview in
             preview.isSignedIn = false
