@@ -5,6 +5,7 @@ struct HomeView: View {
     @StateObject private var transcriptionController = VoiceTranscriptionController()
     @State private var responseSpeaker = AssistantResponseSpeaker()
     @State private var composerText = ""
+    @State private var lastSpokenAssistantMessageID: UUID?
     @FocusState private var isComposerFocused: Bool
 
     private var liveDraftText: String {
@@ -64,6 +65,7 @@ struct HomeView: View {
             inputDock
         }
         .appScreenBackground()
+        .ignoresSafeArea(.keyboard, edges: .bottom)
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer(minLength: 0)
@@ -80,17 +82,16 @@ struct HomeView: View {
             guard transcriptionController.isListening else { return }
             composerText = newValue
         }
-        .onChange(of: model.assistantResponseText) { _, newValue in
-            responseSpeaker.speak(newValue)
-        }
     }
 
     private var topBar: some View {
         HStack(spacing: 10) {
-            circleIconButton(systemName: "line.3.horizontal")
+            circleIconButton(systemName: "text.bubble", scale: 1.3) {
+                openThreadsScreen()
+            }
 
             Spacer(minLength: 0)
-            circleIconButton(systemName: "square.and.pencil") {
+            circleIconButton(systemName: "square.and.pencil", scale: 1.3) {
                 clearChat()
             }
         }
@@ -130,6 +131,10 @@ struct HomeView: View {
             composerContent
                 .padding(10)
                 .glassEffect(.regular.tint(AppTheme.Colors.paper.opacity(0.05)).interactive(), in: .rect(cornerRadius: 22))
+                .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .onTapGesture {
+                    isComposerFocused = true
+                }
         } else {
             composerContent
                 .padding(10)
@@ -138,6 +143,10 @@ struct HomeView: View {
                     RoundedRectangle(cornerRadius: 22, style: .continuous)
                         .stroke(AppTheme.Colors.paper.opacity(0.12), lineWidth: 1)
                 )
+                .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .onTapGesture {
+                    isComposerFocused = true
+                }
         }
     }
 
@@ -152,6 +161,7 @@ struct HomeView: View {
                 }
                 .font(.system(size: 17, weight: .regular))
                 .foregroundStyle(AppTheme.Colors.textPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
 
@@ -209,12 +219,16 @@ struct HomeView: View {
         }
     }
 
-    private func circleIconButton(systemName: String, action: @escaping () -> Void = {}) -> some View {
+    private func circleIconButton(
+        systemName: String,
+        scale: CGFloat = 1.0,
+        action: @escaping () -> Void = {}
+    ) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 15, weight: .bold))
+                .font(.system(size: 15 * scale, weight: .bold))
                 .foregroundStyle(AppTheme.Colors.textPrimary)
-                .frame(width: 40, height: 40)
+                .frame(width: 40 * scale, height: 40 * scale)
                 .background(AppTheme.Colors.surface.opacity(0.65), in: Circle())
         }
         .buttonStyle(.plain)
@@ -254,11 +268,27 @@ struct HomeView: View {
     private func sendMessage() {
         let query = composerText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return }
+
+        let previousAssistantMessageID = model.assistantConversation.last(where: { $0.role == .assistant })?.id
         transcriptionController.stopRecording()
         composerText = ""
         isComposerFocused = false
-        Task {
+
+        Task { @MainActor in
             await model.queryAssistant(query: query)
+
+            guard let latestAssistantMessage = model.assistantConversation.last(where: { $0.role == .assistant }) else {
+                return
+            }
+            guard latestAssistantMessage.id != previousAssistantMessageID else {
+                return
+            }
+            guard latestAssistantMessage.id != lastSpokenAssistantMessageID else {
+                return
+            }
+
+            lastSpokenAssistantMessageID = latestAssistantMessage.id
+            responseSpeaker.speak(latestAssistantMessage.text)
         }
     }
 
@@ -269,6 +299,14 @@ struct HomeView: View {
         isComposerFocused = false
         model.clearAssistantConversation()
     }
+
+    private func openThreadsScreen() {
+        isComposerFocused = false
+        withAnimation(.spring(response: 0.24, dampingFraction: 0.92)) {
+            model.selectedTab = .threads
+        }
+    }
+
 }
 
 #Preview {

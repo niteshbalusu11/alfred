@@ -150,6 +150,17 @@ Code must remain modular by default. Do not keep adding logic to a single large 
 2. UI tests are optional for now for UI-only changes.
 3. Always run `just ios-build`; run `just ios-test` for core logic test changes.
 
+## Swift Concurrency Guardrails (Non-Negotiable)
+
+1. Avoid stacking actor-isolated reference types for plain UI state.
+2. If `AppModel` already owns state on `@MainActor`, prefer value-type state (`struct`) on `AppModel` over a separate `@MainActor ObservableObject` helper.
+3. Do not introduce auxiliary `@MainActor ObservableObject` instances solely for flags/counters/error text.
+4. In iOS tests, avoid long-lived background `Task` trees that outlive the test method unless explicitly canceled.
+5. If you add async state helpers, verify teardown safety by running at least:
+   1. `just ios-test`
+   2. targeted tests that construct/deallocate the owning model repeatedly
+6. Treat any crash with stacks containing `swift_task_deinitOnExecutorMainActorBackDeploy` or `TaskLocal::StopLookupScope` as a concurrency-lifecycle regression and refactor ownership/isolation before merge.
+
 ## Frontend UI Rules (Non-Negotiable)
 
 1. `docs/ui-spec.md` is the front-end source of truth for Phase I UI/UX.
@@ -161,9 +172,9 @@ Code must remain modular by default. Do not keep adding logic to a single large 
    2. `swiftui-view-refactor`
    3. `swiftui-performance-audit`
    4. `swift-concurrency-expert` when async behavior changes
-6. Visual style baseline is the monochrome cartoony theme in `docs/ui-spec.md`:
-   1. four-tone grayscale palette (`ink`, `charcoal`, `smoke`, `paper`)
-   2. thick outlines + hard shadows for depth
+6. Visual style baseline is the clean dark theme in `docs/ui-spec.md`:
+   1. dark neutral palette with high-contrast typography
+   2. subtle borders + soft shadows (avoid heavy outlined/boxy styling)
    3. no ad hoc hue accents unless explicitly approved
 
 ## Frontend Speech Direction (Important)

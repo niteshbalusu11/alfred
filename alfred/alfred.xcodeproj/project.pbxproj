@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C36BA2CA2F48CE9F00B2F152 /* IQKeyboardManagerSwift in Frameworks */ = {isa = PBXBuildFile; productRef = C36BA2C92F48CE9F00B2F152 /* IQKeyboardManagerSwift */; };
 		C3AABD012F40C03E00D8F6E7 /* AlfredAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = C3AABD002F40C03E00D8F6E7 /* AlfredAPIClient */; };
 		C3AABD2A2F4133F400D8F6E7 /* ClerkKit in Frameworks */ = {isa = PBXBuildFile; productRef = C3AABD292F4133F400D8F6E7 /* ClerkKit */; };
 		C3AABD2C2F4133F400D8F6E7 /* ClerkKitUI in Frameworks */ = {isa = PBXBuildFile; productRef = C3AABD2B2F4133F400D8F6E7 /* ClerkKitUI */; };
@@ -46,6 +47,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C36BA2CA2F48CE9F00B2F152 /* IQKeyboardManagerSwift in Frameworks */,
 				C3AABD012F40C03E00D8F6E7 /* AlfredAPIClient in Frameworks */,
 				C3AABD2A2F4133F400D8F6E7 /* ClerkKit in Frameworks */,
 				C3AABD2C2F4133F400D8F6E7 /* ClerkKitUI in Frameworks */,
@@ -105,6 +107,7 @@
 				C3AABD292F4133F400D8F6E7 /* ClerkKit */,
 				C3AABD2B2F4133F400D8F6E7 /* ClerkKitUI */,
 				D10100022F50000000D8F6E7 /* onnxruntime */,
+				C36BA2C92F48CE9F00B2F152 /* IQKeyboardManagerSwift */,
 			);
 			productName = alfred;
 			productReference = C3E6B8BE2F3FFFBC00C03FF0 /* alfred.app */;
@@ -165,6 +168,7 @@
 				C3AABCFF2F40C03E00D8F6E7 /* XCLocalSwiftPackageReference "Packages/AlfredAPIClient" */,
 				C3AABD282F4133F400D8F6E7 /* XCRemoteSwiftPackageReference "clerk-ios" */,
 				D10100012F50000000D8F6E7 /* XCRemoteSwiftPackageReference "onnxruntime-swift-package-manager" */,
+				C36BA2C82F48CE9F00B2F152 /* XCRemoteSwiftPackageReference "IQKeyboardManager" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = C3E6B8BF2F3FFFBC00C03FF0 /* Products */;
@@ -498,6 +502,14 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		C36BA2C82F48CE9F00B2F152 /* XCRemoteSwiftPackageReference "IQKeyboardManager" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/hackiftekhar/IQKeyboardManager";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 8.0.2;
+			};
+		};
 		C3AABD282F4133F400D8F6E7 /* XCRemoteSwiftPackageReference "clerk-ios" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/clerk/clerk-ios";
@@ -517,6 +529,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		C36BA2C92F48CE9F00B2F152 /* IQKeyboardManagerSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C36BA2C82F48CE9F00B2F152 /* XCRemoteSwiftPackageReference "IQKeyboardManager" */;
+			productName = IQKeyboardManagerSwift;
+		};
 		C3AABD002F40C03E00D8F6E7 /* AlfredAPIClient */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = AlfredAPIClient;

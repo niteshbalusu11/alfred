@@ -7,6 +7,8 @@
 
 import ClerkKit
 import ClerkKitUI
+import IQKeyboardManagerSwift
+import IQKeyboardToolbarManager
 import SwiftUI
 
 @main
@@ -14,9 +16,14 @@ struct alfredApp: App {
     private let clerk: Clerk
     @StateObject private var model: AppModel
 
+    @MainActor
     init() {
         let publishableKey = AppConfiguration.requiredClerkPublishableKey
         let configuredClerk = Clerk.configure(publishableKey: publishableKey)
+        IQKeyboardManager.shared.isEnabled = true
+        IQKeyboardManager.shared.keyboardDistance = 12
+        IQKeyboardManager.shared.resignOnTouchOutside = true
+        IQKeyboardToolbarManager.shared.isEnabled = false
         self.clerk = configuredClerk
         _model = StateObject(wrappedValue: AppModel(clerk: configuredClerk))
     }

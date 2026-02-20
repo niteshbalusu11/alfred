@@ -73,6 +73,7 @@ final class AppModel: ObservableObject {
     @Published var activeAssistantThreadID: UUID?
     @Published var assistantConversation: [AssistantConversationMessage] = []
     @Published var assistantResponseText = ""
+    @Published var assistantThreadSyncState = AssistantThreadSyncState.empty
 
     let apiBaseURL: URL
 

@@ -6,23 +6,45 @@ struct AppTabShellView: View {
     @Environment(Clerk.self) private var clerk
     @ObservedObject var model: AppModel
     @State private var tabPaths: [AppTab: NavigationPath] = AppTabShellView.defaultPaths()
+    private let swipeTabs: [AppTab] = [.threads, .home, .activity, .connectors]
+    private let visibleTopTabs: [AppTab] = [.home, .activity, .connectors]
+    private let threadsHomeButtonSize: CGFloat = 47
 
     var body: some View {
         VStack(spacing: 0) {
-            topTabHeader
+            if !isThreadsSelected {
+                topTabHeader
+                    .transition(.asymmetric(
+                        insertion: .opacity.animation(.easeInOut(duration: 0.18)),
+                        removal: .opacity.animation(.easeInOut(duration: 0.14))
+                    ))
+            }
 
-            TabView(selection: $model.selectedTab) {
-                ForEach(AppTab.allCases, id: \.self) { tab in
-                    NavigationStack(path: binding(for: tab)) {
-                        tabContent(for: tab)
-                            .toolbar(.hidden, for: .navigationBar)
+            ZStack(alignment: .topTrailing) {
+                TabView(selection: $model.selectedTab) {
+                    ForEach(swipeTabs, id: \.self) { tab in
+                        NavigationStack(path: binding(for: tab)) {
+                            tabContent(for: tab)
+                                .toolbar(.hidden, for: .navigationBar)
+                        }
+                        .tag(tab)
                     }
-                    .tag(tab)
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+
+                if isThreadsSelected {
+                    threadsBackToHomeButton
+                        .transition(.opacity.animation(.easeInOut(duration: 0.18)))
                 }
             }
-            .tabViewStyle(.page(indexDisplayMode: .never))
         }
         .appScreenBackground()
+        .animation(.easeInOut(duration: 0.2), value: isThreadsSelected)
+        .sensoryFeedback(.selection, trigger: model.selectedTab)
+    }
+
+    private var isThreadsSelected: Bool {
+        model.selectedTab == .threads
     }
 
     private static func defaultPaths() -> [AppTab: NavigationPath] {
@@ -76,8 +98,8 @@ struct AppTabShellView: View {
     }
 
     private var tabPicker: some View {
-        Picker("Top Tabs", selection: $model.selectedTab) {
-            ForEach(AppTab.allCases, id: \.self) { tab in
+        Picker("Top Tabs", selection: topTabSelectionBinding) {
+            ForEach(visibleTopTabs, id: \.self) { tab in
                 Text(tab.title)
                     .tag(tab)
             }
@@ -86,11 +108,63 @@ struct AppTabShellView: View {
         .accessibilityLabel("Top tabs")
     }
 
+    private var topTabSelectionBinding: Binding<AppTab> {
+        Binding(
+            get: {
+                visibleTopTabs.contains(model.selectedTab) ? model.selectedTab : .home
+            },
+            set: { newValue in
+                model.selectedTab = newValue
+            }
+        )
+    }
+
+    @ViewBuilder
+    private var threadsBackToHomeButton: some View {
+        let action = {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                model.selectedTab = .home
+            }
+        }
+
+        if #available(iOS 26, *) {
+            Button(action: action) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 18, weight: .semibold))
+                    .frame(width: threadsHomeButtonSize, height: threadsHomeButtonSize)
+            }
+            .buttonStyle(.plain)
+            .glassEffect(.regular.interactive(), in: .circle)
+            .padding(.top, 8)
+            .padding(.trailing, AppTheme.Layout.screenPadding)
+            .accessibilityLabel("Back to home")
+        } else {
+            Button(action: action) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(AppTheme.Colors.textPrimary)
+                    .frame(width: threadsHomeButtonSize, height: threadsHomeButtonSize)
+                    .background(AppTheme.Colors.surfaceElevated.opacity(0.95))
+                    .clipShape(Circle())
+                    .overlay(
+                        Circle()
+                            .stroke(AppTheme.Colors.outline, lineWidth: AppTheme.Layout.cartoonStrokeWidth)
+                    )
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 8)
+            .padding(.trailing, AppTheme.Layout.screenPadding)
+            .accessibilityLabel("Back to home")
+        }
+    }
+
     @ViewBuilder
     private func tabContent(for tab: AppTab) -> some View {
         switch tab {
         case .home:
             HomeView(model: model)
+        case .threads:
+            AssistantThreadsView(model: model, reservesTrailingOverlaySpace: true)
         case .activity:
             ActivityView(model: model)
         case .connectors:

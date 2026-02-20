@@ -17,8 +17,8 @@ struct AppCard<Content: View>: View {
                     .stroke(AppTheme.Colors.outline, lineWidth: AppTheme.Layout.cartoonStrokeWidth)
             )
             .shadow(
-                color: AppTheme.Colors.shadow.opacity(0.85),
-                radius: 0,
+                color: AppTheme.Colors.shadow.opacity(0.36),
+                radius: AppTheme.Layout.softShadowRadius,
                 x: 0,
                 y: AppTheme.Layout.cartoonShadowOffset
             )

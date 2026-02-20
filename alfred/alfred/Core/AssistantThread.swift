@@ -86,11 +86,41 @@ nonisolated struct AssistantConversationThread: Identifiable, Equatable, Codable
 nonisolated struct AssistantThreadStoreSnapshot: Equatable, Codable, Sendable {
     var activeThreadID: UUID?
     var threads: [AssistantConversationThread]
+    var pendingSessionDeletionIDs: [UUID]
+    var pendingDeleteAll: Bool
 
     enum CodingKeys: String, CodingKey {
         case activeThreadID = "active_thread_id"
         case threads
+        case pendingSessionDeletionIDs = "pending_session_deletion_ids"
+        case pendingDeleteAll = "pending_delete_all"
     }
 
-    static let empty = AssistantThreadStoreSnapshot(activeThreadID: nil, threads: [])
+    init(
+        activeThreadID: UUID?,
+        threads: [AssistantConversationThread],
+        pendingSessionDeletionIDs: [UUID] = [],
+        pendingDeleteAll: Bool = false
+    ) {
+        self.activeThreadID = activeThreadID
+        self.threads = threads
+        self.pendingSessionDeletionIDs = pendingSessionDeletionIDs
+        self.pendingDeleteAll = pendingDeleteAll
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        activeThreadID = try container.decodeIfPresent(UUID.self, forKey: .activeThreadID)
+        threads = try container.decode([AssistantConversationThread].self, forKey: .threads)
+        pendingSessionDeletionIDs =
+            try container.decodeIfPresent([UUID].self, forKey: .pendingSessionDeletionIDs) ?? []
+        pendingDeleteAll = try container.decodeIfPresent(Bool.self, forKey: .pendingDeleteAll) ?? false
+    }
+
+    static let empty = AssistantThreadStoreSnapshot(
+        activeThreadID: nil,
+        threads: [],
+        pendingSessionDeletionIDs: [],
+        pendingDeleteAll: false
+    )
 }
