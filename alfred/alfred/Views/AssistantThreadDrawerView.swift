@@ -12,18 +12,18 @@ struct AssistantThreadDrawerView: View {
     @State private var showDeleteAllConfirmation = false
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 0) {
             header
 
             if let message = model.assistantThreadSyncState.lastSyncErrorMessage {
-                syncStateBanner(
+                syncStatusLabel(
                     message: message,
                     showsProgress: false,
                     actionTitle: "Retry",
                     action: onRetrySync
                 )
             } else if model.assistantThreadSyncState.syncInFlight {
-                syncStateBanner(
+                syncStatusLabel(
                     message: "Syncing thread deletions...",
                     showsProgress: true,
                     actionTitle: nil,
@@ -31,19 +31,33 @@ struct AssistantThreadDrawerView: View {
                 )
             }
 
+            Divider()
+                .overlay(AppTheme.Colors.outline.opacity(0.2))
+
             threadListContent
 
-            deleteAllButton
+            if !model.assistantThreads.isEmpty {
+                footerActions
+            }
         }
-        .padding(14)
         .frame(maxHeight: .infinity, alignment: .top)
-        .background(AppTheme.Colors.surfaceElevated)
-        .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(AppTheme.Colors.paper.opacity(0.2), lineWidth: 2)
+        .background(
+            LinearGradient(
+                colors: [
+                    AppTheme.Colors.background.opacity(0.985),
+                    AppTheme.Colors.surface.opacity(0.98),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
         )
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .shadow(color: AppTheme.Colors.shadow.opacity(0.9), radius: 0, x: 0, y: 6)
+        .overlay(
+            Rectangle()
+                .fill(AppTheme.Colors.outline.opacity(0.18))
+                .frame(width: 1),
+            alignment: .trailing
+        )
+        .shadow(color: AppTheme.Colors.shadow.opacity(0.45), radius: 14, x: 0, y: 0)
         .confirmationDialog("Delete all threads?", isPresented: $showDeleteAllConfirmation) {
             Button("Delete All", role: .destructive) {
                 onDeleteAll()
@@ -57,41 +71,44 @@ struct AssistantThreadDrawerView: View {
     private var header: some View {
         HStack(spacing: 8) {
             Text("Threads")
-                .font(.title3.weight(.black))
+                .font(.title2.weight(.semibold))
                 .foregroundStyle(AppTheme.Colors.textPrimary)
 
             Spacer(minLength: 0)
 
             Button(action: onClose) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 13, weight: .black))
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(AppTheme.Colors.textPrimary)
-                    .frame(width: 32, height: 32)
-                    .background(AppTheme.Colors.surface.opacity(0.8), in: Circle())
+                    .frame(width: 34, height: 34)
+                    .background(AppTheme.Colors.surfaceElevated.opacity(0.8), in: Circle())
             }
             .buttonStyle(.plain)
         }
+        .padding(.horizontal, 16)
+        .padding(.top, 18)
+        .padding(.bottom, 12)
     }
 
     @ViewBuilder
     private var threadListContent: some View {
         if model.assistantThreads.isEmpty {
-            VStack(spacing: 8) {
+            VStack(spacing: 10) {
                 Text("No threads yet")
-                    .font(.headline.weight(.bold))
+                    .font(.headline.weight(.semibold))
                     .foregroundStyle(AppTheme.Colors.textPrimary)
                 Text("Start chatting and your recent threads will appear here.")
-                    .font(.footnote.weight(.semibold))
+                    .font(.footnote.weight(.regular))
                     .multilineTextAlignment(.center)
                     .foregroundStyle(AppTheme.Colors.textSecondary)
             }
             .frame(maxWidth: .infinity, minHeight: 180)
-            .padding(.horizontal, 10)
-            .background(AppTheme.Colors.surface.opacity(0.35), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .padding(.horizontal, 16)
+            .frame(maxHeight: .infinity, alignment: .center)
         } else {
             ScrollView {
-                LazyVStack(spacing: 8) {
-                    ForEach(model.assistantThreads) { thread in
+                LazyVStack(spacing: 0) {
+                    ForEach(Array(model.assistantThreads.enumerated()), id: \.element.id) { index, thread in
                         AssistantThreadDrawerRow(
                             thread: thread,
                             isActive: model.activeAssistantThreadID == thread.id,
@@ -102,6 +119,12 @@ struct AssistantThreadDrawerView: View {
                                 onDeleteThread(thread.id)
                             }
                         )
+
+                        if index < model.assistantThreads.count - 1 {
+                            Divider()
+                                .overlay(AppTheme.Colors.outline.opacity(0.12))
+                                .padding(.leading, 16)
+                        }
                     }
                 }
             }
@@ -109,20 +132,29 @@ struct AssistantThreadDrawerView: View {
         }
     }
 
-    private var deleteAllButton: some View {
-        Button(role: .destructive) {
-            showDeleteAllConfirmation = true
-        } label: {
-            Text("Delete All Threads")
-                .frame(maxWidth: .infinity)
+    private var footerActions: some View {
+        HStack {
+            Button(role: .destructive) {
+                showDeleteAllConfirmation = true
+            } label: {
+                Label("Delete All", systemImage: "trash")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(AppTheme.Colors.textSecondary)
+            }
+            .buttonStyle(.plain)
+
+            Spacer(minLength: 0)
         }
-        .buttonStyle(.appSecondary)
-        .disabled(model.assistantThreads.isEmpty)
-        .opacity(model.assistantThreads.isEmpty ? 0.4 : 1)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .overlay(alignment: .top) {
+            Divider()
+                .overlay(AppTheme.Colors.outline.opacity(0.12))
+        }
     }
 
     @ViewBuilder
-    private func syncStateBanner(
+    private func syncStatusLabel(
         message: String,
         showsProgress: Bool,
         actionTitle: String?,
@@ -132,26 +164,23 @@ struct AssistantThreadDrawerView: View {
             if showsProgress {
                 ProgressView()
                     .progressViewStyle(.circular)
-                    .tint(AppTheme.Colors.paper)
+                    .tint(AppTheme.Colors.textSecondary)
             }
 
             Text(message)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(AppTheme.Colors.textPrimary)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(AppTheme.Colors.textSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
-                    .font(.caption.weight(.black))
-                    .foregroundStyle(AppTheme.Colors.ink)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(AppTheme.Colors.paper, in: Capsule(style: .continuous))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.Colors.textPrimary)
                     .buttonStyle(.plain)
             }
         }
-        .padding(10)
-        .background(AppTheme.Colors.surface.opacity(0.7), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
     }
 }
 
@@ -165,41 +194,32 @@ private struct AssistantThreadDrawerRow: View {
         Button(action: onSelect) {
             HStack(alignment: .top, spacing: 10) {
                 Circle()
-                    .fill(isActive ? AppTheme.Colors.paper : AppTheme.Colors.smoke.opacity(0.25))
-                    .frame(width: 8, height: 8)
-                    .padding(.top, 6)
+                    .fill(isActive ? AppTheme.Colors.textPrimary : AppTheme.Colors.outline.opacity(0.45))
+                    .frame(width: isActive ? 8 : 6, height: isActive ? 8 : 6)
+                    .padding(.top, 8)
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(thread.title)
-                        .font(.subheadline.weight(.bold))
+                        .font(.system(size: 19, weight: isActive ? .semibold : .regular))
                         .foregroundStyle(AppTheme.Colors.textPrimary)
                         .lineLimit(1)
 
                     Text(thread.lastMessagePreview.isEmpty ? "No messages yet" : thread.lastMessagePreview)
-                        .font(.caption.weight(.semibold))
+                        .font(.subheadline.weight(.regular))
                         .foregroundStyle(AppTheme.Colors.textSecondary)
                         .lineLimit(2)
 
-                    Text("Updated \(Self.relativeFormatter.localizedString(for: thread.updatedAt, relativeTo: Date()))")
-                        .font(.caption2.weight(.semibold))
+                    Text(Self.timeLabel(for: thread.updatedAt))
+                        .font(.caption.weight(.regular))
                         .foregroundStyle(AppTheme.Colors.textSecondary.opacity(0.85))
                 }
 
                 Spacer(minLength: 0)
             }
-            .padding(10)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(isActive ? AppTheme.Colors.surface.opacity(0.95) : AppTheme.Colors.surface.opacity(0.6))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(
-                        isActive ? AppTheme.Colors.paper.opacity(0.35) : AppTheme.Colors.paper.opacity(0.08),
-                        lineWidth: isActive ? 2 : 1
-                    )
-            )
+            .background(isActive ? AppTheme.Colors.surfaceElevated.opacity(0.55) : Color.clear)
         }
         .buttonStyle(.plain)
         .contextMenu {
@@ -209,9 +229,36 @@ private struct AssistantThreadDrawerRow: View {
         }
     }
 
-    private static let relativeFormatter: RelativeDateTimeFormatter = {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
+    private static let weekdayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE"
         return formatter
     }()
+
+    private static let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        return formatter
+    }()
+
+    private static let shortDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .none
+        return formatter
+    }()
+
+    private static func timeLabel(for date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) {
+            return timeFormatter.string(from: date)
+        }
+        if calendar.isDateInYesterday(date) {
+            return "Yesterday"
+        }
+        if let days = calendar.dateComponents([.day], from: date, to: Date()).day, days < 7 {
+            return weekdayFormatter.string(from: date)
+        }
+        return shortDateFormatter.string(from: date)
+    }
 }

@@ -13,7 +13,7 @@ If a front-end issue conflicts with ad hoc styling choices, follow this spec and
 ## 2) Product Direction
 
 1. Dark-mode-only experience for Phase I.
-2. Monochrome cartoony visual language is the app-wide style baseline.
+2. Clean dark visual language is the app-wide style baseline.
 3. Home is the primary interaction surface.
 4. Connectors must be first-class and future-extensible (Google now, others later).
 5. Top-tab navigation remains the primary app structure after auth, with swipe paging between tabs.
@@ -80,7 +80,7 @@ Architecture rules:
 2. Host preferences and notification settings.
 3. Host privacy actions (revoke, delete-all) with explicit confirmations.
 
-## 6) Visual System (Monochrome Cartoon, Dark-Only)
+## 6) Visual System (Clean Dark, Dark-Only)
 
 Core palette (four-tone baseline):
 
@@ -92,9 +92,9 @@ Core palette (four-tone baseline):
 Component styling rules:
 
 1. Use semantic theme tokens; do not hard-code ad hoc colors in feature views.
-2. Keep palette grayscale-only for Phase I (no hue accents unless explicitly approved).
-3. Use thick outlines and hard shadows for cartoony depth.
-4. Prefer bold typography weight for primary headlines and buttons.
+2. Keep palette neutral/dark-first for Phase I (no ad hoc hue accents unless explicitly approved).
+3. Use subtle borders and soft shadows; avoid thick outlined or boxy presentation.
+4. Prefer clear, modern typography hierarchy for primary headlines and buttons.
 5. Preserve strong text contrast and Dynamic Type support.
 
 ## 7) State UX Rules (Required)
@@ -139,7 +139,7 @@ Before handoff:
 
 1. `just ios-build` passes.
 2. `just ios-test` passes when core logic/state behavior changed.
-3. UI follows tab architecture and monochrome-cartoon theme token usage.
+3. UI follows tab architecture and clean-dark theme token usage.
 4. Loading/empty/error states are implemented for touched screens.
 5. Files respect modularity and size constraints from this spec and `AGENTS.md`.
 

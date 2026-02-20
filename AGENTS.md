@@ -172,9 +172,9 @@ Code must remain modular by default. Do not keep adding logic to a single large 
    2. `swiftui-view-refactor`
    3. `swiftui-performance-audit`
    4. `swift-concurrency-expert` when async behavior changes
-6. Visual style baseline is the monochrome cartoony theme in `docs/ui-spec.md`:
-   1. four-tone grayscale palette (`ink`, `charcoal`, `smoke`, `paper`)
-   2. thick outlines + hard shadows for depth
+6. Visual style baseline is the clean dark theme in `docs/ui-spec.md`:
+   1. dark neutral palette with high-contrast typography
+   2. subtle borders + soft shadows (avoid heavy outlined/boxy styling)
    3. no ad hoc hue accents unless explicitly approved
 
 ## Frontend Speech Direction (Important)

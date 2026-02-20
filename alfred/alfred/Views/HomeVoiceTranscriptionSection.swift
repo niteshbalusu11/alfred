@@ -5,6 +5,7 @@ struct HomeVoiceTranscriptionSection: View {
     @ObservedObject var model: AppModel
     @StateObject private var transcriptionController = VoiceTranscriptionController()
     @State private var responseSpeaker = AssistantResponseSpeaker()
+    @State private var lastSpokenAssistantMessageID: UUID?
 
     private var statusBadge: (title: String, style: AppStatusBadge.Style) {
         switch transcriptionController.status {
@@ -75,9 +76,6 @@ struct HomeVoiceTranscriptionSection: View {
             transcriptionController.stopRecording()
             responseSpeaker.stop()
         }
-        .onChange(of: model.assistantResponseText) { _, newValue in
-            responseSpeaker.speak(newValue)
-        }
     }
 
     private var waveformView: some View {
@@ -125,7 +123,21 @@ struct HomeVoiceTranscriptionSection: View {
 
                 Button {
                     Task {
+                        let previousAssistantMessageID = model.assistantConversation.last(where: { $0.role == .assistant })?.id
                         await model.queryAssistant(query: transcriptionController.transcript)
+
+                        guard let latestAssistantMessage = model.assistantConversation.last(where: { $0.role == .assistant }) else {
+                            return
+                        }
+                        guard latestAssistantMessage.id != previousAssistantMessageID else {
+                            return
+                        }
+                        guard latestAssistantMessage.id != lastSpokenAssistantMessageID else {
+                            return
+                        }
+
+                        lastSpokenAssistantMessageID = latestAssistantMessage.id
+                        responseSpeaker.speak(latestAssistantMessage.text)
                     }
                 } label: {
                     CircleActionButtonGlyph(

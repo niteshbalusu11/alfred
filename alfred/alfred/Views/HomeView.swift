@@ -6,6 +6,7 @@ struct HomeView: View {
     @State private var responseSpeaker = AssistantResponseSpeaker()
     @State private var composerText = ""
     @State private var isThreadDrawerPresented = false
+    @State private var lastSpokenAssistantMessageID: UUID?
     @FocusState private var isComposerFocused: Bool
 
     private var liveDraftText: String {
@@ -70,6 +71,7 @@ struct HomeView: View {
                 threadDrawerOverlay
             }
         }
+        .simultaneousGesture(threadDrawerEdgeGesture)
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer(minLength: 0)
@@ -86,9 +88,6 @@ struct HomeView: View {
         .onChange(of: transcriptionController.transcript) { _, newValue in
             guard transcriptionController.isListening else { return }
             composerText = newValue
-        }
-        .onChange(of: model.assistantResponseText) { _, newValue in
-            responseSpeaker.speak(newValue)
         }
     }
 
@@ -114,6 +113,7 @@ struct HomeView: View {
                     .onTapGesture {
                         closeThreadDrawer()
                     }
+                    .simultaneousGesture(threadDrawerDismissGesture)
 
                 AssistantThreadDrawerView(
                     model: model,
@@ -138,6 +138,7 @@ struct HomeView: View {
                 .padding(.leading, 10)
                 .padding(.vertical, 10)
                 .transition(.move(edge: .leading).combined(with: .opacity))
+                .simultaneousGesture(threadDrawerDismissGesture)
             }
         }
         .zIndex(20)
@@ -301,11 +302,27 @@ struct HomeView: View {
     private func sendMessage() {
         let query = composerText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return }
+
+        let previousAssistantMessageID = model.assistantConversation.last(where: { $0.role == .assistant })?.id
         transcriptionController.stopRecording()
         composerText = ""
         isComposerFocused = false
-        Task {
+
+        Task { @MainActor in
             await model.queryAssistant(query: query)
+
+            guard let latestAssistantMessage = model.assistantConversation.last(where: { $0.role == .assistant }) else {
+                return
+            }
+            guard latestAssistantMessage.id != previousAssistantMessageID else {
+                return
+            }
+            guard latestAssistantMessage.id != lastSpokenAssistantMessageID else {
+                return
+            }
+
+            lastSpokenAssistantMessageID = latestAssistantMessage.id
+            responseSpeaker.speak(latestAssistantMessage.text)
         }
     }
 
@@ -328,6 +345,33 @@ struct HomeView: View {
         withAnimation(.spring(response: 0.24, dampingFraction: 0.92)) {
             isThreadDrawerPresented = false
         }
+    }
+
+    private var threadDrawerEdgeGesture: some Gesture {
+        DragGesture(minimumDistance: 16, coordinateSpace: .local)
+            .onEnded { value in
+                guard !isThreadDrawerPresented else { return }
+
+                let horizontalDistance = value.translation.width
+                let verticalDistance = abs(value.translation.height)
+                let startedNearLeadingEdge = value.startLocation.x <= 36
+
+                guard startedNearLeadingEdge, horizontalDistance > 64, verticalDistance < 54 else { return }
+                openThreadDrawer()
+            }
+    }
+
+    private var threadDrawerDismissGesture: some Gesture {
+        DragGesture(minimumDistance: 16, coordinateSpace: .local)
+            .onEnded { value in
+                guard isThreadDrawerPresented else { return }
+
+                let horizontalDistance = value.translation.width
+                let verticalDistance = abs(value.translation.height)
+                guard horizontalDistance < -56, verticalDistance < 54 else { return }
+
+                closeThreadDrawer()
+            }
     }
 }
 
