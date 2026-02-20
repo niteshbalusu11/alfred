@@ -11,20 +11,32 @@ struct AppTabShellView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            topTabHeader
+            if !isThreadsSelected {
+                topTabHeader
+            }
 
-            TabView(selection: $model.selectedTab) {
-                ForEach(swipeTabs, id: \.self) { tab in
-                    NavigationStack(path: binding(for: tab)) {
-                        tabContent(for: tab)
-                            .toolbar(.hidden, for: .navigationBar)
+            ZStack(alignment: .topTrailing) {
+                TabView(selection: $model.selectedTab) {
+                    ForEach(swipeTabs, id: \.self) { tab in
+                        NavigationStack(path: binding(for: tab)) {
+                            tabContent(for: tab)
+                                .toolbar(.hidden, for: .navigationBar)
+                        }
+                        .tag(tab)
                     }
-                    .tag(tab)
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+
+                if isThreadsSelected {
+                    threadsBackToHomeButton
                 }
             }
-            .tabViewStyle(.page(indexDisplayMode: .never))
         }
         .appScreenBackground()
+    }
+
+    private var isThreadsSelected: Bool {
+        model.selectedTab == .threads
     }
 
     private static func defaultPaths() -> [AppTab: NavigationPath] {
@@ -97,6 +109,45 @@ struct AppTabShellView: View {
                 model.selectedTab = newValue
             }
         )
+    }
+
+    @ViewBuilder
+    private var threadsBackToHomeButton: some View {
+        let action = {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                model.selectedTab = .home
+            }
+        }
+
+        if #available(iOS 26, *) {
+            Button(action: action) {
+                Image(systemName: "chevron.right")
+                    .font(.headline.weight(.semibold))
+                    .frame(width: 36, height: 36)
+            }
+            .buttonStyle(.plain)
+            .glassEffect(.regular.interactive(), in: .circle)
+            .padding(.top, 8)
+            .padding(.trailing, AppTheme.Layout.screenPadding)
+            .accessibilityLabel("Back to home")
+        } else {
+            Button(action: action) {
+                Image(systemName: "chevron.right")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(AppTheme.Colors.textPrimary)
+                    .frame(width: 36, height: 36)
+                    .background(AppTheme.Colors.surfaceElevated.opacity(0.95))
+                    .clipShape(Circle())
+                    .overlay(
+                        Circle()
+                            .stroke(AppTheme.Colors.outline, lineWidth: AppTheme.Layout.cartoonStrokeWidth)
+                    )
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 8)
+            .padding(.trailing, AppTheme.Layout.screenPadding)
+            .accessibilityLabel("Back to home")
+        }
     }
 
     @ViewBuilder
