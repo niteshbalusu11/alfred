@@ -320,3 +320,67 @@ async fn assistant_encrypted_session_global_purge_is_bounded_and_non_traffic_dep
     .expect("active session remaining query should succeed");
     assert_eq!(active_remaining, 1);
 }
+
+#[tokio::test]
+#[serial]
+async fn assistant_encrypted_session_user_scoped_purge_is_bounded_per_call() {
+    let store = support::test_store().await;
+    support::reset_database(store.pool()).await;
+
+    let now = Utc::now();
+    let expired_now = now - Duration::days(61);
+    let user_id = Uuid::new_v4();
+
+    let expired_state = AssistantSessionStateEnvelope {
+        version: "v1".to_string(),
+        algorithm: "x25519-chacha20poly1305".to_string(),
+        key_id: "assistant-ingress-v1".to_string(),
+        nonce: "nonce-expired-user-purge".to_string(),
+        ciphertext: "ciphertext-expired-user-purge".to_string(),
+        expires_at: expired_now,
+    };
+
+    for _ in 0..201 {
+        store
+            .upsert_assistant_encrypted_session(
+                user_id,
+                Uuid::new_v4(),
+                &expired_state,
+                expired_now,
+                1,
+            )
+            .await
+            .expect("expired session insert should succeed");
+    }
+
+    let first_expired_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)::bigint
+         FROM assistant_encrypted_sessions
+         WHERE user_id = $1
+           AND expires_at <= $2",
+    )
+    .bind(user_id)
+    .bind(now)
+    .fetch_one(store.pool())
+    .await
+    .expect("expired count query before purge should succeed");
+    assert_eq!(first_expired_count, 201);
+
+    let _ = store
+        .load_assistant_encrypted_session(user_id, Uuid::new_v4(), now)
+        .await
+        .expect("user-scoped lookup should succeed");
+
+    let after_single_lookup_purge: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)::bigint
+         FROM assistant_encrypted_sessions
+         WHERE user_id = $1
+           AND expires_at <= $2",
+    )
+    .bind(user_id)
+    .bind(now)
+    .fetch_one(store.pool())
+    .await
+    .expect("expired count query after purge should succeed");
+    assert_eq!(after_single_lookup_purge, 1);
+}
