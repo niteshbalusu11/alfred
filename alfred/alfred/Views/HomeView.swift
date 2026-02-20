@@ -80,6 +80,7 @@ struct HomeView: View {
                 .padding(.bottom, keyboardInset)
         }
         .appScreenBackground()
+        .ignoresSafeArea(.keyboard, edges: .bottom)
         .animation(.easeOut(duration: 0.22), value: keyboardInset)
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
