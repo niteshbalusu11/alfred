@@ -13,6 +13,7 @@ pub const ENCLAVE_RPC_PATH_FETCH_ASSISTANT_ATTESTED_KEY: &str = "/v1/rpc/assista
 pub const ENCLAVE_RPC_PATH_PROCESS_ASSISTANT_QUERY: &str = "/v1/rpc/assistant/query";
 pub const ENCLAVE_RPC_PATH_GENERATE_MORNING_BRIEF: &str = "/v1/rpc/assistant/morning-brief";
 pub const ENCLAVE_RPC_PATH_GENERATE_URGENT_EMAIL_SUMMARY: &str = "/v1/rpc/assistant/urgent-email";
+pub const ENCLAVE_RPC_PATH_EXECUTE_AUTOMATION: &str = "/v1/rpc/assistant/automation/execute";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttestedIdentityPayload {
@@ -167,6 +168,60 @@ pub struct EnclaveRpcProcessAssistantQueryResponse {
     pub envelope: crate::models::AssistantEncryptedResponseEnvelope,
     #[serde(default)]
     pub session_state: Option<crate::models::AssistantSessionStateEnvelope>,
+    pub attested_identity: AttestedIdentityPayload,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EnclaveRpcExecuteAutomationRequest {
+    pub contract_version: String,
+    pub request_id: String,
+    pub user_id: uuid::Uuid,
+    pub automation_rule_id: uuid::Uuid,
+    pub automation_run_id: uuid::Uuid,
+    pub scheduled_for: chrono::DateTime<chrono::Utc>,
+    pub prompt_envelope: crate::models::AutomationPromptEnvelope,
+    #[serde(default)]
+    pub recipient_devices: Vec<EnclaveAutomationRecipientDevice>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EnclaveAutomationRecipientDevice {
+    pub device_id: String,
+    pub key_id: String,
+    pub algorithm: String,
+    pub public_key: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EnclaveAutomationEncryptedNotificationEnvelope {
+    pub version: String,
+    pub algorithm: String,
+    pub key_id: String,
+    pub request_id: String,
+    pub sender_public_key: String,
+    pub nonce: String,
+    pub ciphertext: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EnclaveAutomationNotificationArtifact {
+    pub device_id: String,
+    pub envelope: EnclaveAutomationEncryptedNotificationEnvelope,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EnclaveRpcExecuteAutomationResponse {
+    pub contract_version: String,
+    pub request_id: String,
+    pub should_notify: bool,
+    #[serde(default)]
+    pub notification_artifacts: Vec<EnclaveAutomationNotificationArtifact>,
+    pub metadata: HashMap<String, String>,
     pub attested_identity: AttestedIdentityPayload,
 }
 

@@ -536,6 +536,14 @@ components:
         environment:
           type: string
           enum: [sandbox, production]
+        notification_key_algorithm:
+          type: string
+          nullable: true
+          enum: [x25519-chacha20poly1305]
+        notification_public_key:
+          type: string
+          nullable: true
+          description: Base64-encoded 32-byte X25519 public key.
     SendTestNotificationRequest:
       type: object
       properties:

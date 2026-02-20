@@ -281,4 +281,6 @@ pub struct DeviceRegistration {
     pub device_id: String,
     pub apns_token: String,
     pub environment: ApnsEnvironment,
+    pub notification_key_algorithm: Option<String>,
+    pub notification_public_key: Option<String>,
 }

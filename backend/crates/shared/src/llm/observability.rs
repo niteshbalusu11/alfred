@@ -15,6 +15,7 @@ pub enum LlmExecutionSource {
     ApiAssistantQuery,
     WorkerMorningBrief,
     WorkerUrgentEmail,
+    WorkerAutomationRun,
 }
 
 impl LlmExecutionSource {
@@ -23,6 +24,7 @@ impl LlmExecutionSource {
             Self::ApiAssistantQuery => "api_assistant_query",
             Self::WorkerMorningBrief => "worker_morning_brief",
             Self::WorkerUrgentEmail => "worker_urgent_email",
+            Self::WorkerAutomationRun => "worker_automation_run",
         }
     }
 }

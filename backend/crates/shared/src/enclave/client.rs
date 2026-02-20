@@ -3,24 +3,26 @@ use chrono::Utc;
 mod conversions;
 
 use super::{
-    CompleteGoogleConnectResponse, ENCLAVE_RPC_AUTH_NONCE_HEADER,
+    AutomationRecipientDevice, CompleteGoogleConnectResponse, ENCLAVE_RPC_AUTH_NONCE_HEADER,
     ENCLAVE_RPC_AUTH_SIGNATURE_HEADER, ENCLAVE_RPC_AUTH_TIMESTAMP_HEADER,
     ENCLAVE_RPC_CONTRACT_VERSION, ENCLAVE_RPC_CONTRACT_VERSION_HEADER,
     ENCLAVE_RPC_PATH_COMPLETE_GOOGLE_CONNECT, ENCLAVE_RPC_PATH_EXCHANGE_GOOGLE_TOKEN,
-    ENCLAVE_RPC_PATH_FETCH_ASSISTANT_ATTESTED_KEY, ENCLAVE_RPC_PATH_FETCH_GOOGLE_CALENDAR_EVENTS,
+    ENCLAVE_RPC_PATH_EXECUTE_AUTOMATION, ENCLAVE_RPC_PATH_FETCH_ASSISTANT_ATTESTED_KEY,
+    ENCLAVE_RPC_PATH_FETCH_GOOGLE_CALENDAR_EVENTS,
     ENCLAVE_RPC_PATH_FETCH_GOOGLE_URGENT_EMAIL_CANDIDATES, ENCLAVE_RPC_PATH_GENERATE_MORNING_BRIEF,
     ENCLAVE_RPC_PATH_GENERATE_URGENT_EMAIL_SUMMARY, ENCLAVE_RPC_PATH_PROCESS_ASSISTANT_QUERY,
     ENCLAVE_RPC_PATH_REVOKE_GOOGLE_TOKEN, EnclaveRpcAuthConfig,
     EnclaveRpcCompleteGoogleConnectRequest, EnclaveRpcCompleteGoogleConnectResponse,
     EnclaveRpcError, EnclaveRpcErrorEnvelope, EnclaveRpcExchangeGoogleTokenRequest,
-    EnclaveRpcExchangeGoogleTokenResponse, EnclaveRpcFetchAssistantAttestedKeyRequest,
+    EnclaveRpcExchangeGoogleTokenResponse, EnclaveRpcExecuteAutomationRequest,
+    EnclaveRpcExecuteAutomationResponse, EnclaveRpcFetchAssistantAttestedKeyRequest,
     EnclaveRpcFetchAssistantAttestedKeyResponse, EnclaveRpcFetchGoogleCalendarEventsRequest,
     EnclaveRpcFetchGoogleCalendarEventsResponse, EnclaveRpcFetchGoogleUrgentEmailCandidatesRequest,
     EnclaveRpcFetchGoogleUrgentEmailCandidatesResponse, EnclaveRpcGenerateMorningBriefRequest,
     EnclaveRpcGenerateMorningBriefResponse, EnclaveRpcGenerateUrgentEmailSummaryRequest,
     EnclaveRpcGenerateUrgentEmailSummaryResponse, EnclaveRpcProcessAssistantQueryRequest,
     EnclaveRpcProcessAssistantQueryResponse, EnclaveRpcRevokeGoogleTokenRequest,
-    EnclaveRpcRevokeGoogleTokenResponse, ExchangeGoogleTokenResponse,
+    EnclaveRpcRevokeGoogleTokenResponse, ExchangeGoogleTokenResponse, ExecuteAutomationResponse,
     FetchAssistantAttestedKeyResponse, FetchGoogleCalendarEventsResponse,
     FetchGoogleUrgentEmailCandidatesResponse, GenerateMorningBriefResponse,
     GenerateUrgentEmailSummaryResponse, ProcessAssistantQueryResponse, ProviderOperation,
@@ -250,6 +252,51 @@ impl EnclaveRpcClient {
         if response.request_id != payload.request_id {
             return Err(EnclaveRpcError::RpcResponseInvalid {
                 message: "enclave rpc response request_id mismatch for assistant query".to_string(),
+            });
+        }
+
+        response.try_into()
+    }
+
+    pub async fn execute_automation_run(
+        &self,
+        user_id: uuid::Uuid,
+        automation_rule_id: uuid::Uuid,
+        automation_run_id: uuid::Uuid,
+        scheduled_for: chrono::DateTime<chrono::Utc>,
+        prompt_envelope: crate::models::AutomationPromptEnvelope,
+        recipient_devices: Vec<AutomationRecipientDevice>,
+    ) -> Result<ExecuteAutomationResponse, EnclaveRpcError> {
+        let payload = EnclaveRpcExecuteAutomationRequest {
+            contract_version: ENCLAVE_RPC_CONTRACT_VERSION.to_string(),
+            request_id: uuid::Uuid::new_v4().to_string(),
+            user_id,
+            automation_rule_id,
+            automation_run_id,
+            scheduled_for,
+            prompt_envelope,
+            recipient_devices: recipient_devices
+                .into_iter()
+                .map(|device| super::EnclaveAutomationRecipientDevice {
+                    device_id: device.device_id,
+                    key_id: device.key_id,
+                    algorithm: device.algorithm,
+                    public_key: device.public_key,
+                })
+                .collect(),
+        };
+
+        let response: EnclaveRpcExecuteAutomationResponse = self
+            .send_enclave_rpc(
+                ProviderOperation::AssistantAutomationRun,
+                ENCLAVE_RPC_PATH_EXECUTE_AUTOMATION,
+                &payload,
+            )
+            .await?;
+
+        if response.request_id != payload.request_id {
+            return Err(EnclaveRpcError::RpcResponseInvalid {
+                message: "enclave rpc response request_id mismatch for automation run".to_string(),
             });
         }
 

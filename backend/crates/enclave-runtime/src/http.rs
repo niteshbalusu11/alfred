@@ -7,15 +7,16 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use shared::enclave::{
     ENCLAVE_RPC_CONTRACT_VERSION, ENCLAVE_RPC_PATH_COMPLETE_GOOGLE_CONNECT,
-    ENCLAVE_RPC_PATH_EXCHANGE_GOOGLE_TOKEN, ENCLAVE_RPC_PATH_FETCH_ASSISTANT_ATTESTED_KEY,
-    ENCLAVE_RPC_PATH_FETCH_GOOGLE_CALENDAR_EVENTS,
+    ENCLAVE_RPC_PATH_EXCHANGE_GOOGLE_TOKEN, ENCLAVE_RPC_PATH_EXECUTE_AUTOMATION,
+    ENCLAVE_RPC_PATH_FETCH_ASSISTANT_ATTESTED_KEY, ENCLAVE_RPC_PATH_FETCH_GOOGLE_CALENDAR_EVENTS,
     ENCLAVE_RPC_PATH_FETCH_GOOGLE_URGENT_EMAIL_CANDIDATES, ENCLAVE_RPC_PATH_GENERATE_MORNING_BRIEF,
     ENCLAVE_RPC_PATH_GENERATE_URGENT_EMAIL_SUMMARY, ENCLAVE_RPC_PATH_PROCESS_ASSISTANT_QUERY,
     ENCLAVE_RPC_PATH_REVOKE_GOOGLE_TOKEN, EnclaveRpcCompleteGoogleConnectRequest,
     EnclaveRpcCompleteGoogleConnectResponse, EnclaveRpcExchangeGoogleTokenRequest,
-    EnclaveRpcExchangeGoogleTokenResponse, EnclaveRpcFetchAssistantAttestedKeyRequest,
-    EnclaveRpcFetchAssistantAttestedKeyResponse, EnclaveRpcFetchGoogleCalendarEventsRequest,
-    EnclaveRpcFetchGoogleCalendarEventsResponse, EnclaveRpcFetchGoogleUrgentEmailCandidatesRequest,
+    EnclaveRpcExchangeGoogleTokenResponse, EnclaveRpcExecuteAutomationRequest,
+    EnclaveRpcFetchAssistantAttestedKeyRequest, EnclaveRpcFetchAssistantAttestedKeyResponse,
+    EnclaveRpcFetchGoogleCalendarEventsRequest, EnclaveRpcFetchGoogleCalendarEventsResponse,
+    EnclaveRpcFetchGoogleUrgentEmailCandidatesRequest,
     EnclaveRpcFetchGoogleUrgentEmailCandidatesResponse, EnclaveRpcGenerateMorningBriefRequest,
     EnclaveRpcGenerateUrgentEmailSummaryRequest, EnclaveRpcProcessAssistantQueryRequest,
     EnclaveRpcRevokeGoogleTokenRequest, EnclaveRpcRevokeGoogleTokenResponse,
@@ -25,10 +26,12 @@ use shared::enclave_runtime::{AttestationChallengeRequest, AttestationChallengeR
 use crate::RuntimeState;
 
 mod assistant;
+mod request_validation;
 mod rpc;
 
 #[cfg(test)]
 mod tests;
+use request_validation::validate_request;
 
 #[derive(Debug, Serialize)]
 pub(crate) struct HealthResponse<'a> {
@@ -359,153 +362,20 @@ pub(crate) async fn generate_urgent_email_summary(
     assistant::generate_urgent_email_summary(state, request).await
 }
 
-trait RpcEnvelope {
-    fn contract_version(&self) -> &str;
-    fn request_id(&self) -> &str;
-}
+pub(crate) async fn execute_automation(
+    State(state): State<RuntimeState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    let request = match validate_request::<EnclaveRpcExecuteAutomationRequest>(
+        &state,
+        &headers,
+        ENCLAVE_RPC_PATH_EXECUTE_AUTOMATION,
+        &body,
+    ) {
+        Ok(request) => request,
+        Err(rejection) => return rejection.into_response(),
+    };
 
-impl RpcEnvelope for EnclaveRpcExchangeGoogleTokenRequest {
-    fn contract_version(&self) -> &str {
-        &self.contract_version
-    }
-
-    fn request_id(&self) -> &str {
-        &self.request_id
-    }
-}
-
-impl RpcEnvelope for EnclaveRpcCompleteGoogleConnectRequest {
-    fn contract_version(&self) -> &str {
-        &self.contract_version
-    }
-
-    fn request_id(&self) -> &str {
-        &self.request_id
-    }
-}
-
-impl RpcEnvelope for EnclaveRpcRevokeGoogleTokenRequest {
-    fn contract_version(&self) -> &str {
-        &self.contract_version
-    }
-
-    fn request_id(&self) -> &str {
-        &self.request_id
-    }
-}
-
-impl RpcEnvelope for EnclaveRpcFetchGoogleCalendarEventsRequest {
-    fn contract_version(&self) -> &str {
-        &self.contract_version
-    }
-
-    fn request_id(&self) -> &str {
-        &self.request_id
-    }
-}
-
-impl RpcEnvelope for EnclaveRpcFetchGoogleUrgentEmailCandidatesRequest {
-    fn contract_version(&self) -> &str {
-        &self.contract_version
-    }
-
-    fn request_id(&self) -> &str {
-        &self.request_id
-    }
-}
-
-impl RpcEnvelope for EnclaveRpcFetchAssistantAttestedKeyRequest {
-    fn contract_version(&self) -> &str {
-        &self.contract_version
-    }
-
-    fn request_id(&self) -> &str {
-        &self.request_id
-    }
-}
-
-impl RpcEnvelope for EnclaveRpcProcessAssistantQueryRequest {
-    fn contract_version(&self) -> &str {
-        &self.contract_version
-    }
-
-    fn request_id(&self) -> &str {
-        &self.request_id
-    }
-}
-
-impl RpcEnvelope for EnclaveRpcGenerateMorningBriefRequest {
-    fn contract_version(&self) -> &str {
-        &self.contract_version
-    }
-
-    fn request_id(&self) -> &str {
-        &self.request_id
-    }
-}
-
-impl RpcEnvelope for EnclaveRpcGenerateUrgentEmailSummaryRequest {
-    fn contract_version(&self) -> &str {
-        &self.contract_version
-    }
-
-    fn request_id(&self) -> &str {
-        &self.request_id
-    }
-}
-
-fn validate_request<Request>(
-    state: &RuntimeState,
-    headers: &HeaderMap,
-    path: &str,
-    body: &[u8],
-) -> rpc::RpcResult<Request>
-where
-    Request: serde::de::DeserializeOwned + RpcEnvelope,
-{
-    rpc::authorize_request(
-        &state.config.enclave_rpc_auth,
-        &state.rpc_replay_guard,
-        headers,
-        path,
-        body,
-    )?;
-
-    let request = serde_json::from_slice::<Request>(body).map_err(|_| {
-        rpc::reject(
-            StatusCode::BAD_REQUEST,
-            shared::enclave::EnclaveRpcErrorEnvelope::new(
-                None,
-                "invalid_request_payload",
-                "Request payload is invalid",
-                false,
-            ),
-        )
-    })?;
-
-    if request.contract_version() != ENCLAVE_RPC_CONTRACT_VERSION {
-        return Err(rpc::reject(
-            StatusCode::BAD_REQUEST,
-            shared::enclave::EnclaveRpcErrorEnvelope::new(
-                Some(request.request_id().to_string()),
-                "invalid_contract_version",
-                "Unsupported enclave RPC contract version",
-                false,
-            ),
-        ));
-    }
-
-    if request.request_id().trim().is_empty() {
-        return Err(rpc::reject(
-            StatusCode::BAD_REQUEST,
-            shared::enclave::EnclaveRpcErrorEnvelope::new(
-                None,
-                "invalid_request_id",
-                "request_id is required",
-                false,
-            ),
-        ));
-    }
-
-    Ok(request)
+    assistant::execute_automation(state, request).await
 }

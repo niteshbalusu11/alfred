@@ -190,6 +190,10 @@ async fn main() {
             "/v1/rpc/assistant/urgent-email",
             post(http::generate_urgent_email_summary),
         )
+        .route(
+            "/v1/rpc/assistant/automation/execute",
+            post(http::execute_automation),
+        )
         .with_state(RuntimeState {
             config: config.clone(),
             enclave_service,

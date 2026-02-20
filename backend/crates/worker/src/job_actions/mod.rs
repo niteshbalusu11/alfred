@@ -42,7 +42,7 @@ pub(super) async fn dispatch_job_action(
             metadata,
         }
     } else {
-        automation::resolve_job_action(job)?
+        automation::resolve_job_action(&context, job).await?
     };
 
     action

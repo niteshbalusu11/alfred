@@ -12,22 +12,35 @@ impl Store {
         device_id: &str,
         apns_token: &str,
         environment: &ApnsEnvironment,
+        notification_key_algorithm: Option<&str>,
+        notification_public_key: Option<&str>,
     ) -> Result<(), StoreError> {
         self.ensure_user(user_id).await?;
 
         sqlx::query(
-            "INSERT INTO devices (user_id, device_identifier, apns_token_ciphertext, environment)
-             VALUES ($1, $2, pgp_sym_encrypt($3, $5), $4)
+            "INSERT INTO devices (
+                user_id,
+                device_identifier,
+                apns_token_ciphertext,
+                environment,
+                notification_key_algorithm,
+                notification_public_key_ciphertext
+             )
+             VALUES ($1, $2, pgp_sym_encrypt($3, $7), $4, $5, pgp_sym_encrypt($6, $7))
              ON CONFLICT (user_id, device_identifier)
              DO UPDATE SET
-               apns_token_ciphertext = pgp_sym_encrypt($3, $5),
+               apns_token_ciphertext = pgp_sym_encrypt($3, $7),
                environment = EXCLUDED.environment,
+               notification_key_algorithm = EXCLUDED.notification_key_algorithm,
+               notification_public_key_ciphertext = EXCLUDED.notification_public_key_ciphertext,
                updated_at = NOW()",
         )
         .bind(user_id)
         .bind(device_id)
         .bind(apns_token)
         .bind(apns_environment_str(environment))
+        .bind(notification_key_algorithm)
+        .bind(notification_public_key)
         .bind(&self.data_encryption_key)
         .execute(&self.pool)
         .await?;
@@ -62,7 +75,9 @@ impl Store {
             "SELECT
                 device_identifier,
                 pgp_sym_decrypt(apns_token_ciphertext, $2) AS apns_token,
-                environment
+                environment,
+                notification_key_algorithm,
+                pgp_sym_decrypt(notification_public_key_ciphertext, $2) AS notification_public_key
              FROM devices
              WHERE user_id = $1",
         )
@@ -76,11 +91,17 @@ impl Store {
                 let device_id: String = row.try_get("device_identifier")?;
                 let apns_token: String = row.try_get("apns_token")?;
                 let environment: String = row.try_get("environment")?;
+                let notification_key_algorithm: Option<String> =
+                    row.try_get("notification_key_algorithm")?;
+                let notification_public_key: Option<String> =
+                    row.try_get("notification_public_key")?;
 
                 Ok(DeviceRegistration {
                     device_id,
                     apns_token,
                     environment: parse_apns_environment(&environment)?,
+                    notification_key_algorithm,
+                    notification_public_key,
                 })
             })
             .collect()
