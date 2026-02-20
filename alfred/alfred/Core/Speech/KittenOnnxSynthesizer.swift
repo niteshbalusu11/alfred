@@ -23,7 +23,7 @@ actor KittenOnnxSynthesizer: AssistantWaveformSynthesizing {
         styleStore: KittenVoiceStyleStore = KittenVoiceStyleStore(),
         phonemizer: KittenEnglishPhonemizer = KittenEnglishPhonemizer(),
         voiceID: KittenVoiceID = KittenVoiceStyleStore.defaultVoiceID,
-        baseSpeed: Float = 1.45
+        baseSpeed: Float = 1.26
     ) {
         self.modelStore = modelStore
         self.styleStore = styleStore
@@ -194,22 +194,22 @@ actor KittenOnnxSynthesizer: AssistantWaveformSynthesizing {
         var adjusted = baseSpeed
 
         if chunk.contains("?") {
-            adjusted *= 1.10
+            adjusted *= 1.04
         }
         if chunk.contains("!") {
-            adjusted *= 1.08
+            adjusted *= 1.05
         }
         if chunk.contains(",") {
-            adjusted *= 1.02
+            adjusted *= 0.98
         }
         if chunk.contains(";") || chunk.contains(":") {
-            adjusted *= 1.01
+            adjusted *= 0.97
         }
         if chunk.count < 32 {
-            adjusted *= 1.08
+            adjusted *= 1.03
         }
 
-        return min(max(adjusted, 1.08), 1.95)
+        return min(max(adjusted, 1.0), 1.6)
     }
 
     nonisolated private static func pauseSampleCount(after chunk: String) -> Int {
@@ -220,13 +220,13 @@ actor KittenOnnxSynthesizer: AssistantWaveformSynthesizing {
 
         switch last {
         case ",":
-            return Int(Double(sampleRate) * 0.03)
+            return Int(Double(sampleRate) * 0.045)
         case ";", ":":
-            return Int(Double(sampleRate) * 0.04)
-        case "?", "!":
-            return Int(Double(sampleRate) * 0.05)
-        case ".":
             return Int(Double(sampleRate) * 0.06)
+        case "?", "!":
+            return Int(Double(sampleRate) * 0.065)
+        case ".":
+            return Int(Double(sampleRate) * 0.075)
         default:
             return 0
         }
