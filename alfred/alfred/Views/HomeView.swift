@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct HomeView: View {
     @ObservedObject var model: AppModel
@@ -6,6 +7,7 @@ struct HomeView: View {
     @State private var responseSpeaker = AssistantResponseSpeaker()
     @State private var composerText = ""
     @State private var lastSpokenAssistantMessageID: UUID?
+    @State private var keyboardOverlap: CGFloat = 0
     @FocusState private var isComposerFocused: Bool
 
     private var liveDraftText: String {
@@ -18,6 +20,18 @@ struct HomeView: View {
 
     private var canSendMessage: Bool {
         hasTypedMessage && !model.isLoading(.queryAssistant)
+    }
+
+    private var keyboardInset: CGFloat {
+        max(0, keyboardOverlap - keyWindowSafeAreaBottom)
+    }
+
+    private var keyWindowSafeAreaBottom: CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first(where: \.isKeyWindow)?
+            .safeAreaInsets.bottom ?? 0
     }
 
     private var voiceStatusText: String? {
@@ -63,8 +77,10 @@ struct HomeView: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             inputDock
+                .padding(.bottom, keyboardInset)
         }
         .appScreenBackground()
+        .animation(.easeOut(duration: 0.22), value: keyboardInset)
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer(minLength: 0)
@@ -80,6 +96,12 @@ struct HomeView: View {
         .onChange(of: transcriptionController.transcript) { _, newValue in
             guard transcriptionController.isListening else { return }
             composerText = newValue
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { notification in
+            updateKeyboardOverlap(from: notification)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            keyboardOverlap = 0
         }
     }
 
@@ -304,6 +326,18 @@ struct HomeView: View {
         withAnimation(.spring(response: 0.24, dampingFraction: 0.92)) {
             model.selectedTab = .threads
         }
+    }
+
+    private func updateKeyboardOverlap(from notification: Notification) {
+        guard
+            let endFrameValue = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue
+        else {
+            return
+        }
+
+        let endFrame = endFrameValue.cgRectValue
+        let overlap = max(0, UIScreen.main.bounds.height - endFrame.minY)
+        keyboardOverlap = overlap
     }
 }
 
