@@ -15,6 +15,7 @@ mod preferences;
 mod privacy;
 mod users;
 
+pub use assistant_encrypted_sessions::AssistantEncryptedSessionMetadataRecord;
 pub use assistant_encrypted_sessions::AssistantEncryptedSessionRecord;
 
 const DEFAULT_MEETING_REMINDER_MINUTES: i32 = 15;
