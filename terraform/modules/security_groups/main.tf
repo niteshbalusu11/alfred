@@ -3,28 +3,12 @@ resource "aws_security_group" "alb" {
   description = "Public ingress for Alfred API ALB"
   vpc_id      = var.vpc_id
 
-  dynamic "ingress" {
-    for_each = var.enable_http_ingress ? [1] : []
-
-    content {
-      description = "Allow public HTTP"
-      from_port   = 80
-      to_port     = 80
-      protocol    = "tcp"
-      cidr_blocks = ["0.0.0.0/0"]
-    }
-  }
-
-  dynamic "ingress" {
-    for_each = var.enable_https_ingress ? [1] : []
-
-    content {
-      description = "Allow public HTTPS"
-      from_port   = 443
-      to_port     = 443
-      protocol    = "tcp"
-      cidr_blocks = ["0.0.0.0/0"]
-    }
+  ingress {
+    description = "Allow public HTTPS"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {
@@ -51,6 +35,22 @@ resource "aws_security_group" "api" {
     to_port         = var.api_port
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
+  }
+
+  ingress {
+    description     = "Allow worker to API TLS port"
+    from_port       = var.api_port
+    to_port         = var.api_port
+    protocol        = "tcp"
+    security_groups = [aws_security_group.worker.id]
+  }
+
+  ingress {
+    description     = "Allow enclave host to API TLS port"
+    from_port       = var.api_port
+    to_port         = var.api_port
+    protocol        = "tcp"
+    security_groups = [aws_security_group.enclave.id]
   }
 
   egress {

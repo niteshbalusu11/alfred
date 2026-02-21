@@ -19,15 +19,15 @@ variable "security_group_id" {
 }
 
 variable "target_port" {
-  description = "Target port on API tasks."
+  description = "Target TLS port on API tasks."
   type        = number
-  default     = 8080
+  default     = 8443
 }
 
 variable "health_check_path" {
   description = "Health check path for API target group."
   type        = string
-  default     = "/health"
+  default     = "/"
 }
 
 variable "deletion_protection" {
@@ -37,15 +37,8 @@ variable "deletion_protection" {
 }
 
 variable "certificate_arn" {
-  description = "Optional ACM certificate ARN for HTTPS listener."
+  description = "ACM certificate ARN for HTTPS listener."
   type        = string
-  default     = null
-}
-
-variable "enable_http_listener" {
-  description = "Whether to expose HTTP listener on port 80."
-  type        = bool
-  default     = true
 }
 
 variable "ssl_policy" {

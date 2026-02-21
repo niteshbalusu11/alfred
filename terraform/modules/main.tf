@@ -32,13 +32,11 @@ module "network" {
 module "security_groups" {
   source = "./security_groups"
 
-  name_prefix          = local.stack_name
-  vpc_id               = module.network.vpc_id
-  api_port             = var.api_port
-  db_port              = var.db_port
-  cache_port           = var.cache_port
-  enable_http_ingress  = var.ingress_enable_http
-  enable_https_ingress = var.ingress_certificate_arn != null
+  name_prefix = local.stack_name
+  vpc_id      = module.network.vpc_id
+  api_port    = var.api_port
+  db_port     = var.db_port
+  cache_port  = var.cache_port
 }
 
 module "secrets_wiring" {
@@ -64,16 +62,15 @@ module "iam_runtime" {
 module "ingress" {
   source = "./ingress"
 
-  name_prefix          = local.stack_name
-  vpc_id               = module.network.vpc_id
-  public_subnet_ids    = module.network.public_subnet_ids
-  security_group_id    = module.security_groups.alb_security_group_id
-  target_port          = var.api_port
-  health_check_path    = var.ingress_health_check_path
-  deletion_protection  = var.alb_deletion_protection
-  certificate_arn      = var.ingress_certificate_arn
-  enable_http_listener = var.ingress_enable_http
-  ssl_policy           = var.ingress_ssl_policy
+  name_prefix         = local.stack_name
+  vpc_id              = module.network.vpc_id
+  public_subnet_ids   = module.network.public_subnet_ids
+  security_group_id   = module.security_groups.alb_security_group_id
+  target_port         = var.api_port
+  health_check_path   = var.ingress_health_check_path
+  deletion_protection = var.alb_deletion_protection
+  certificate_arn     = var.ingress_certificate_arn
+  ssl_policy          = var.ingress_ssl_policy
 }
 
 module "rds_postgres" {

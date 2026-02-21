@@ -9,9 +9,9 @@ variable "vpc_id" {
 }
 
 variable "api_port" {
-  description = "API container port exposed behind ALB."
+  description = "API TLS port exposed behind ALB and internal runtime clients."
   type        = number
-  default     = 8080
+  default     = 8443
 }
 
 variable "db_port" {
@@ -24,16 +24,4 @@ variable "cache_port" {
   description = "Valkey port."
   type        = number
   default     = 6379
-}
-
-variable "enable_http_ingress" {
-  description = "Allow public HTTP ingress to ALB."
-  type        = bool
-  default     = true
-}
-
-variable "enable_https_ingress" {
-  description = "Allow public HTTPS ingress to ALB."
-  type        = bool
-  default     = false
 }

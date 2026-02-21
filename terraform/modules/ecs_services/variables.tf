@@ -64,9 +64,9 @@ variable "worker_image" {
 }
 
 variable "api_container_port" {
-  description = "API container port."
+  description = "API TLS container port."
   type        = number
-  default     = 8080
+  default     = 8443
 }
 
 variable "api_task_cpu" {
