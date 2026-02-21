@@ -23,6 +23,16 @@ Current runtime module graph under `modules/`:
 - `secrets_wiring`
 - `observability`
 
+## Dev Cost-Sensitive Defaults
+
+`terraform/dev/terraform.tfvars` sets explicit low-cost defaults for development:
+
+- ECS: `api` and `worker` set to `256 CPU / 512 MiB`, desired count `1`
+- RDS: `db.t4g.micro`, single-AZ (`multi_az = false`), short backup retention
+- Valkey: `cache.t4g.micro`, single cache node
+- Enclave host: one `c6i.large` parent host
+- Observability: 7-day log retention and alarms disabled by default
+
 ## Remote State Bootstrap (One-Time)
 
 Terraform remote state is configured with:
