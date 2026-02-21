@@ -18,10 +18,6 @@ extension AppModel {
             await completeGoogleOAuth()
         case .loadConnectors:
             await loadConnectors()
-        case .loadPreferences:
-            await loadPreferences()
-        case .savePreferences(let payload):
-            await savePreferences(payload: payload)
         case .revokeConnector(let id):
             connectorID = id
             await revokeConnector()

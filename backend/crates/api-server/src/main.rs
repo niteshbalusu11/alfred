@@ -3,7 +3,9 @@ use std::time::Duration;
 
 use shared::config::{ApiConfig, load_dotenv};
 use shared::enclave::EnclaveRpcAuthConfig;
-use shared::enclave_runtime::{EnclaveRuntimeEndpointConfig, verify_connectivity};
+use shared::enclave_runtime::{
+    AlfredEnvironment, EnclaveRuntimeEndpointConfig, verify_connectivity,
+};
 use shared::repos::Store;
 use shared::security::{KmsDecryptPolicy, SecretRuntime, TeeAttestationPolicy};
 use tracing::{error, info};
@@ -113,6 +115,7 @@ async fn main() {
                 max_clock_skew_seconds: config.enclave_rpc_auth_max_skew_seconds,
             },
         },
+        allow_debug_automation_run: matches!(config.alfred_environment, AlfredEnvironment::Local),
         secret_runtime: SecretRuntime::new(
             TeeAttestationPolicy {
                 required: config.tee_attestation_required,

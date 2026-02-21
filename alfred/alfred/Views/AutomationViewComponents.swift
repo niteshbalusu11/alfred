@@ -5,8 +5,10 @@ struct AutomationRuleCard: View {
     let title: String
     let rule: AutomationRuleSummary
     let isMutating: Bool
+    let onEdit: () -> Void
     let onTogglePause: () -> Void
     let onDelete: () -> Void
+    let onDebugRun: (() -> Void)?
 
     var body: some View {
         AppCard {
@@ -28,19 +30,47 @@ struct AutomationRuleCard: View {
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
-                    AutomationMetadataRow(label: "Time zone", value: rule.timeZone)
+                    AutomationMetadataRow(label: "Time zone", value: rule.schedule.timeZone)
                     AutomationMetadataRow(label: "Next run", value: format(date: rule.nextRunAt))
                     AutomationMetadataRow(label: "Last run", value: format(date: rule.lastRunAt))
                 }
 
-                HStack(spacing: 8) {
-                    Button(rule.status == .active ? "Pause" : "Resume", action: onTogglePause)
-                        .buttonStyle(.appSecondary)
-                        .disabled(isMutating)
+                HStack(spacing: 10) {
+                    AutomationActionIconButton(
+                        systemImage: "pencil",
+                        accessibilityLabel: "Edit task",
+                        foregroundColor: AppTheme.Colors.textPrimary,
+                        action: onEdit
+                    )
+                    .disabled(isMutating)
 
-                    Button("Delete", role: .destructive, action: onDelete)
-                        .buttonStyle(.appSecondary)
+                    AutomationActionIconButton(
+                        systemImage: rule.status == .active ? "pause.fill" : "play.fill",
+                        accessibilityLabel: rule.status == .active ? "Pause task" : "Resume task",
+                        foregroundColor: AppTheme.Colors.textPrimary,
+                        action: onTogglePause
+                    )
+                    .disabled(isMutating)
+
+                    AutomationActionIconButton(
+                        systemImage: "trash",
+                        accessibilityLabel: "Delete task",
+                        foregroundColor: AppTheme.Colors.danger,
+                        destructive: true,
+                        role: .destructive,
+                        action: onDelete
+                    )
+                    .disabled(isMutating)
+
+                    if let onDebugRun {
+                        AutomationActionIconButton(
+                            systemImage: "bolt.fill",
+                            accessibilityLabel: "Run task now",
+                            foregroundColor: AppTheme.Colors.textPrimary,
+                            action: onDebugRun
+                        )
                         .disabled(isMutating)
+                    }
                 }
 
                 if isMutating {
@@ -52,7 +82,7 @@ struct AutomationRuleCard: View {
     }
 
     private var intervalSummary: String {
-        "Runs \(AutomationIntervalFormatter.label(for: rule.intervalSeconds))"
+        AutomationScheduleFormatter.label(for: rule.schedule)
     }
 
     private var statusTitle: String {
@@ -81,6 +111,41 @@ struct AutomationRuleCard: View {
     }
 }
 
+private struct AutomationActionIconButton: View {
+    let systemImage: String
+    let accessibilityLabel: String
+    let foregroundColor: Color
+    var destructive = false
+    var role: ButtonRole? = nil
+    let action: () -> Void
+
+    var body: some View {
+        Button(role: role, action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(foregroundColor)
+                .frame(width: 34, height: 34)
+                .background(
+                    destructive
+                        ? AppTheme.Colors.danger.opacity(0.18)
+                        : AppTheme.Colors.surfaceElevated,
+                    in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(
+                            destructive
+                                ? AppTheme.Colors.danger.opacity(0.55)
+                                : AppTheme.Colors.outline,
+                            lineWidth: 1
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
+    }
+}
+
 private struct AutomationMetadataRow: View {
     let label: String
     let value: String
@@ -99,106 +164,273 @@ private struct AutomationMetadataRow: View {
     }
 }
 
-struct AutomationCreatePayload {
+struct AutomationEditorPayload {
     let title: String
-    let intervalSeconds: Int
-    let timeZone: String
-    let prompt: String
+    let schedule: AutomationSchedule
+    let prompt: String?
 }
 
-struct AutomationCreateSheet: View {
+enum AutomationEditorMode {
+    case create
+    case edit(existing: AutomationRuleSummary, existingPrompt: String?)
+}
+
+private enum TaskFrequency: String, CaseIterable, Identifiable {
+    case daily
+    case weekly
+    case monthly
+    case annually
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .daily:
+            return "Daily"
+        case .weekly:
+            return "Weekly"
+        case .monthly:
+            return "Monthly"
+        case .annually:
+            return "Annually"
+        }
+    }
+
+    var scheduleType: AutomationScheduleType {
+        switch self {
+        case .daily:
+            return .daily
+        case .weekly:
+            return .weekly
+        case .monthly:
+            return .monthly
+        case .annually:
+            return .annually
+        }
+    }
+
+    init(from scheduleType: AutomationScheduleType) {
+        switch scheduleType {
+        case .daily:
+            self = .daily
+        case .weekly:
+            self = .weekly
+        case .monthly:
+            self = .monthly
+        case .annually:
+            self = .annually
+        }
+    }
+}
+
+struct AutomationEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
 
+    let mode: AutomationEditorMode
     let defaultTimeZone: String
-    let onSubmit: @Sendable (AutomationCreatePayload) async throws -> Void
+    let onSubmit: @Sendable (AutomationEditorPayload) async throws -> Void
 
     @State private var title = ""
-    @State private var intervalMinutes = 60
+    @State private var frequency: TaskFrequency = .daily
+    @State private var selectedTime = Date()
     @State private var timeZone = ""
     @State private var prompt = ""
     @State private var isSubmitting = false
     @State private var errorMessage: String?
-
-    private let quickIntervals: [Int] = [15, 60, 240, 1_440]
+    @State private var didPrefill = false
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Automation") {
-                    TextField("Name (optional)", text: $title)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    HStack(spacing: 12) {
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(AppTheme.Colors.textSecondary)
+                                .frame(width: 42, height: 42)
+                                .background(AppTheme.Colors.surfaceElevated, in: Circle())
+                                .overlay(
+                                    Circle()
+                                        .stroke(AppTheme.Colors.outline, lineWidth: 1)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isSubmitting)
 
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Interval")
-                            .font(.subheadline.weight(.semibold))
+                        Spacer(minLength: 0)
 
-                        HStack(spacing: 8) {
-                            ForEach(quickIntervals, id: \.self) { minutes in
-                                Button(quickLabel(minutes: minutes)) {
-                                    intervalMinutes = minutes
-                                }
-                                .buttonStyle(.appSecondary)
+                        Text(isEditing ? "Edit Task" : "New Task")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(AppTheme.Colors.textPrimary)
+
+                        Spacer(minLength: 0)
+
+                        Button(isSubmitting ? (isEditing ? "Saving..." : "Creating...") : (isEditing ? "Save" : "Create")) {
+                            Task {
+                                await submit()
                             }
                         }
-
-                        Stepper(value: $intervalMinutes, in: 1...10_080) {
-                            Text(AutomationIntervalFormatter.label(for: intervalMinutes * 60))
-                        }
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(AppTheme.Colors.textPrimary.opacity(isSubmitting ? 0.5 : 1))
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 10)
+                        .background(AppTheme.Colors.surfaceElevated.opacity(0.95), in: Capsule())
+                        .overlay(
+                            Capsule()
+                                .stroke(AppTheme.Colors.outline, lineWidth: 1)
+                        )
+                        .disabled(isSubmitting)
                     }
 
-                    TextField("Time zone", text: $timeZone)
+                    TextField("Name of task", text: $title)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                }
+                        .appFieldStyle()
 
-                Section("Prompt") {
-                    TextEditor(text: $prompt)
-                        .frame(minHeight: 180)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Schedule")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(AppTheme.Colors.textSecondary)
 
-                    Text("Prompt and output remain encrypted outside the enclave path.")
-                        .font(.footnote)
-                        .foregroundStyle(AppTheme.Colors.textSecondary)
-                }
+                        VStack(spacing: 0) {
+                            TaskPickerRow(label: "Frequency") {
+                                Menu {
+                                    ForEach(TaskFrequency.allCases) { option in
+                                        Button {
+                                            frequency = option
+                                        } label: {
+                                            if option == frequency {
+                                                Label(option.title, systemImage: "checkmark")
+                                            } else {
+                                                Text(option.title)
+                                            }
+                                        }
+                                    }
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Text(frequency.title)
+                                        Image(systemName: "chevron.up.chevron.down")
+                                            .font(.system(size: 11, weight: .semibold))
+                                    }
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(AppTheme.Colors.textPrimary)
+                                }
+                            }
 
-                if let errorMessage {
-                    Section {
+                            Divider()
+                                .overlay(AppTheme.Colors.outline)
+
+                            TaskPickerRow(label: "Time") {
+                                DatePicker(
+                                    "",
+                                    selection: $selectedTime,
+                                    displayedComponents: .hourAndMinute
+                                )
+                                .labelsHidden()
+                                .datePickerStyle(.compact)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                        .background(AppTheme.Colors.surfaceElevated)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(AppTheme.Colors.outline, lineWidth: 1)
+                        )
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Instructions")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(AppTheme.Colors.textSecondary)
+
+                        ZStack(alignment: .topLeading) {
+                            if prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                Text(promptPlaceholder)
+                                    .font(.callout)
+                                    .foregroundStyle(AppTheme.Colors.textSecondary.opacity(0.72))
+                                    .multilineTextAlignment(.leading)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 16)
+                            }
+
+                            TextEditor(text: $prompt)
+                                .frame(minHeight: 170)
+                                .scrollContentBackground(.hidden)
+                                .background(Color.clear)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 8)
+                        }
+                        .background(
+                            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            AppTheme.Colors.surfaceElevated.opacity(0.95),
+                                            AppTheme.Colors.surface.opacity(0.92),
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                .stroke(AppTheme.Colors.outline.opacity(0.9), lineWidth: 1)
+                        )
+                    }
+
+                    if let errorMessage {
                         Text(errorMessage)
                             .font(.footnote)
                             .foregroundStyle(AppTheme.Colors.danger)
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(AppTheme.Colors.surfaceElevated)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
                 }
+                .padding(.horizontal, AppTheme.Layout.screenPadding)
+                .padding(.vertical, AppTheme.Layout.sectionSpacing)
             }
+            .appScreenBackground()
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle("New Automation")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .disabled(isSubmitting)
-                }
-
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(isSubmitting ? "Creating…" : "Create") {
-                        Task {
-                            await submit()
-                        }
-                    }
-                    .disabled(isSubmitting)
-                }
-            }
             .onAppear {
                 if timeZone.isEmpty {
                     timeZone = defaultTimeZone
                 }
+                applyPrefillIfNeeded()
             }
         }
     }
 
+    private var isEditing: Bool {
+        if case .edit = mode {
+            return true
+        }
+        return false
+    }
+
+    private var promptPlaceholder: String {
+        switch mode {
+        case .create:
+            return "Example: Check my calendar for today, summarize top meetings, and flag any conflicts."
+        case .edit(_, let existingPrompt):
+            if existingPrompt == nil {
+                return "Prompt history is not on this device yet. Enter a new prompt now, or leave blank to keep existing instructions on the server."
+            }
+            return "Leave blank to keep existing instructions, or enter a new prompt. Example: Review today's schedule and highlight what needs prep."
+        }
+    }
+
     private func submit() async {
-        let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedPrompt.isEmpty else {
-            errorMessage = "Prompt is required."
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty else {
+            errorMessage = "Task title is required."
             return
         }
 
@@ -212,16 +444,32 @@ struct AutomationCreateSheet: View {
             return
         }
 
+        let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        let promptValue: String?
+        switch mode {
+        case .create:
+            guard !trimmedPrompt.isEmpty else {
+                errorMessage = "Instructions are required."
+                return
+            }
+            promptValue = trimmedPrompt
+        case .edit:
+            promptValue = trimmedPrompt.isEmpty ? nil : trimmedPrompt
+        }
+
         isSubmitting = true
         defer { isSubmitting = false }
 
         do {
             try await onSubmit(
-                AutomationCreatePayload(
-                    title: title.trimmingCharacters(in: .whitespacesAndNewlines),
-                    intervalSeconds: intervalMinutes * 60,
-                    timeZone: trimmedTimeZone,
-                    prompt: trimmedPrompt
+                AutomationEditorPayload(
+                    title: trimmedTitle,
+                    schedule: AutomationSchedule(
+                        scheduleType: frequency.scheduleType,
+                        timeZone: trimmedTimeZone,
+                        localTime: Self.localTimeFormatter.string(from: selectedTime)
+                    ),
+                    prompt: promptValue
                 )
             )
             dismiss()
@@ -230,43 +478,44 @@ struct AutomationCreateSheet: View {
         }
     }
 
-    private func quickLabel(minutes: Int) -> String {
-        AutomationIntervalFormatter.label(for: minutes * 60)
+    private func applyPrefillIfNeeded() {
+        guard !didPrefill else { return }
+        didPrefill = true
+
+        guard case .edit(let existing, let existingPrompt) = mode else { return }
+        title = existing.title
+        frequency = TaskFrequency(from: existing.schedule.scheduleType)
+        timeZone = existing.schedule.timeZone
+        if let existingPrompt {
+            prompt = existingPrompt
+        }
+        if let parsed = Self.localTimeFormatter.date(from: existing.schedule.localTime) {
+            selectedTime = parsed
+        }
     }
+
+    private static let localTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
 }
 
-enum AutomationIntervalFormatter {
-    static func label(for intervalSeconds: Int) -> String {
-        if intervalSeconds % 86_400 == 0 {
-            return "every \(intervalSeconds / 86_400)d"
+enum AutomationScheduleFormatter {
+    static func label(for schedule: AutomationSchedule) -> String {
+        let frequency = switch schedule.scheduleType {
+        case .daily:
+            "Daily"
+        case .weekly:
+            "Weekly"
+        case .monthly:
+            "Monthly"
+        case .annually:
+            "Annually"
         }
-        if intervalSeconds % 3_600 == 0 {
-            return "every \(intervalSeconds / 3_600)h"
-        }
-        if intervalSeconds % 60 == 0 {
-            return "every \(intervalSeconds / 60)m"
-        }
-        return "every \(intervalSeconds)s"
-    }
-}
 
-struct AutomationInlineButton: View {
-    let title: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(title, action: action)
-            .font(.caption.weight(.semibold))
-            .buttonStyle(.plain)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(AppTheme.Colors.surfaceElevated)
-            .clipShape(Capsule())
-            .overlay(
-                Capsule()
-                    .stroke(AppTheme.Colors.outline, lineWidth: 1)
-            )
-            .foregroundStyle(AppTheme.Colors.textPrimary)
+        return "\(frequency) at \(schedule.localTime)"
     }
 }
 
@@ -301,7 +550,7 @@ struct AutomationLoadingStateCard: View {
                 ProgressView()
                     .tint(AppTheme.Colors.accent)
 
-                Text("Loading automations…")
+                Text("Loading tasks...")
                     .font(.subheadline)
                     .foregroundStyle(AppTheme.Colors.textSecondary)
             }

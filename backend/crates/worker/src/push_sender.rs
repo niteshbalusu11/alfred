@@ -1,3 +1,5 @@
+use chrono::Utc;
+use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 use reqwest::StatusCode;
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -5,16 +7,20 @@ use shared::assistant_crypto::ASSISTANT_ENCRYPTION_ALGORITHM_X25519_CHACHA20POLY
 use shared::enclave::EncryptedAutomationNotificationEnvelope;
 use shared::models::ApnsEnvironment;
 use shared::repos::DeviceRegistration;
-use tracing::info;
 
 use crate::{FailureClass, JobExecutionError};
+
+const APNS_MAX_PAYLOAD_BYTES: usize = 4096;
+const APNS_PRODUCTION_BASE_URL: &str = "https://api.push.apple.com";
+const APNS_SANDBOX_BASE_URL: &str = "https://api.sandbox.push.apple.com";
 
 #[derive(Clone)]
 pub(crate) struct PushSender {
     client: reqwest::Client,
-    sandbox_endpoint: Option<String>,
-    production_endpoint: Option<String>,
-    auth_token: Option<String>,
+    key_id: String,
+    team_id: String,
+    topic: String,
+    signing_key: EncodingKey,
 }
 
 #[derive(Debug)]
@@ -69,27 +75,28 @@ impl NotificationContent {
 }
 
 #[derive(Debug, Serialize)]
-struct PushDeliveryRequest<'a> {
-    device_token: &'a str,
-    title: &'a str,
-    body: &'a str,
-    payload: Value,
+struct ApnsProviderTokenClaims {
+    iss: String,
+    iat: i64,
 }
-
-const APNS_MAX_PAYLOAD_BYTES: usize = 4096;
 
 impl PushSender {
     pub(crate) fn new(
-        sandbox_endpoint: Option<String>,
-        production_endpoint: Option<String>,
-        auth_token: Option<String>,
-    ) -> Self {
-        Self {
+        key_id: String,
+        team_id: String,
+        topic: String,
+        auth_key_pem: String,
+    ) -> Result<Self, String> {
+        let signing_key = EncodingKey::from_ec_pem(auth_key_pem.as_bytes())
+            .map_err(|err| format!("invalid APNS auth key PEM: {err}"))?;
+
+        Ok(Self {
             client: reqwest::Client::new(),
-            sandbox_endpoint,
-            production_endpoint,
-            auth_token,
-        }
+            key_id,
+            team_id,
+            topic,
+            signing_key,
+        })
     }
 
     pub(crate) async fn send(
@@ -97,20 +104,6 @@ impl PushSender {
         device: &DeviceRegistration,
         content: &NotificationContent,
     ) -> Result<PushPayloadMode, PushSendError> {
-        let endpoint = match device.environment {
-            ApnsEnvironment::Sandbox => self.sandbox_endpoint.as_deref(),
-            ApnsEnvironment::Production => self.production_endpoint.as_deref(),
-        };
-
-        let Some(endpoint) = endpoint else {
-            info!(
-                device_id = %device.device_id,
-                environment = %apns_environment_label(&device.environment),
-                "apns endpoint not configured for environment; simulated delivery"
-            );
-            return Ok(PushPayloadMode::Fallback);
-        };
-
         let payload = apns_payload(content)?;
         let payload_mode = if payload
             .as_object()
@@ -121,19 +114,27 @@ impl PushSender {
             PushPayloadMode::Fallback
         };
 
-        let request = PushDeliveryRequest {
-            device_token: &device.apns_token,
-            title: &content.title,
-            body: &content.body,
-            payload,
-        };
+        let provider_token = self
+            .provider_token()
+            .map_err(|message| PushSendError::Permanent {
+                code: "APNS_PROVIDER_TOKEN_INVALID".to_string(),
+                message,
+            })?;
 
-        let mut builder = self.client.post(endpoint).json(&request);
-        if let Some(auth_token) = self.auth_token.as_deref() {
-            builder = builder.bearer_auth(auth_token);
-        }
+        let url = format!(
+            "{}/3/device/{}",
+            apns_base_url(&device.environment),
+            device.apns_token
+        );
 
-        let response = builder
+        let response = self
+            .client
+            .post(url)
+            .header("authorization", format!("bearer {provider_token}"))
+            .header("apns-topic", self.topic.as_str())
+            .header("apns-push-type", "alert")
+            .header("apns-priority", "10")
+            .json(&payload)
             .send()
             .await
             .map_err(|err| PushSendError::Transient {
@@ -147,17 +148,43 @@ impl PushSender {
         }
 
         let body = response.text().await.unwrap_or_default();
-        let code = format!("APNS_HTTP_{}", status.as_u16());
-        let message = if body.is_empty() {
-            format!("APNs responded with status {status}")
-        } else {
-            format!("APNs responded with status {status}: {body}")
+        let reason = extract_apns_reason(body.as_str());
+        let code = match reason.as_deref() {
+            Some(value) => format!("APNS_{}", normalize_apns_reason(value)),
+            None => format!("APNS_HTTP_{}", status.as_u16()),
+        };
+        let message = match reason.as_deref() {
+            Some(value) if !body.is_empty() => {
+                format!("APNs responded with status {status} ({value}): {body}")
+            }
+            Some(value) => format!("APNs responded with status {status} ({value})"),
+            None if body.is_empty() => format!("APNs responded with status {status}"),
+            None => format!("APNs responded with status {status}: {body}"),
         };
 
         match classify_http_failure(status) {
             FailureClass::Transient => Err(PushSendError::Transient { code, message }),
             FailureClass::Permanent => Err(PushSendError::Permanent { code, message }),
         }
+    }
+
+    fn provider_token(&self) -> Result<String, String> {
+        let claims = ApnsProviderTokenClaims {
+            iss: self.team_id.clone(),
+            iat: Utc::now().timestamp(),
+        };
+        let mut header = Header::new(Algorithm::ES256);
+        header.kid = Some(self.key_id.clone());
+
+        encode(&header, &claims, &self.signing_key)
+            .map_err(|err| format!("failed to sign APNs provider token: {err}"))
+    }
+}
+
+fn apns_base_url(environment: &ApnsEnvironment) -> &'static str {
+    match environment {
+        ApnsEnvironment::Sandbox => APNS_SANDBOX_BASE_URL,
+        ApnsEnvironment::Production => APNS_PRODUCTION_BASE_URL,
     }
 }
 
@@ -255,6 +282,32 @@ pub(crate) fn apns_environment_label(environment: &ApnsEnvironment) -> &'static 
     }
 }
 
+fn extract_apns_reason(body: &str) -> Option<String> {
+    let parsed: Value = serde_json::from_str(body).ok()?;
+    let reason = parsed.get("reason")?.as_str()?.trim();
+    if reason.is_empty() {
+        return None;
+    }
+    Some(reason.to_string())
+}
+
+fn normalize_apns_reason(reason: &str) -> String {
+    let mut output = String::with_capacity(reason.len());
+    let mut previous_was_separator = false;
+
+    for ch in reason.chars() {
+        if ch.is_ascii_alphanumeric() {
+            output.push(ch.to_ascii_uppercase());
+            previous_was_separator = false;
+        } else if !previous_was_separator {
+            output.push('_');
+            previous_was_separator = true;
+        }
+    }
+
+    output.trim_matches('_').to_string()
+}
+
 fn classify_http_failure(status: StatusCode) -> FailureClass {
     match status.as_u16() {
         408 | 425 | 429 | 500 | 502 | 503 | 504 => FailureClass::Transient,
@@ -272,7 +325,8 @@ mod tests {
     use reqwest::StatusCode;
 
     use super::{
-        apns_payload, classify_http_failure, enforce_apns_payload_size, is_valid_encrypted_envelope,
+        apns_payload, classify_http_failure, enforce_apns_payload_size, extract_apns_reason,
+        is_valid_encrypted_envelope, normalize_apns_reason,
     };
     use crate::FailureClass;
 
@@ -382,6 +436,22 @@ mod tests {
             err,
             super::PushSendError::Permanent { code, .. } if code == "APNS_PAYLOAD_TOO_LARGE"
         ));
+    }
+
+    #[test]
+    fn extracts_apns_reason_from_error_body() {
+        let reason =
+            extract_apns_reason(r#"{"reason":"BadDeviceToken"}"#).expect("reason should be parsed");
+        assert_eq!(reason, "BadDeviceToken");
+    }
+
+    #[test]
+    fn normalizes_apns_reason_to_code_suffix() {
+        assert_eq!(normalize_apns_reason("BadDeviceToken"), "BADDEVICETOKEN");
+        assert_eq!(
+            normalize_apns_reason("Too-Many Requests"),
+            "TOO_MANY_REQUESTS"
+        );
     }
 
     fn sample_envelope() -> EncryptedAutomationNotificationEnvelope {

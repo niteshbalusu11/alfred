@@ -9,7 +9,6 @@ tags:
   - name: Devices
   - name: Assistant
   - name: Connectors
-  - name: Preferences
   - name: Automations
   - name: Audit
   - name: Privacy
@@ -270,43 +269,6 @@ paths:
           $ref: "#/components/responses/BadGateway"
         "429":
           $ref: "#/components/responses/TooManyRequests"
-  /v1/preferences:
-    get:
-      tags: [Preferences]
-      summary: Get current user preferences
-      operationId: getPreferences
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: User preferences
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Preferences"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-    put:
-      tags: [Preferences]
-      summary: Update current user preferences
-      operationId: updatePreferences
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdatePreferencesRequest"
-      responses:
-        "200":
-          description: Preferences updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/OkResponse"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
   /v1/automations:
     get:
       tags: [Automations]
@@ -412,6 +374,35 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OkResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /v1/automations/{rule_id}/debug/run:
+    post:
+      tags: [Automations]
+      summary: Enqueue an immediate debug run for an automation rule (local/dev only)
+      operationId: triggerAutomationDebugRun
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: rule_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Debug automation run queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TriggerAutomationDebugRunResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -847,58 +838,60 @@ components:
           description: Base64-encoded encrypted automation prompt payload.
     CreateAutomationRequest:
       type: object
-      required: [interval_seconds, time_zone, prompt_envelope]
+      required: [title, schedule, prompt_envelope]
       properties:
-        interval_seconds:
-          type: integer
-          format: int32
-          minimum: 60
-          maximum: 604800
-        time_zone:
+        title:
           type: string
-          description: IANA timezone identifier (for example, America/Los_Angeles).
+          description: User-visible task title.
           minLength: 1
-          maxLength: 64
+          maxLength: 120
+        schedule:
+          $ref: "#/components/schemas/AutomationSchedule"
         prompt_envelope:
           $ref: "#/components/schemas/AutomationPromptEnvelope"
-    AutomationScheduleUpdate:
+    AutomationSchedule:
       type: object
-      required: [interval_seconds, time_zone]
+      required: [schedule_type, time_zone, local_time]
       properties:
-        interval_seconds:
-          type: integer
-          format: int32
-          minimum: 60
-          maximum: 604800
+        schedule_type:
+          $ref: "#/components/schemas/AutomationScheduleType"
         time_zone:
           type: string
           description: IANA timezone identifier (for example, America/Los_Angeles).
           minLength: 1
           maxLength: 64
+        local_time:
+          type: string
+          description: 24-hour local time in HH:MM format.
+          pattern: "^([01]\\d|2[0-3]):[0-5]\\d$"
     AutomationStatus:
       type: string
       enum: [ACTIVE, PAUSED]
     UpdateAutomationRequest:
       type: object
       properties:
+        title:
+          type: string
+          description: Updated user-visible task title.
+          minLength: 1
+          maxLength: 120
         schedule:
-          $ref: "#/components/schemas/AutomationScheduleUpdate"
+          $ref: "#/components/schemas/AutomationSchedule"
         prompt_envelope:
           $ref: "#/components/schemas/AutomationPromptEnvelope"
         status:
           $ref: "#/components/schemas/AutomationStatus"
     AutomationScheduleType:
       type: string
-      enum: [INTERVAL_SECONDS]
+      enum: [DAILY, WEEKLY, MONTHLY, ANNUALLY]
     AutomationRuleSummary:
       type: object
       required:
         [
           rule_id,
+          title,
           status,
-          schedule_type,
-          interval_seconds,
-          time_zone,
+          schedule,
           next_run_at,
           prompt_sha256,
           created_at,
@@ -908,15 +901,12 @@ components:
         rule_id:
           type: string
           format: uuid
+        title:
+          type: string
         status:
           $ref: "#/components/schemas/AutomationStatus"
-        schedule_type:
-          $ref: "#/components/schemas/AutomationScheduleType"
-        interval_seconds:
-          type: integer
-          format: int32
-        time_zone:
-          type: string
+        schedule:
+          $ref: "#/components/schemas/AutomationSchedule"
         next_run_at:
           type: string
           format: date-time
@@ -940,42 +930,15 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AutomationRuleSummary"
-    Preferences:
+    TriggerAutomationDebugRunResponse:
       type: object
-      required:
-        [
-          meeting_reminder_minutes,
-          morning_brief_local_time,
-          quiet_hours_start,
-          quiet_hours_end,
-          time_zone,
-          high_risk_requires_confirm
-        ]
+      required: [queued_job_id, status]
       properties:
-        meeting_reminder_minutes:
-          type: integer
-          format: int32
-          minimum: 1
-          maximum: 120
-        morning_brief_local_time:
+        queued_job_id:
           type: string
-          pattern: "^([01]\\d|2[0-3]):[0-5]\\d$"
-        quiet_hours_start:
+          format: uuid
+        status:
           type: string
-          pattern: "^([01]\\d|2[0-3]):[0-5]\\d$"
-        quiet_hours_end:
-          type: string
-          pattern: "^([01]\\d|2[0-3]):[0-5]\\d$"
-        time_zone:
-          type: string
-          description: IANA timezone identifier (for example, America/Los_Angeles).
-          minLength: 1
-          maxLength: 64
-        high_risk_requires_confirm:
-          type: boolean
-    UpdatePreferencesRequest:
-      allOf:
-        - $ref: "#/components/schemas/Preferences"
     AuditEvent:
       type: object
       required: [id, timestamp, event_type, result, metadata]

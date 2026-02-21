@@ -3,57 +3,73 @@ use chrono::{DateTime, Duration, Utc};
 use sqlx::Row;
 use uuid::Uuid;
 
+use crate::automation_schedule::{
+    AutomationScheduleSpec, interval_seconds_hint, validate_schedule_spec,
+};
 use crate::timezone::normalize_time_zone;
 
 use super::{
-    AutomationRuleRecord, AutomationRuleStatus, AutomationScheduleType, ClaimedAutomationRule,
-    Store, StoreError,
+    AutomationPromptMaterial, AutomationRuleRecord, AutomationRuleStatus, AutomationScheduleType,
+    ClaimedAutomationRule, Store, StoreError,
 };
 
-const MIN_INTERVAL_SECONDS: u32 = 60;
-const MAX_INTERVAL_SECONDS: u32 = 604_800;
+const MAX_AUTOMATION_TITLE_CHARS: usize = 120;
 
 impl Store {
     pub async fn create_automation_rule(
         &self,
         user_id: Uuid,
-        interval_seconds: u32,
-        time_zone: &str,
+        title: &str,
+        schedule: &AutomationScheduleSpec,
         next_run_at: DateTime<Utc>,
         prompt_ciphertext: &[u8],
         prompt_sha256: &str,
     ) -> Result<AutomationRuleRecord, StoreError> {
         self.ensure_user(user_id).await?;
-        let interval_seconds = validated_interval_seconds(interval_seconds)?;
-        let time_zone = normalized_time_zone(time_zone)?;
+        let title = normalized_automation_title(title)?;
+        let schedule = normalized_schedule_spec(schedule)?;
         let prompt_sha256 = normalized_prompt_sha256(prompt_sha256)?;
 
         let row = sqlx::query(
             "INSERT INTO automation_rules (
                 user_id,
+                title,
                 status,
                 schedule_type,
                 interval_seconds,
                 time_zone,
+                local_time_minutes,
+                anchor_day_of_week,
+                anchor_day_of_month,
+                anchor_month,
                 next_run_at,
                 prompt_ciphertext,
                 prompt_sha256
              ) VALUES (
                 $1,
-                'ACTIVE',
-                'INTERVAL_SECONDS',
                 $2,
+                'ACTIVE',
                 $3,
                 $4,
-                pgp_sym_encrypt(encode($5, 'base64'), $6),
-                $7
+                $5,
+                $6,
+                $7,
+                $8,
+                $9,
+                $10,
+                pgp_sym_encrypt(encode($11, 'base64'), $12),
+                $13
              )
              RETURNING
                 id,
                 user_id,
+                title,
                 status,
                 schedule_type,
-                interval_seconds,
+                local_time_minutes,
+                anchor_day_of_week,
+                anchor_day_of_month,
+                anchor_month,
                 time_zone,
                 next_run_at,
                 last_run_at,
@@ -62,8 +78,14 @@ impl Store {
                 updated_at",
         )
         .bind(user_id)
-        .bind(interval_seconds)
-        .bind(time_zone)
+        .bind(&title)
+        .bind(schedule.schedule_type.as_str())
+        .bind(interval_seconds_hint(schedule.schedule_type))
+        .bind(schedule.time_zone.as_str())
+        .bind(i32::from(schedule.local_time_minutes))
+        .bind(schedule.anchor_day_of_week.map(i16::from))
+        .bind(schedule.anchor_day_of_month.map(i16::from))
+        .bind(schedule.anchor_month.map(i16::from))
         .bind(next_run_at)
         .bind(prompt_ciphertext)
         .bind(&self.data_encryption_key)
@@ -83,9 +105,13 @@ impl Store {
             "SELECT
                 id,
                 user_id,
+                title,
                 status,
                 schedule_type,
-                interval_seconds,
+                local_time_minutes,
+                anchor_day_of_week,
+                anchor_day_of_month,
+                anchor_month,
                 time_zone,
                 next_run_at,
                 last_run_at,
@@ -104,6 +130,29 @@ impl Store {
         row.map(|row| automation_rule_from_row(&row)).transpose()
     }
 
+    pub async fn get_automation_rule_prompt_material(
+        &self,
+        user_id: Uuid,
+        rule_id: Uuid,
+    ) -> Result<Option<AutomationPromptMaterial>, StoreError> {
+        let row = sqlx::query(
+            "SELECT
+                prompt_sha256,
+                pgp_sym_decrypt(prompt_ciphertext, $3) AS prompt_encoded
+             FROM automation_rules
+             WHERE user_id = $1
+               AND id = $2",
+        )
+        .bind(user_id)
+        .bind(rule_id)
+        .bind(&self.data_encryption_key)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        row.map(|row| automation_prompt_material_from_row(&row))
+            .transpose()
+    }
+
     pub async fn list_automation_rules(
         &self,
         user_id: Uuid,
@@ -119,9 +168,13 @@ impl Store {
             "SELECT
                 id,
                 user_id,
+                title,
                 status,
                 schedule_type,
-                interval_seconds,
+                local_time_minutes,
+                anchor_day_of_week,
+                anchor_day_of_month,
+                anchor_month,
                 time_zone,
                 next_run_at,
                 last_run_at,
@@ -143,31 +196,30 @@ impl Store {
             .collect()
     }
 
-    pub async fn update_automation_rule_schedule(
+    pub async fn update_automation_rule_title(
         &self,
         user_id: Uuid,
         rule_id: Uuid,
-        interval_seconds: u32,
-        time_zone: &str,
-        next_run_at: DateTime<Utc>,
+        title: &str,
     ) -> Result<Option<AutomationRuleRecord>, StoreError> {
-        let interval_seconds = validated_interval_seconds(interval_seconds)?;
-        let time_zone = normalized_time_zone(time_zone)?;
+        let title = normalized_automation_title(title)?;
 
         let row = sqlx::query(
             "UPDATE automation_rules
-             SET interval_seconds = $3,
-                 time_zone = $4,
-                 next_run_at = $5,
+             SET title = $3,
                  updated_at = NOW()
              WHERE user_id = $1
                AND id = $2
              RETURNING
                 id,
                 user_id,
+                title,
                 status,
                 schedule_type,
-                interval_seconds,
+                local_time_minutes,
+                anchor_day_of_week,
+                anchor_day_of_month,
+                anchor_month,
                 time_zone,
                 next_run_at,
                 last_run_at,
@@ -177,8 +229,61 @@ impl Store {
         )
         .bind(user_id)
         .bind(rule_id)
-        .bind(interval_seconds)
-        .bind(time_zone)
+        .bind(&title)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        row.map(|row| automation_rule_from_row(&row)).transpose()
+    }
+
+    pub async fn update_automation_rule_schedule(
+        &self,
+        user_id: Uuid,
+        rule_id: Uuid,
+        schedule: &AutomationScheduleSpec,
+        next_run_at: DateTime<Utc>,
+    ) -> Result<Option<AutomationRuleRecord>, StoreError> {
+        let schedule = normalized_schedule_spec(schedule)?;
+
+        let row = sqlx::query(
+            "UPDATE automation_rules
+             SET schedule_type = $3,
+                 interval_seconds = $4,
+                 time_zone = $5,
+                 local_time_minutes = $6,
+                 anchor_day_of_week = $7,
+                 anchor_day_of_month = $8,
+                 anchor_month = $9,
+                 next_run_at = $10,
+                 updated_at = NOW()
+             WHERE user_id = $1
+               AND id = $2
+             RETURNING
+                id,
+                user_id,
+                title,
+                status,
+                schedule_type,
+                local_time_minutes,
+                anchor_day_of_week,
+                anchor_day_of_month,
+                anchor_month,
+                time_zone,
+                next_run_at,
+                last_run_at,
+                prompt_sha256,
+                created_at,
+                updated_at",
+        )
+        .bind(user_id)
+        .bind(rule_id)
+        .bind(schedule.schedule_type.as_str())
+        .bind(interval_seconds_hint(schedule.schedule_type))
+        .bind(schedule.time_zone.as_str())
+        .bind(i32::from(schedule.local_time_minutes))
+        .bind(schedule.anchor_day_of_week.map(i16::from))
+        .bind(schedule.anchor_day_of_month.map(i16::from))
+        .bind(schedule.anchor_month.map(i16::from))
         .bind(next_run_at)
         .fetch_optional(&self.pool)
         .await?;
@@ -205,9 +310,13 @@ impl Store {
              RETURNING
                 id,
                 user_id,
+                title,
                 status,
                 schedule_type,
-                interval_seconds,
+                local_time_minutes,
+                anchor_day_of_week,
+                anchor_day_of_month,
+                anchor_month,
                 time_zone,
                 next_run_at,
                 last_run_at,
@@ -343,7 +452,11 @@ impl Store {
                 RETURNING
                     r.id,
                     r.user_id,
-                    r.interval_seconds,
+                    r.schedule_type,
+                    r.local_time_minutes,
+                    r.anchor_day_of_week,
+                    r.anchor_day_of_month,
+                    r.anchor_month,
                     r.time_zone,
                     r.next_run_at,
                     r.prompt_sha256,
@@ -352,7 +465,11 @@ impl Store {
              SELECT
                 id,
                 user_id,
-                interval_seconds,
+                schedule_type,
+                local_time_minutes,
+                anchor_day_of_week,
+                anchor_day_of_month,
+                anchor_month,
                 time_zone,
                 next_run_at,
                 prompt_sha256,
@@ -382,9 +499,13 @@ fn automation_rule_from_row(
     Ok(AutomationRuleRecord {
         id: row.try_get("id")?,
         user_id: row.try_get("user_id")?,
+        title: row.try_get("title")?,
         status: AutomationRuleStatus::from_db(&status)?,
         schedule_type: AutomationScheduleType::from_db(&schedule_type)?,
-        interval_seconds: row.try_get("interval_seconds")?,
+        local_time_minutes: row.try_get("local_time_minutes")?,
+        anchor_day_of_week: row.try_get("anchor_day_of_week")?,
+        anchor_day_of_month: row.try_get("anchor_day_of_month")?,
+        anchor_month: row.try_get("anchor_month")?,
         time_zone: row.try_get("time_zone")?,
         next_run_at: row.try_get("next_run_at")?,
         last_run_at: row.try_get("last_run_at")?,
@@ -398,14 +519,17 @@ fn claimed_automation_rule_from_row(
     row: sqlx::postgres::PgRow,
 ) -> Result<ClaimedAutomationRule, StoreError> {
     let prompt_encoded: String = row.try_get("prompt_encoded")?;
-    let prompt_ciphertext = STANDARD
-        .decode(prompt_encoded.as_bytes())
-        .map_err(|_| StoreError::InvalidData("automation prompt decode failed".to_string()))?;
+    let prompt_ciphertext = decode_base64_payload(prompt_encoded.as_str())?;
+    let schedule_type: String = row.try_get("schedule_type")?;
 
     Ok(ClaimedAutomationRule {
         id: row.try_get("id")?,
         user_id: row.try_get("user_id")?,
-        interval_seconds: row.try_get("interval_seconds")?,
+        schedule_type: AutomationScheduleType::from_db(&schedule_type)?,
+        local_time_minutes: row.try_get("local_time_minutes")?,
+        anchor_day_of_week: row.try_get("anchor_day_of_week")?,
+        anchor_day_of_month: row.try_get("anchor_day_of_month")?,
+        anchor_month: row.try_get("anchor_month")?,
         time_zone: row.try_get("time_zone")?,
         next_run_at: row.try_get("next_run_at")?,
         prompt_ciphertext,
@@ -413,15 +537,35 @@ fn claimed_automation_rule_from_row(
     })
 }
 
-fn validated_interval_seconds(value: u32) -> Result<i32, StoreError> {
-    if !(MIN_INTERVAL_SECONDS..=MAX_INTERVAL_SECONDS).contains(&value) {
-        return Err(StoreError::InvalidData(format!(
-            "interval_seconds must be between {MIN_INTERVAL_SECONDS} and {MAX_INTERVAL_SECONDS}"
-        )));
-    }
+fn automation_prompt_material_from_row(
+    row: &sqlx::postgres::PgRow,
+) -> Result<AutomationPromptMaterial, StoreError> {
+    let prompt_encoded: String = row.try_get("prompt_encoded")?;
+    let prompt_ciphertext = decode_base64_payload(prompt_encoded.as_str())?;
 
-    i32::try_from(value)
-        .map_err(|_| StoreError::InvalidData("interval_seconds exceeds i32 bounds".to_string()))
+    Ok(AutomationPromptMaterial {
+        prompt_ciphertext,
+        prompt_sha256: row.try_get("prompt_sha256")?,
+    })
+}
+
+fn decode_base64_payload(encoded: &str) -> Result<Vec<u8>, StoreError> {
+    let compact: String = encoded
+        .chars()
+        .filter(|ch| !ch.is_ascii_whitespace())
+        .collect();
+    STANDARD
+        .decode(compact.as_bytes())
+        .map_err(|_| StoreError::InvalidData("automation prompt decode failed".to_string()))
+}
+
+fn normalized_schedule_spec(
+    schedule: &AutomationScheduleSpec,
+) -> Result<AutomationScheduleSpec, StoreError> {
+    let mut normalized = schedule.clone();
+    normalized.time_zone = normalized_time_zone(schedule.time_zone.as_str())?;
+    validate_schedule_spec(&normalized).map_err(StoreError::InvalidData)?;
+    Ok(normalized)
 }
 
 fn normalized_time_zone(value: &str) -> Result<String, StoreError> {
@@ -439,4 +583,20 @@ fn normalized_prompt_sha256(value: &str) -> Result<String, StoreError> {
     }
 
     Ok(trimmed.to_ascii_lowercase())
+}
+
+fn normalized_automation_title(value: &str) -> Result<String, StoreError> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err(StoreError::InvalidData(
+            "title must not be empty".to_string(),
+        ));
+    }
+    if trimmed.chars().count() > MAX_AUTOMATION_TITLE_CHARS {
+        return Err(StoreError::InvalidData(format!(
+            "title exceeds maximum length of {MAX_AUTOMATION_TITLE_CHARS} characters"
+        )));
+    }
+
+    Ok(trimmed.to_string())
 }

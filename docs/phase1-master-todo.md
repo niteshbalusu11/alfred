@@ -2,7 +2,7 @@
 
 - Project: Alfred (iOS + Hosted Backend + TEE-sensitive processing)
 - Created: 2026-02-14
-- Updated: 2026-02-21 (issue `#41` reconciliation pass)
+- Updated: 2026-02-21 (issues `#41` and `#42`)
 - Scope: Phase I private beta readiness
 
 ## 1) Phase I Outcome
@@ -92,13 +92,13 @@ Ship a private beta where iOS users can:
 
 | ID | Pri | Task | Owner | ETA | Status | Depends On | Exit Criteria |
 |---|---|---|---|---|---|---|---|
-| PROD-001 | P0 | Freeze Phase I scope doc | FOUNDER | 2026-02-16 | TODO | - | Signed scope in docs |
-| PROD-002 | P0 | Freeze out-of-scope list (no smart-home control) | FOUNDER | 2026-02-16 | TODO | PROD-001 | Out-of-scope list published |
-| PROD-003 | P0 | Define beta KPIs (activation, D7 retention, reminder success) | FOUNDER | 2026-02-18 | TODO | PROD-001 | KPI targets documented |
-| PROD-004 | P0 | Finalize urgent-email criteria (LLM-first with deterministic fallback) | FOUNDER | 2026-02-18 | TODO | PROD-001 | LLM policy + fallback policy approved |
+| PROD-001 | P0 | Freeze Phase I scope doc | FOUNDER | 2026-02-16 | DONE | - | Scope finalized in `docs/phase1-launch-decision-package.md` |
+| PROD-002 | P0 | Freeze out-of-scope list (no smart-home control) | FOUNDER | 2026-02-16 | DONE | PROD-001 | Out-of-scope list finalized in `docs/phase1-launch-decision-package.md` |
+| PROD-003 | P0 | Define beta KPIs (activation, D7 retention, reminder success) | FOUNDER | 2026-02-18 | DONE | PROD-001 | KPI targets documented in `docs/phase1-launch-decision-package.md` |
+| PROD-004 | P0 | Finalize urgent-email criteria (LLM-first with deterministic fallback) | FOUNDER | 2026-02-18 | DONE | PROD-001 | Urgent-email rules/policy documented in `docs/phase1-launch-decision-package.md` |
 | PROD-005 | P1 | Finalize push copy/content policy | FOUNDER | 2026-02-19 | TODO | PROD-004 | Copy approved |
-| PROD-006 | P0 | Define launch/no-launch checklist | FOUNDER | 2026-02-20 | TODO | PROD-003 | Checklist version 1 approved |
-| PROD-007 | P1 | Define beta support SLAs and severity matrix | FOUNDER | 2026-02-21 | TODO | PROD-006 | Severity/SLA doc published |
+| PROD-006 | P0 | Define launch/no-launch checklist | FOUNDER | 2026-02-20 | DONE | PROD-003 | Checklist version 1 finalized in `docs/phase1-launch-decision-package.md` |
+| PROD-007 | P1 | Define beta support SLAs and severity matrix | FOUNDER | 2026-02-21 | DONE | PROD-006 | Severity/SLA matrix published in `docs/phase1-launch-decision-package.md` |
 
 ### B) API and Backend Core
 
@@ -292,31 +292,33 @@ Ship a private beta where iOS users can:
 2. Added missing automation migration board section (`AUTO-001`..`AUTO-008`) aligned to issues `#208`..`#214` and `#219`.
 3. Normalized duplicate board rows by explicitly marking `IOS-002` as historical duplicate of `IOS-014`.
 4. Updated activity UX status note to reflect the activity-to-automations tab migration (`#70` -> `#219`).
+5. Finalized launch decision package scope/KPI/urgent-email/checklist/SLA items (`#42`).
 
 ### Evidence Map for DONE Rows
 
-1. Clerk/Auth migration: `BE-001`, `BE-014`, `IOS-001` -> `#52`, `#53`, `#54`, `#56`.
-2. Backend/API core + logging/rate limits + modularization: `BE-002`, `BE-003`, `BE-005`, `BE-006`, `BE-007`, `BE-008`, `BE-010`, `BE-011`, `BE-013` -> `#1`, `#6`, `#7`, `#9`, `#24`, `#64`.
-3. Database and privacy-state primitives: `DB-001`, `DB-002`, `DB-003`, `DB-005`, `DB-006`, `DB-007`, `GOV-004` -> `#2`, `#4`, `#7`, `#19`, `#127`.
-4. TEE/security line: `SEC-001`..`SEC-010` -> `#121`..`#130`.
-5. Worker core/reliability primitives: `WRK-001`..`WRK-008` -> `#4`, `#18`, `#91`, `#97`, `#98`, `#211`.
-6. APNs pipeline hardening: `APNS-002`, `APNS-004`, `APNS-005`, `APNS-006`, `APNS-007` -> `#5`, `#213`, `#214`.
-7. iOS FE core/tab/connect/privacy line: `IOS-002`, `IOS-003`, `IOS-004`, `IOS-005`, `IOS-006`, `IOS-013`, `IOS-014`, `IOS-015` -> `#67`, `#68`, `#69`, `#70`, `#71`, `#72`, `#219`.
-8. LLM backend migration: `AI-000`..`AI-015` -> `#91`..`#103`, `#118`, `#180`, `#181`, `#182`, `#185`, `#187`.
-9. Content blindness migration: `CB-001`, `CB-002`, `CB-003` -> `#147`, `#148`, `#149`.
-10. Automation v2 migration: `AUTO-001`..`AUTO-007` -> `#209`, `#210`, `#211`, `#212`, `#213`, `#214`, `#219`.
+1. Product launch decision package: `PROD-001`, `PROD-002`, `PROD-003`, `PROD-004`, `PROD-006`, `PROD-007` -> `#42`, `docs/phase1-launch-decision-package.md`.
+2. Clerk/Auth migration: `BE-001`, `BE-014`, `IOS-001` -> `#52`, `#53`, `#54`, `#56`.
+3. Backend/API core + logging/rate limits + modularization: `BE-002`, `BE-003`, `BE-005`, `BE-006`, `BE-007`, `BE-008`, `BE-010`, `BE-011`, `BE-013` -> `#1`, `#6`, `#7`, `#9`, `#24`, `#64`.
+4. Database and privacy-state primitives: `DB-001`, `DB-002`, `DB-003`, `DB-005`, `DB-006`, `DB-007`, `GOV-004` -> `#2`, `#4`, `#7`, `#19`, `#127`.
+5. TEE/security line: `SEC-001`..`SEC-010` -> `#121`..`#130`.
+6. Worker core/reliability primitives: `WRK-001`..`WRK-008` -> `#4`, `#18`, `#91`, `#97`, `#98`, `#211`.
+7. APNs pipeline hardening: `APNS-002`, `APNS-004`, `APNS-005`, `APNS-006`, `APNS-007` -> `#5`, `#213`, `#214`.
+8. iOS FE core/tab/connect/privacy line: `IOS-002`, `IOS-003`, `IOS-004`, `IOS-005`, `IOS-006`, `IOS-013`, `IOS-014`, `IOS-015` -> `#67`, `#68`, `#69`, `#70`, `#71`, `#72`, `#219`.
+9. LLM backend migration: `AI-000`..`AI-015` -> `#91`..`#103`, `#118`, `#180`, `#181`, `#182`, `#185`, `#187`.
+10. Content blindness migration: `CB-001`, `CB-002`, `CB-003` -> `#147`, `#148`, `#149`.
+11. Automation v2 migration: `AUTO-001`..`AUTO-007` -> `#209`, `#210`, `#211`, `#212`, `#213`, `#214`, `#219`.
 
 ## 7) Critical Path (Outstanding as of 2026-02-21)
 
-1. Product launch gating and decision package: `PROD-001`, `PROD-003`, `PROD-006`, `GOV-008`, `GOV-009` (see open `#42`).
-2. Security assessment and remediation closure: `SEC-011`, `SEC-012`, `GOV-007` (see open `#43`).
-3. APNs client auto-registration + in-app validation hardening: `APNS-003` (see open `#51`).
-4. Automation migration closure and acceptance sign-off: `AUTO-008` (see open `#208`).
-5. Pre-beta verification gates: `QA-002`, `QA-005`, `QA-008`, `IOS-012`.
+1. Security assessment and remediation closure: `SEC-011`, `SEC-012`, `GOV-007` (see open `#43`).
+2. APNs client auto-registration + in-app validation hardening: `APNS-003` (see open `#51`).
+3. Automation migration closure and acceptance sign-off: `AUTO-008` (see open `#208`).
+4. Pre-beta verification gates: `QA-002`, `QA-005`, `QA-008`, `IOS-012`.
+5. Final launch governance: `GOV-008`, `GOV-009`.
 
 ## 8) Open Backlog Alignment (GitHub `phase-1`)
 
-1. Open `P0` issues: `#41`, `#42`, `#43`, `#51`.
+1. Open `P0` issues (post-`#42` merge target state): `#43`, `#51`.
 2. Open `P1` issues: `#8`, `#10`, `#25`, `#44`, `#45`, `#46`, `#73`, `#74`, `#75`, `#76`.
 3. Reconciliation note: automation tracker `#208` is active P0 architecture work but currently unlabeled; board tracks it under `AUTO-008` to preserve execution visibility.
 

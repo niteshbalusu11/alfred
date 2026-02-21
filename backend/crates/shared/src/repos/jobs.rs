@@ -441,11 +441,7 @@ fn claimed_job_from_row(row: sqlx::postgres::PgRow) -> Result<ClaimedJob, StoreE
     let job_type: String = row.try_get("type")?;
     let payload_encoded: Option<String> = row.try_get("payload_encoded")?;
     let payload_ciphertext = payload_encoded
-        .map(|encoded| {
-            STANDARD
-                .decode(encoded.as_bytes())
-                .map_err(|_| StoreError::InvalidData("job payload decode failed".to_string()))
-        })
+        .map(|encoded| decode_base64_payload(encoded.as_str()))
         .transpose()?;
 
     Ok(ClaimedJob {
@@ -458,6 +454,16 @@ fn claimed_job_from_row(row: sqlx::postgres::PgRow) -> Result<ClaimedJob, StoreE
         max_attempts: row.try_get("max_attempts")?,
         idempotency_key: row.try_get("idempotency_key")?,
     })
+}
+
+fn decode_base64_payload(encoded: &str) -> Result<Vec<u8>, StoreError> {
+    let compact: String = encoded
+        .chars()
+        .filter(|ch| !ch.is_ascii_whitespace())
+        .collect();
+    STANDARD
+        .decode(compact.as_bytes())
+        .map_err(|_| StoreError::InvalidData("job payload decode failed".to_string()))
 }
 
 fn default_job_idempotency_key(

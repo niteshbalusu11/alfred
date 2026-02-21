@@ -17,14 +17,6 @@ extension AppModel {
         return ("Not connected", .neutral)
     }
 
-    var preferencesStatusBadge: (title: String, style: AppStatusBadge.Style) {
-        if isLoading(.savePreferences) {
-            return ("Saving", .warning)
-        }
-
-        return ("Ready", .neutral)
-    }
-
     var privacyStatusBadge: (title: String, style: AppStatusBadge.Style) {
         if isLoading(.revokeConnector) || isLoading(.requestDeleteAll) {
             return ("Processing", .warning)

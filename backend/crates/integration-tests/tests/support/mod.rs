@@ -41,7 +41,6 @@ pub async fn reset_database(pool: &PgPool) {
             assistant_encrypted_sessions,
             connectors,
             devices,
-            user_preferences,
             privacy_delete_requests,
             users
          RESTART IDENTITY CASCADE",

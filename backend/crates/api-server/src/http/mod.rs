@@ -19,7 +19,6 @@ mod errors;
 mod health;
 mod oauth_bridge;
 mod observability;
-mod preferences;
 mod privacy;
 mod rate_limit;
 mod tokens;
@@ -45,6 +44,7 @@ pub struct AppState {
     pub store: Store,
     pub oauth: OAuthConfig,
     pub enclave_rpc: EnclaveRpcConfig,
+    pub allow_debug_automation_run: bool,
     pub secret_runtime: SecretRuntime,
     pub rate_limiter: RateLimiter,
     pub trusted_proxy_ips: HashSet<IpAddr>,
@@ -127,10 +127,6 @@ pub fn build_router(app_state: AppState) -> Router {
             )),
         )
         .route(
-            "/v1/preferences",
-            get(preferences::get_preferences).put(preferences::update_preferences),
-        )
-        .route(
             "/v1/automations",
             get(automations::list_automations)
                 .post(automations::create_automation)
@@ -147,6 +143,13 @@ pub fn build_router(app_state: AppState) -> Router {
                     protected_rate_limit_layer_state.clone(),
                     rate_limit::sensitive_rate_limit_middleware,
                 )),
+        )
+        .route(
+            "/v1/automations/{rule_id}/debug/run",
+            post(automations::trigger_debug_run).layer(middleware::from_fn_with_state(
+                protected_rate_limit_layer_state.clone(),
+                rate_limit::sensitive_rate_limit_middleware,
+            )),
         )
         .route("/v1/audit-events", get(audit::list_audit_events))
         .route(

@@ -52,6 +52,7 @@ pub async fn build_test_router_with_enclave_base_url(
                 max_clock_skew_seconds: 30,
             },
         },
+        allow_debug_automation_run: true,
         secret_runtime: SecretRuntime::new(
             TeeAttestationPolicy {
                 required: false,

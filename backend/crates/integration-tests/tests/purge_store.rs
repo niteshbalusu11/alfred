@@ -78,11 +78,6 @@ async fn purge_user_operational_data_removes_sensitive_rows_and_marks_user_delet
         .await
         .expect("audit event should store");
 
-    store
-        .get_or_create_preferences(user_id)
-        .await
-        .expect("default preferences should be created");
-
     let session_state = AssistantSessionStateEnvelope {
         version: "v1".to_string(),
         algorithm: "x25519-chacha20poly1305".to_string(),
@@ -107,10 +102,6 @@ async fn purge_user_operational_data_removes_sensitive_rows_and_marks_user_delet
     assert_eq!(row_count(store.pool(), "jobs", user_id).await, 0);
     assert_eq!(row_count(store.pool(), "oauth_states", user_id).await, 0);
     assert_eq!(row_count(store.pool(), "audit_events", user_id).await, 0);
-    assert_eq!(
-        row_count(store.pool(), "user_preferences", user_id).await,
-        0
-    );
     assert_eq!(
         row_count(store.pool(), "assistant_encrypted_sessions", user_id).await,
         0

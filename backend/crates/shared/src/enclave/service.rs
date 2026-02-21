@@ -356,13 +356,6 @@ impl EnclaveOperationService {
         })
     }
 
-    pub async fn get_or_create_preferences(
-        &self,
-        user_id: Uuid,
-    ) -> Result<crate::models::Preferences, crate::repos::StoreError> {
-        self.store.get_or_create_preferences(user_id).await
-    }
-
     async fn exchange_access_token(&self, refresh_token: &str) -> Result<String, EnclaveRpcError> {
         let response = self
             .http_client

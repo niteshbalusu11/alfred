@@ -1,6 +1,7 @@
 use base64::{Engine as _, engine::general_purpose::STANDARD};
-use chrono::{DateTime, Duration as ChronoDuration, Utc};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use shared::automation_schedule::next_run_after;
 use shared::config::WorkerConfig;
 use shared::repos::{JobType, Store};
 use tracing::{error, info, warn};
@@ -56,8 +57,27 @@ pub(crate) async fn enqueue_due_automation_runs(
 
     for rule in claimed_rules {
         let scheduled_for = rule.next_run_at;
-        let interval_seconds = i64::from(rule.interval_seconds.max(60));
-        let next_run_at = scheduled_for + ChronoDuration::seconds(interval_seconds);
+        let schedule = match rule.schedule_spec() {
+            Ok(schedule) => schedule,
+            Err(err) => {
+                metrics.failed_runs += 1;
+                error!(
+                    worker_id = %worker_id,
+                    rule_id = %rule.id,
+                    "failed to reconstruct schedule for claimed rule: {err}"
+                );
+                continue;
+            }
+        };
+        let Some(next_run_at) = next_run_after(scheduled_for, &schedule) else {
+            metrics.failed_runs += 1;
+            error!(
+                worker_id = %worker_id,
+                rule_id = %rule.id,
+                "failed to compute next scheduled run for claimed rule"
+            );
+            continue;
+        };
         let idempotency_key = format!("{}:{}", rule.id, scheduled_for.timestamp_micros());
 
         let run = match store

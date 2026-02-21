@@ -85,6 +85,7 @@ Reference docs:
 1. RFC: `/Users/niteshchowdharybalusu/Documents/alfred/docs/rfc-0001-alfred-ios-v1.md`
 2. OpenAPI: `/Users/niteshchowdharybalusu/Documents/alfred/api/openapi.yaml`
 3. Phase I execution board: `/Users/niteshchowdharybalusu/Documents/alfred/docs/phase1-master-todo.md`
+4. Phase I launch decision package: `/Users/niteshchowdharybalusu/Documents/alfred/docs/phase1-launch-decision-package.md`
 
 ## 8) Privacy and Security Strategy
 

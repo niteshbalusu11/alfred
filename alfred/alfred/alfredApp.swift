@@ -15,6 +15,7 @@ import SwiftUI
 @main
 struct alfredApp: App {
     private let clerk: Clerk
+    @UIApplicationDelegateAdaptor(PushAppDelegate.self) private var pushAppDelegate
     @StateObject private var model: AppModel
 
     @MainActor

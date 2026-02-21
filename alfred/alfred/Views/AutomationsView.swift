@@ -4,136 +4,170 @@ import SwiftUI
 struct AutomationsView: View {
     @ObservedObject var model: AppModel
     @State private var rules: [AutomationRuleSummary] = []
-    @State private var localTitles: [UUID: String] = [:]
+    @State private var cachedPrompts: [UUID: String] = [:]
     @State private var isLoading = false
     @State private var loadErrorMessage: String?
     @State private var mutationErrorMessage: String?
     @State private var mutatingRuleIDs: Set<UUID> = []
     @State private var activeSheet: SheetRoute?
+    private let automationRuleStore = AutomationRuleStore()
 
-    private enum SheetRoute: String, Identifiable {
+    private enum SheetRoute: Hashable, Identifiable {
         case create
+        case edit(UUID)
 
-        var id: String { rawValue }
+        var id: String {
+            switch self {
+            case .create:
+                return "create"
+            case .edit(let ruleID):
+                return "edit-\(ruleID.uuidString.lowercased())"
+            }
+        }
     }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(spacing: AppTheme.Layout.sectionSpacing) {
-                headerCard
+        VStack(spacing: 0) {
+            header
 
-                if let mutationErrorMessage {
-                    AutomationCallout(
-                        title: "Automation action failed",
-                        message: mutationErrorMessage,
-                        buttonTitle: "Dismiss"
-                    ) {
-                        self.mutationErrorMessage = nil
-                    }
-                }
-
-                if isLoading && rules.isEmpty {
+            if isLoading && rules.isEmpty {
+                ScrollView {
                     AutomationLoadingStateCard()
-                } else if rules.isEmpty {
-                    AutomationEmptyStateCard(
-                        title: emptyStateTitle,
-                        message: emptyStateMessage,
-                        buttonTitle: "Create automation"
-                    ) {
-                        activeSheet = .create
+                        .padding(.horizontal, AppTheme.Layout.screenPadding)
+                        .padding(.vertical, AppTheme.Layout.sectionSpacing)
+                }
+            } else if rules.isEmpty, loadErrorMessage == nil {
+                TaskEmptyStateHero {
+                    activeSheet = .create
+                }
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: AppTheme.Layout.sectionSpacing) {
+                        if let mutationErrorMessage {
+                            AutomationCallout(
+                                title: "Task action failed",
+                                message: mutationErrorMessage,
+                                buttonTitle: "Dismiss"
+                            ) {
+                                self.mutationErrorMessage = nil
+                            }
+                        }
+
+                        if let loadErrorMessage, rules.isEmpty {
+                            AutomationEmptyStateCard(
+                                title: "Unable to load tasks",
+                                message: loadErrorMessage,
+                                buttonTitle: "Retry"
+                            ) {
+                                Task {
+                                    await loadAutomations()
+                                }
+                            }
+                        } else {
+                            ForEach(rules, id: \.ruleId) { rule in
+                                AutomationRuleCard(
+                                    title: rule.title,
+                                    rule: rule,
+                                    isMutating: mutatingRuleIDs.contains(rule.ruleId),
+                                    onEdit: { activeSheet = .edit(rule.ruleId) },
+                                    onTogglePause: { togglePause(for: rule) },
+                                    onDelete: { delete(rule: rule) },
+                                    onDebugRun: debugRunAction(for: rule)
+                                )
+                            }
+
+                            if let loadErrorMessage {
+                                AutomationCallout(
+                                    title: "Could not refresh tasks",
+                                    message: loadErrorMessage,
+                                    buttonTitle: "Retry"
+                                ) {
+                                    Task {
+                                        await loadAutomations()
+                                    }
+                                }
+                            }
+                        }
                     }
-                } else {
-                    ForEach(rules, id: \.ruleId) { rule in
-                        AutomationRuleCard(
-                            title: title(for: rule),
-                            rule: rule,
-                            isMutating: mutatingRuleIDs.contains(rule.ruleId),
-                            onTogglePause: { togglePause(for: rule) },
-                            onDelete: { delete(rule: rule) }
-                        )
-                    }
+                    .padding(.horizontal, AppTheme.Layout.screenPadding)
+                    .padding(.bottom, AppTheme.Layout.sectionSpacing)
+                    .padding(.top, 8)
                 }
             }
-            .padding(.horizontal, AppTheme.Layout.screenPadding)
-            .padding(.vertical, AppTheme.Layout.sectionSpacing)
         }
         .appScreenBackground()
         .task {
             if rules.isEmpty {
+                await loadCachedAutomations()
                 await loadAutomations()
             }
         }
-        .sheet(item: $activeSheet) { _ in
-            AutomationCreateSheet(
-                defaultTimeZone: TimeZone.current.identifier,
-                onSubmit: { payload in
-                    try await createAutomation(payload)
+        .fullScreenCover(item: $activeSheet) { route in
+            switch route {
+            case .create:
+                AutomationEditorSheet(
+                    mode: .create,
+                    defaultTimeZone: TimeZone.current.identifier,
+                    onSubmit: { payload in
+                        try await createAutomation(payload)
+                    }
+                )
+            case .edit(let ruleID):
+                if let rule = rules.first(where: { $0.ruleId == ruleID }) {
+                    AutomationEditorSheet(
+                        mode: .edit(existing: rule, existingPrompt: cachedPrompts[rule.ruleId]),
+                        defaultTimeZone: rule.schedule.timeZone,
+                        onSubmit: { payload in
+                            try await updateAutomation(ruleID: ruleID, payload: payload)
+                        }
+                    )
+                } else {
+                    Color.clear
+                        .onAppear {
+                            activeSheet = nil
+                        }
                 }
-            )
+            }
         }
     }
 
-    private var headerCard: some View {
-        AppCard {
-            AppSectionHeader("Automations", subtitle: "Scheduled prompts with private push delivery") {
-                HStack(spacing: 8) {
-                    AppStatusBadge(
-                        title: statusBadge.title,
-                        style: statusBadge.style
-                    )
+    private var header: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Tasks")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(AppTheme.Colors.textPrimary)
 
-                    AutomationInlineButton(title: isLoading ? "Loading…" : "Refresh") {
-                        Task {
-                            await loadAutomations()
-                        }
-                    }
-                    .disabled(isLoading)
-
-                    AutomationInlineButton(title: "New") {
-                        activeSheet = .create
-                    }
-                }
+                Text("Scheduled prompts with private push delivery")
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.Colors.textSecondary)
             }
 
-            if let loadErrorMessage, !rules.isEmpty {
-                AutomationCallout(
-                    title: "Could not refresh automations",
-                    message: loadErrorMessage,
-                    buttonTitle: "Retry"
-                ) {
+            Spacer(minLength: 0)
+
+            TaskHeaderIconButton(
+                systemImage: isLoading ? "arrow.triangle.2.circlepath.circle.fill" : "arrow.clockwise",
+                accessibilityLabel: "Refresh tasks",
+                action: {
                     Task {
                         await loadAutomations()
                     }
                 }
-            }
-        }
-    }
+            )
+            .disabled(isLoading)
+            .opacity(isLoading ? 0.55 : 1)
 
-    private var statusBadge: (title: String, style: AppStatusBadge.Style) {
-        if isLoading {
-            return ("Loading", .warning)
+            TaskHeaderIconButton(
+                systemImage: "plus",
+                accessibilityLabel: "Create task",
+                action: {
+                    activeSheet = .create
+                }
+            )
         }
-        if rules.isEmpty {
-            return ("Empty", .neutral)
-        }
-        if loadErrorMessage != nil {
-            return ("Stale", .warning)
-        }
-        return ("Updated", .success)
-    }
-
-    private var emptyStateTitle: String {
-        if loadErrorMessage != nil {
-            return "Unable to load automations"
-        }
-        return "No automations yet"
-    }
-
-    private var emptyStateMessage: String {
-        if let loadErrorMessage {
-            return loadErrorMessage
-        }
-        return "Create a periodic prompt and Alfred will run it for you automatically."
+        .padding(.horizontal, AppTheme.Layout.screenPadding)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
     }
 
     @MainActor
@@ -144,7 +178,10 @@ struct AutomationsView: View {
 
         do {
             let response = try await model.apiClient.listAutomations(limit: 100)
-            rules = response.items.sorted(by: { $0.nextRunAt < $1.nextRunAt })
+            let fetchedRules = response.items.sorted(by: { $0.nextRunAt < $1.nextRunAt })
+            cachedPrompts = mergedPromptCache(for: fetchedRules)
+            rules = fetchedRules
+            await persistCachedAutomations()
             loadErrorMessage = nil
         } catch {
             loadErrorMessage = AppModel.errorMessage(from: error)
@@ -152,20 +189,41 @@ struct AutomationsView: View {
     }
 
     @MainActor
-    private func createAutomation(_ payload: AutomationCreatePayload) async throws {
+    private func createAutomation(_ payload: AutomationEditorPayload) async throws {
+        guard let prompt = payload.prompt else {
+            throw AlfredAPIClientError.serverError(
+                statusCode: 400,
+                code: "invalid_prompt",
+                message: "Prompt is required"
+            )
+        }
+
         let created = try await model.apiClient.createAutomationEncrypted(
-            intervalSeconds: payload.intervalSeconds,
-            timeZone: payload.timeZone,
-            prompt: payload.prompt,
+            title: payload.title,
+            schedule: payload.schedule,
+            prompt: prompt,
             attestationConfig: AppConfiguration.assistantAttestationVerificationConfig
         )
 
-        if !payload.title.isEmpty {
-            localTitles[created.ruleId] = payload.title
-        }
-
-        upsert(created)
+        upsert(created, prompt: payload.prompt)
+        await persistCachedAutomations()
         loadErrorMessage = nil
+        mutationErrorMessage = nil
+    }
+
+    @MainActor
+    private func updateAutomation(ruleID: UUID, payload: AutomationEditorPayload) async throws {
+        let updated = try await model.apiClient.updateAutomationEncrypted(
+            ruleID: ruleID,
+            title: payload.title,
+            schedule: payload.schedule,
+            prompt: payload.prompt,
+            status: nil,
+            attestationConfig: AppConfiguration.assistantAttestationVerificationConfig
+        )
+        upsert(updated, prompt: payload.prompt)
+        await persistCachedAutomations()
+        mutationErrorMessage = nil
     }
 
     private func togglePause(for rule: AutomationRuleSummary) {
@@ -181,6 +239,7 @@ struct AutomationsView: View {
                     request: UpdateAutomationRequest(status: nextStatus)
                 )
                 upsert(updated)
+                await persistCachedAutomations()
                 mutationErrorMessage = nil
             } catch {
                 mutationErrorMessage = AppModel.errorMessage(from: error)
@@ -197,7 +256,8 @@ struct AutomationsView: View {
             do {
                 _ = try await model.apiClient.deleteAutomation(ruleID: rule.ruleId)
                 rules.removeAll(where: { $0.ruleId == rule.ruleId })
-                localTitles.removeValue(forKey: rule.ruleId)
+                cachedPrompts.removeValue(forKey: rule.ruleId)
+                await persistCachedAutomations()
                 mutationErrorMessage = nil
             } catch {
                 mutationErrorMessage = AppModel.errorMessage(from: error)
@@ -205,19 +265,101 @@ struct AutomationsView: View {
         }
     }
 
-    private func upsert(_ updated: AutomationRuleSummary) {
+    private func debugRun(rule: AutomationRuleSummary) {
+        Task { @MainActor in
+            guard !mutatingRuleIDs.contains(rule.ruleId) else { return }
+            mutatingRuleIDs.insert(rule.ruleId)
+            defer { mutatingRuleIDs.remove(rule.ruleId) }
+
+            do {
+                _ = try await model.apiClient.triggerAutomationDebugRun(ruleID: rule.ruleId)
+                mutationErrorMessage = nil
+            } catch {
+                mutationErrorMessage = AppModel.errorMessage(from: error)
+            }
+        }
+    }
+
+    private func debugRunAction(for rule: AutomationRuleSummary) -> (() -> Void)? {
+        #if DEBUG
+            return { debugRun(rule: rule) }
+        #else
+            return nil
+        #endif
+    }
+
+    private func upsert(_ updated: AutomationRuleSummary, prompt: String? = nil) {
+        let previous = rules.first(where: { $0.ruleId == updated.ruleId })
         if let index = rules.firstIndex(where: { $0.ruleId == updated.ruleId }) {
             rules[index] = updated
         } else {
             rules.append(updated)
         }
         rules.sort { $0.nextRunAt < $1.nextRunAt }
+
+        if let prompt {
+            let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                cachedPrompts.removeValue(forKey: updated.ruleId)
+            } else {
+                cachedPrompts[updated.ruleId] = trimmed
+            }
+        } else if let previous, previous.promptSha256 != updated.promptSha256 {
+            cachedPrompts.removeValue(forKey: updated.ruleId)
+        }
     }
 
-    private func title(for rule: AutomationRuleSummary) -> String {
-        if let local = localTitles[rule.ruleId], !local.isEmpty {
-            return local
+    @MainActor
+    private func loadCachedAutomations() async {
+        guard let userID = automationStorageUserID else { return }
+
+        do {
+            let snapshot = try await automationRuleStore.load(for: userID)
+            rules = snapshot.entries.map(\.rule).sorted(by: { $0.nextRunAt < $1.nextRunAt })
+            cachedPrompts = snapshot.promptByRuleID
+        } catch {
+            rules = []
+            cachedPrompts = [:]
         }
-        return "Automation \(rule.ruleId.uuidString.prefix(8))"
+    }
+
+    @MainActor
+    private func persistCachedAutomations() async {
+        guard let userID = automationStorageUserID else { return }
+        let entries = rules.map { rule in
+            AutomationRuleCacheEntry(
+                rule: rule,
+                prompt: cachedPrompts[rule.ruleId]
+            )
+        }
+
+        do {
+            try await automationRuleStore.save(AutomationRuleCacheSnapshot(entries: entries), for: userID)
+        } catch {
+            // Best-effort cache only; server remains source of truth.
+        }
+    }
+
+    private func mergedPromptCache(for fetchedRules: [AutomationRuleSummary]) -> [UUID: String] {
+        let previousByRuleID = Dictionary(uniqueKeysWithValues: rules.map { ($0.ruleId, $0) })
+        var merged: [UUID: String] = [:]
+
+        for rule in fetchedRules {
+            guard let cachedPrompt = cachedPrompts[rule.ruleId] else { continue }
+            guard let previousRule = previousByRuleID[rule.ruleId] else { continue }
+            guard previousRule.promptSha256 == rule.promptSha256 else { continue }
+            merged[rule.ruleId] = cachedPrompt
+        }
+
+        return merged
+    }
+
+    private var automationStorageUserID: String? {
+        guard let value = model.assistantStorageUserID?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty
+        else {
+            return nil
+        }
+        return value
     }
 }

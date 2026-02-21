@@ -41,7 +41,6 @@ pub(crate) struct WorkerTickMetrics {
     pub(crate) dead_lettered_jobs: usize,
     pub(crate) push_attempts: usize,
     pub(crate) push_delivered: usize,
-    pub(crate) push_quiet_hours_suppressed: usize,
     pub(crate) push_transient_failures: usize,
     pub(crate) push_permanent_failures: usize,
     pub(crate) total_lag_seconds: i64,

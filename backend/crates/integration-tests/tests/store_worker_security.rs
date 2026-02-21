@@ -292,3 +292,32 @@ async fn lease_expiry_requeues_then_dead_letters_automation_run_jobs() {
     assert_eq!(state, "FAILED");
     assert_eq!(attempts, 2);
 }
+
+#[tokio::test]
+#[serial]
+async fn claim_due_jobs_decodes_wrapped_base64_payloads() {
+    let store = support::test_store().await;
+    support::reset_database(store.pool()).await;
+
+    let user_id = Uuid::new_v4();
+    let now = Utc::now();
+    let payload: Vec<u8> = (0..512).map(|index| (index % 251) as u8).collect();
+    let expected_payload = payload.clone();
+
+    store
+        .enqueue_job(
+            user_id,
+            JobType::AutomationRun,
+            now,
+            Some(payload.as_slice()),
+        )
+        .await
+        .expect("job enqueue should succeed");
+
+    let claimed = store
+        .claim_due_jobs(now, Uuid::new_v4(), 1, 30, 1)
+        .await
+        .expect("claim due jobs should succeed");
+    assert_eq!(claimed.len(), 1);
+    assert_eq!(claimed[0].payload_ciphertext, Some(expected_payload));
+}

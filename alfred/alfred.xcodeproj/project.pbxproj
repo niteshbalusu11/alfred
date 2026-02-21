@@ -60,15 +60,11 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		C3E6B8C02F3FFFBC00C03FF0 /* alfred */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = alfred;
 			sourceTree = "<group>";
 		};
 		C3E6B8CE2F3FFFBD00C03FF0 /* alfredTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = alfredTests;
 			sourceTree = "<group>";
 		};
@@ -112,7 +108,6 @@
 				95A3C373062B820B4D65D336 /* Info.plist */,
 				38DF45289929E341ADF164EE /* alfredNotificationServiceExtension.entitlements */,
 			);
-			name = alfredNotificationServiceExtension;
 			path = alfredNotificationServiceExtension;
 			sourceTree = "<group>";
 		};
@@ -238,7 +233,7 @@
 			mainGroup = C3E6B8B52F3FFFBC00C03FF0;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				C3AABCFF2F40C03E00D8F6E7 /* XCLocalSwiftPackageReference "AlfredAPIClient" */,
+				C3AABCFF2F40C03E00D8F6E7 /* XCLocalSwiftPackageReference "Packages/AlfredAPIClient" */,
 				C3AABD282F4133F400D8F6E7 /* XCRemoteSwiftPackageReference "clerk-ios" */,
 				D10100012F50000000D8F6E7 /* XCRemoteSwiftPackageReference "onnxruntime-swift-package-manager" */,
 				C36BA2C82F48CE9F00B2F152 /* XCRemoteSwiftPackageReference "IQKeyboardManager" */,
@@ -662,7 +657,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		C3AABCFF2F40C03E00D8F6E7 /* XCLocalSwiftPackageReference "AlfredAPIClient" */ = {
+		C3AABCFF2F40C03E00D8F6E7 /* XCLocalSwiftPackageReference "Packages/AlfredAPIClient" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/AlfredAPIClient;
 		};

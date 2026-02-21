@@ -139,7 +139,7 @@ These vars control TEE/KMS-bound decrypt policy for connector refresh tokens:
 9. `KMS_KEY_VERSION` (default: `1`)
 10. `KMS_ALLOWED_MEASUREMENTS` (CSV; defaults to `TEE_ALLOWED_MEASUREMENTS`)
 11. `TRUSTED_PROXY_IPS` (CSV of proxy/LB source IPs; only these peers are allowed to supply forwarded client IP headers for unauthenticated rate limiting)
-12. `ALFRED_ENV` (`local`, `staging`, `production`; default: `local`)
+12. `ALFRED_ENV` (`local`, `staging`, `production`; default: `production`)
 13. `ENCLAVE_RUNTIME_MODE` (`dev-shim`, `remote`, `disabled`; non-local requires `remote`)
 14. `ENCLAVE_RUNTIME_BASE_URL` (default: `http://127.0.0.1:8181`)
 15. `ENCLAVE_RUNTIME_PROBE_TIMEOUT_MS` (default: `2000`)
@@ -184,14 +184,21 @@ Enclave runtime commands:
 
 ## Push Delivery Environment (Worker)
 
-Optional worker vars for APNs delivery abstraction:
+Required worker vars for direct APNs delivery:
 
-1. `APNS_SANDBOX_ENDPOINT` (HTTP endpoint used for sandbox device deliveries)
-2. `APNS_PRODUCTION_ENDPOINT` (HTTP endpoint used for production device deliveries)
-3. `APNS_AUTH_TOKEN` (optional bearer token attached to push delivery requests)
-4. `WORKER_ASSISTANT_SESSION_PURGE_BATCH_SIZE` (default: `200`; bounded expired assistant-session rows purged per worker tick)
+1. `APNS_KEY_ID` (Apple APNs key identifier)
+2. `APNS_TEAM_ID` (Apple Developer Team identifier)
+3. `APNS_TOPIC` (bundle identifier used as APNs topic, e.g. `com.prodata.alfred`)
+4. One APNs private-key source:
+   1. `APNS_AUTH_KEY_P8` (inline PEM; supports `\\n` escaped newlines), or
+   2. `APNS_AUTH_KEY_P8_BASE64` (base64-encoded full `.p8` file), or
+   3. `APNS_AUTH_KEY_P8_PATH` (absolute path to `.p8` file)
+5. `WORKER_ASSISTANT_SESSION_PURGE_BATCH_SIZE` (default: `200`; bounded expired assistant-session rows purged per worker tick)
 
-If no endpoint is configured for a device environment, worker delivery is simulated and still logged/audited for local development.
+Worker sends directly to Apple APNs:
+
+1. sandbox devices -> `https://api.sandbox.push.apple.com/3/device/{token}`
+2. production devices -> `https://api.push.apple.com/3/device/{token}`
 
 ## OpenRouter LLM Environment
 

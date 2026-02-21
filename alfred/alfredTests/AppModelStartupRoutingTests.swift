@@ -24,8 +24,8 @@ final class AppModelStartupRoutingTests: XCTestCase {
 
         model.errorBanner = AppModel.ErrorBanner(
             message: "Failed to load preferences",
-            retryAction: .loadPreferences,
-            sourceAction: .loadPreferences
+            retryAction: .loadConnectors,
+            sourceAction: .loadConnectors
         )
 
         await model.retryAuthBootstrap()

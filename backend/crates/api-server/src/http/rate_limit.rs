@@ -26,6 +26,7 @@ enum SensitiveEndpoint {
     AutomationCreate,
     AutomationUpdate,
     AutomationDelete,
+    AutomationDebugRun,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -67,6 +68,11 @@ impl SensitiveEndpoint {
             (&Method::DELETE, path) if path.starts_with("/v1/automations/") => {
                 Some(Self::AutomationDelete)
             }
+            (&Method::POST, path)
+                if path.starts_with("/v1/automations/") && path.ends_with("/debug/run") =>
+            {
+                Some(Self::AutomationDebugRun)
+            }
             _ => None,
         }
     }
@@ -80,6 +86,7 @@ impl SensitiveEndpoint {
             Self::AutomationCreate => "automation_create",
             Self::AutomationUpdate => "automation_update",
             Self::AutomationDelete => "automation_delete",
+            Self::AutomationDebugRun => "automation_debug_run",
         }
     }
 
@@ -110,6 +117,10 @@ impl SensitiveEndpoint {
                 window_seconds: 60,
             },
             Self::AutomationDelete => RateLimitPolicy {
+                max_requests: 20,
+                window_seconds: 60,
+            },
+            Self::AutomationDebugRun => RateLimitPolicy {
                 max_requests: 20,
                 window_seconds: 60,
             },

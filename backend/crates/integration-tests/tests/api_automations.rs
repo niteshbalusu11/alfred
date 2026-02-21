@@ -27,8 +27,8 @@ async fn automation_crud_flow_succeeds_for_owner() {
             "/v1/automations",
             Some(&auth),
             Some(json!({
-                "interval_seconds": 300,
-                "time_zone": "UTC",
+                "title": "Morning planning",
+                "schedule": schedule_payload("DAILY", "UTC", "09:00"),
                 "prompt_envelope": prompt_envelope("create-request")
             })),
         ),
@@ -40,8 +40,16 @@ async fn automation_crud_flow_succeeds_for_owner() {
         Some("ACTIVE")
     );
     assert_eq!(
-        create.body.get("schedule_type").and_then(Value::as_str),
-        Some("INTERVAL_SECONDS")
+        create.body.get("title").and_then(Value::as_str),
+        Some("Morning planning")
+    );
+    assert_eq!(
+        create
+            .body
+            .get("schedule")
+            .and_then(|value| value.get("schedule_type"))
+            .and_then(Value::as_str),
+        Some("DAILY")
     );
     let rule_id = create
         .body
@@ -74,10 +82,7 @@ async fn automation_crud_flow_succeeds_for_owner() {
             &format!("/v1/automations/{rule_id}"),
             Some(&auth),
             Some(json!({
-                "schedule": {
-                    "interval_seconds": 900,
-                    "time_zone": "America/New_York"
-                }
+                "schedule": schedule_payload("WEEKLY", "America/New_York", "10:30")
             })),
         ),
     )
@@ -86,16 +91,36 @@ async fn automation_crud_flow_succeeds_for_owner() {
     assert_eq!(
         update_schedule
             .body
-            .get("interval_seconds")
-            .and_then(Value::as_i64),
-        Some(900)
+            .get("schedule")
+            .and_then(|value| value.get("schedule_type"))
+            .and_then(Value::as_str),
+        Some("WEEKLY")
     );
     assert_eq!(
         update_schedule
             .body
-            .get("time_zone")
+            .get("schedule")
+            .and_then(|value| value.get("local_time"))
             .and_then(Value::as_str),
-        Some("America/New_York")
+        Some("10:30")
+    );
+
+    let update_title = send_json(
+        &app,
+        request(
+            Method::PATCH,
+            &format!("/v1/automations/{rule_id}"),
+            Some(&auth),
+            Some(json!({
+                "title": "Weekly planning"
+            })),
+        ),
+    )
+    .await;
+    assert_eq!(update_title.status, StatusCode::OK);
+    assert_eq!(
+        update_title.body.get("title").and_then(Value::as_str),
+        Some("Weekly planning")
     );
 
     let pause = send_json(
@@ -141,6 +166,27 @@ async fn automation_crud_flow_succeeds_for_owner() {
     )
     .await;
     assert_eq!(update_prompt.status, StatusCode::OK);
+
+    let debug_run = send_json(
+        &app,
+        request(
+            Method::POST,
+            &format!("/v1/automations/{rule_id}/debug/run"),
+            Some(&auth),
+            None,
+        ),
+    )
+    .await;
+    assert_eq!(
+        debug_run.status,
+        StatusCode::OK,
+        "debug run response body: {}",
+        debug_run.body
+    );
+    assert_eq!(
+        debug_run.body.get("status").and_then(Value::as_str),
+        Some("QUEUED")
+    );
 
     let deleted = send_json(
         &app,
@@ -189,8 +235,8 @@ async fn automation_create_rejects_invalid_schedule() {
             "/v1/automations",
             Some(&auth),
             Some(json!({
-                "interval_seconds": 30,
-                "time_zone": "UTC",
+                "title": "Bad schedule task",
+                "schedule": schedule_payload("DAILY", "UTC", "25:00"),
                 "prompt_envelope": prompt_envelope("invalid-schedule")
             })),
         ),
@@ -198,10 +244,7 @@ async fn automation_create_rejects_invalid_schedule() {
     .await;
 
     assert_eq!(response.status, StatusCode::BAD_REQUEST);
-    assert_eq!(
-        error_code(&response.body),
-        Some("invalid_automation_request")
-    );
+    assert_eq!(error_code(&response.body), Some("invalid_local_time"));
 }
 
 #[tokio::test]
@@ -226,8 +269,8 @@ async fn automation_create_rejects_invalid_envelope() {
             "/v1/automations",
             Some(&auth),
             Some(json!({
-                "interval_seconds": 300,
-                "time_zone": "UTC",
+                "title": "Bad envelope task",
+                "schedule": schedule_payload("DAILY", "UTC", "09:00"),
                 "prompt_envelope": invalid
             })),
         ),
@@ -256,8 +299,8 @@ async fn automation_mutations_are_user_scoped() {
             "/v1/automations",
             Some(&auth_a),
             Some(json!({
-                "interval_seconds": 300,
-                "time_zone": "UTC",
+                "title": "Owner A task",
+                "schedule": schedule_payload("DAILY", "UTC", "09:00"),
                 "prompt_envelope": prompt_envelope("owner-a")
             })),
         ),
@@ -293,6 +336,18 @@ async fn automation_mutations_are_user_scoped() {
     )
     .await;
     assert_eq!(delete_other_user.status, StatusCode::NOT_FOUND);
+
+    let debug_other_user = send_json(
+        &app,
+        request(
+            Method::POST,
+            &format!("/v1/automations/{rule_id}/debug/run"),
+            Some(&auth_b),
+            None,
+        ),
+    )
+    .await;
+    assert_eq!(debug_other_user.status, StatusCode::NOT_FOUND);
 }
 
 struct JsonResponse {
@@ -344,6 +399,14 @@ fn prompt_envelope(request_id: &str) -> Value {
         "client_ephemeral_public_key": STANDARD.encode([7_u8; 32]),
         "nonce": STANDARD.encode([9_u8; 12]),
         "ciphertext": STANDARD.encode(b"encrypted-automation-prompt")
+    })
+}
+
+fn schedule_payload(schedule_type: &str, time_zone: &str, local_time: &str) -> Value {
+    json!({
+        "schedule_type": schedule_type,
+        "time_zone": time_zone,
+        "local_time": local_time
     })
 }
 
