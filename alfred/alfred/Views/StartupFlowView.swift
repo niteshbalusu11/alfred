@@ -129,7 +129,7 @@ struct StartupAuthBootstrapFailureView: View {
 private struct StartupHeroMark: View {
     var body: some View {
         VStack(spacing: 12) {
-            Image("alfred")
+            Image("alfred_home")
                 .resizable()
                 .scaledToFit()
                 .frame(width: 170, height: 170)
