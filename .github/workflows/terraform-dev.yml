@@ -47,6 +47,7 @@ env:
   TF_INPUT: "false"
   TF_IN_AUTOMATION: "true"
   TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+  TF_STATE_REGION: ${{ vars.TF_STATE_REGION }}
   TF_STATE_LOCK_TABLE: ${{ vars.TF_STATE_LOCK_TABLE }}
   TF_STATE_KEY_DEV: ${{ vars.TF_STATE_KEY_DEV }}
   DEV_API_IMAGE: ${{ vars.DEV_API_IMAGE }}
@@ -83,13 +84,14 @@ jobs:
       - name: Terraform init
         run: |
           STATE_BUCKET="${TF_STATE_BUCKET:-alfred-terraform-state}"
+          STATE_REGION="${TF_STATE_REGION:-$AWS_REGION}"
           STATE_LOCK_TABLE="${TF_STATE_LOCK_TABLE:-alfred-terraform-locks}"
           STATE_KEY="${TF_STATE_KEY_DEV:-dev/terraform.tfstate}"
 
           terraform init \
             -backend-config="bucket=${STATE_BUCKET}" \
             -backend-config="key=${STATE_KEY}" \
-            -backend-config="region=${AWS_REGION}" \
+            -backend-config="region=${STATE_REGION}" \
             -backend-config="dynamodb_table=${STATE_LOCK_TABLE}" \
             -backend-config="encrypt=true"
 
@@ -141,13 +143,14 @@ jobs:
       - name: Terraform init
         run: |
           STATE_BUCKET="${TF_STATE_BUCKET:-alfred-terraform-state}"
+          STATE_REGION="${TF_STATE_REGION:-$AWS_REGION}"
           STATE_LOCK_TABLE="${TF_STATE_LOCK_TABLE:-alfred-terraform-locks}"
           STATE_KEY="${TF_STATE_KEY_DEV:-dev/terraform.tfstate}"
 
           terraform init \
             -backend-config="bucket=${STATE_BUCKET}" \
             -backend-config="key=${STATE_KEY}" \
-            -backend-config="region=${AWS_REGION}" \
+            -backend-config="region=${STATE_REGION}" \
             -backend-config="dynamodb_table=${STATE_LOCK_TABLE}" \
             -backend-config="encrypt=true"
 

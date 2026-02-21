@@ -183,9 +183,10 @@ Optional GitHub repository variables:
 
 1. `TF_STATE_BUCKET` (defaults to `alfred-terraform-state`)
 2. `TF_STATE_LOCK_TABLE` (defaults to `alfred-terraform-locks`)
-3. `TF_STATE_KEY_DEV` (defaults to `dev/terraform.tfstate`)
-4. `DEV_API_IMAGE`
-5. `DEV_WORKER_IMAGE`
-6. `DEV_INGRESS_CERTIFICATE_ARN`
-7. `DEV_ROUTE53_ZONE_ID`
-8. `DEV_ROUTE53_BASE_DOMAIN`
+3. `TF_STATE_REGION` (defaults to `AWS_REGION` in workflow)
+4. `TF_STATE_KEY_DEV` (defaults to `dev/terraform.tfstate`)
+5. `DEV_API_IMAGE`
+6. `DEV_WORKER_IMAGE`
+7. `DEV_INGRESS_CERTIFICATE_ARN`
+8. `DEV_ROUTE53_ZONE_ID`
+9. `DEV_ROUTE53_BASE_DOMAIN`
