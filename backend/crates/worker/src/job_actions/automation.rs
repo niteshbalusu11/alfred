@@ -6,7 +6,7 @@ use shared::enclave::{AutomationRecipientDevice, EnclaveRpcError};
 use shared::repos::{ClaimedJob, JobType};
 
 use super::{JobActionContext, JobActionResult};
-use crate::{JobExecutionError, automation_runs::AutomationRunJobPayload};
+use crate::{JobExecutionError, NotificationContent, automation_runs::AutomationRunJobPayload};
 
 pub(super) async fn resolve_job_action(
     context: &JobActionContext<'_>,
@@ -77,6 +77,10 @@ pub(super) async fn resolve_job_action(
         )
         .await
         .map_err(map_automation_enclave_error)?;
+    let mut encrypted_envelopes_by_device = HashMap::new();
+    for artifact in enclave_response.notification_artifacts {
+        encrypted_envelopes_by_device.insert(artifact.device_id, artifact.envelope);
+    }
 
     let mut metadata = HashMap::new();
     metadata.insert("action_source".to_string(), "automation_run".to_string());
@@ -99,7 +103,7 @@ pub(super) async fn resolve_job_action(
     );
     metadata.insert(
         "recipient_device_count".to_string(),
-        enclave_response.notification_artifacts.len().to_string(),
+        encrypted_envelopes_by_device.len().to_string(),
     );
     metadata.insert(
         "recipient_devices_missing_key".to_string(),
@@ -114,6 +118,17 @@ pub(super) async fn resolve_job_action(
         enclave_response.should_notify.to_string(),
     );
     metadata.insert(
+        "recipient_devices_with_artifact".to_string(),
+        encrypted_envelopes_by_device.len().to_string(),
+    );
+    metadata.insert(
+        "recipient_devices_without_artifact".to_string(),
+        devices
+            .len()
+            .saturating_sub(encrypted_envelopes_by_device.len())
+            .to_string(),
+    );
+    metadata.insert(
         "attested_measurement".to_string(),
         enclave_response.attested_identity.measurement.clone(),
     );
@@ -124,7 +139,10 @@ pub(super) async fn resolve_job_action(
     }
 
     Ok(JobActionResult {
-        notification: None,
+        notification: enclave_response
+            .should_notify
+            .then(NotificationContent::automation_fallback),
+        encrypted_envelopes_by_device,
         metadata,
     })
 }
