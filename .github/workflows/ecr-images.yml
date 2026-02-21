@@ -1,0 +1,147 @@
+name: Build and Publish Runtime Images
+
+on:
+  push:
+    branches: [master]
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+concurrency:
+  group: ecr-images-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: us-east-2
+
+jobs:
+  build-and-push:
+    name: Build + Push (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: api-server
+            dockerfile: backend/docker/Dockerfile.api-server
+            repository: alfred/api-server
+            terraform_key: api_image
+          - service: worker
+            dockerfile: backend/docker/Dockerfile.worker
+            repository: alfred/worker
+            terraform_key: worker_image
+          - service: enclave-runtime
+            dockerfile: backend/docker/Dockerfile.enclave-runtime
+            repository: alfred/enclave-runtime
+            terraform_key: enclave_runtime_image
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ECR_PUSH_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Ensure ECR repository exists
+        env:
+          REPOSITORY: ${{ matrix.repository }}
+        run: |
+          aws ecr describe-repositories --repository-names "${REPOSITORY}" >/dev/null 2>&1 \
+            || aws ecr create-repository --repository-name "${REPOSITORY}" >/dev/null
+
+      - name: Build and push image
+        id: build
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: ${{ matrix.repository }}
+          DOCKERFILE: ${{ matrix.dockerfile }}
+          SERVICE: ${{ matrix.service }}
+          TERRAFORM_KEY: ${{ matrix.terraform_key }}
+          GITHUB_REF_TYPE: ${{ github.ref_type }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          SHORT_SHA="${GITHUB_SHA::12}"
+          SHA_TAG="sha-${SHORT_SHA}"
+          PRIMARY_IMAGE="${REGISTRY}/${REPOSITORY}:${SHA_TAG}"
+
+          TAG_ARGS=(-t "${PRIMARY_IMAGE}")
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            RELEASE_TAG="${GITHUB_REF_NAME#v}"
+            TAG_ARGS+=(-t "${REGISTRY}/${REPOSITORY}:${RELEASE_TAG}")
+            TAG_ARGS+=(-t "${REGISTRY}/${REPOSITORY}:latest")
+          fi
+
+          docker buildx build \
+            --platform linux/amd64 \
+            --file "${DOCKERFILE}" \
+            "${TAG_ARGS[@]}" \
+            --push \
+            .
+
+          echo "image_uri=${PRIMARY_IMAGE}" >> "${GITHUB_OUTPUT}"
+          printf '{"service":"%s","terraform_key":"%s","image_uri":"%s"}\n' \
+            "${SERVICE}" \
+            "${TERRAFORM_KEY}" \
+            "${PRIMARY_IMAGE}" \
+            > "image-uri-${SERVICE}.json"
+
+      - name: Upload service image metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-uri-${{ matrix.service }}
+          path: image-uri-${{ matrix.service }}.json
+          if-no-files-found: error
+
+  export-terraform-image-uris:
+    name: Export Terraform image URIs
+    runs-on: ubuntu-latest
+    needs: [build-and-push]
+    steps:
+      - name: Download service image metadata
+        uses: actions/download-artifact@v4
+        with:
+          pattern: image-uri-*
+          merge-multiple: true
+
+      - name: Build Terraform tfvars JSON artifact
+        run: |
+          python - <<'PY'
+          import glob
+          import json
+
+          entries = {}
+          for path in glob.glob("image-uri-*.json"):
+              with open(path, "r", encoding="utf-8") as handle:
+                  record = json.load(handle)
+              entries[record["terraform_key"]] = record["image_uri"]
+
+          required = ["api_image", "worker_image"]
+          missing = [key for key in required if key not in entries]
+          if missing:
+              raise SystemExit(f"missing required image URIs for Terraform: {missing}")
+
+          with open("terraform-image-uris.auto.tfvars.json", "w", encoding="utf-8") as handle:
+              json.dump(entries, handle, indent=2)
+              handle.write("\n")
+          PY
+
+      - name: Upload Terraform image URI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-image-uris
+          path: terraform-image-uris.auto.tfvars.json
+          if-no-files-found: error

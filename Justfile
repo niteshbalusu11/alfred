@@ -26,6 +26,24 @@ check-infra-tools:
     @docker compose version >/dev/null || (echo "docker compose not found" && exit 1)
     @echo "Infra tools OK: docker, docker compose"
 
+# Build API runtime container image.
+backend-docker-build-api-server tag='alfred/api-server:local':
+    docker build -f backend/docker/Dockerfile.api-server -t {{ tag }} .
+
+# Build worker runtime container image.
+backend-docker-build-worker tag='alfred/worker:local':
+    docker build -f backend/docker/Dockerfile.worker -t {{ tag }} .
+
+# Build enclave runtime container image.
+backend-docker-build-enclave-runtime tag='alfred/enclave-runtime:local':
+    docker build -f backend/docker/Dockerfile.enclave-runtime -t {{ tag }} .
+
+# Build all backend runtime images.
+backend-docker-build-images:
+    just backend-docker-build-api-server
+    just backend-docker-build-worker
+    just backend-docker-build-enclave-runtime
+
 # Open the iOS project in Xcode.
 ios-open:
     open {{ ios_project }}

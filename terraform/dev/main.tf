@@ -9,6 +9,8 @@ module "environment" {
   ingress_certificate_arn = var.ingress_certificate_arn
   route53_zone_id         = var.route53_zone_id
   route53_base_domain     = var.route53_base_domain
+  api_image               = var.api_image
+  worker_image            = var.worker_image
 
   api_task_cpu         = var.api_task_cpu
   api_task_memory      = var.api_task_memory

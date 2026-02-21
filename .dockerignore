@@ -1,0 +1,9 @@
+.git
+.github
+.gitignore
+**/.DS_Store
+**/.terraform
+**/.terraform.lock.hcl
+**/target
+**/.swiftpm
+alfred
