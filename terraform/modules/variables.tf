@@ -175,6 +175,31 @@ variable "alb_deletion_protection" {
   default     = false
 }
 
+variable "ingress_certificate_arn" {
+  description = "Optional ACM certificate ARN to enable HTTPS listener."
+  type        = string
+  default     = null
+
+  validation {
+    condition = var.environment != "prod" || (
+      var.ingress_certificate_arn != null && trimspace(var.ingress_certificate_arn) != ""
+    )
+    error_message = "ingress_certificate_arn is required for prod."
+  }
+}
+
+variable "ingress_enable_http" {
+  description = "Whether to expose HTTP listener (typically for redirect)."
+  type        = bool
+  default     = true
+}
+
+variable "ingress_ssl_policy" {
+  description = "TLS policy for HTTPS listener."
+  type        = string
+  default     = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+}
+
 variable "rds_db_name" {
   description = "Initial database name."
   type        = string
@@ -214,7 +239,7 @@ variable "rds_max_allocated_storage" {
 variable "rds_multi_az" {
   description = "Enable Multi-AZ for RDS."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "rds_backup_retention_period" {
@@ -226,13 +251,13 @@ variable "rds_backup_retention_period" {
 variable "rds_deletion_protection" {
   description = "Enable RDS deletion protection."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "rds_skip_final_snapshot" {
   description = "Skip final snapshot on RDS deletion."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "valkey_node_type" {

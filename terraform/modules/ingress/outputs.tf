@@ -29,6 +29,23 @@ output "target_group_arn_suffix" {
 }
 
 output "listener_arn" {
-  description = "HTTP listener ARN."
-  value       = aws_lb_listener.http.arn
+  description = "Preferred listener ARN (HTTPS when configured, otherwise HTTP)."
+  value = coalesce(
+    try(aws_lb_listener.https[0].arn, null),
+    try(aws_lb_listener.http_redirect[0].arn, null),
+    try(aws_lb_listener.http_forward[0].arn, null)
+  )
+}
+
+output "http_listener_arn" {
+  description = "HTTP listener ARN when configured."
+  value = coalesce(
+    try(aws_lb_listener.http_redirect[0].arn, null),
+    try(aws_lb_listener.http_forward[0].arn, null)
+  )
+}
+
+output "https_listener_arn" {
+  description = "HTTPS listener ARN when configured."
+  value       = try(aws_lb_listener.https[0].arn, null)
 }
