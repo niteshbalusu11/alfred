@@ -93,14 +93,13 @@ All environment differences are variable-driven through `terraform/dev` and `ter
 Terraform remote state is configured with:
 
 - S3 bucket for state objects
-- DynamoDB table for state locking
+- S3 lockfile-based state locking (`use_lockfile = true`)
 
 Create these state resources before running remote-backend init for `dev`/`prod`.
 
 Example naming used by the provided backend examples:
 
 - S3 bucket: `alfred-terraform-state`
-- DynamoDB table: `alfred-terraform-locks`
 - Region: `us-east-2`
 - Hosted zone in current env tfvars: `Z10154612GBUAYQKQMWC3` (`noderunner.wtf`)
 
@@ -109,7 +108,7 @@ Example naming used by the provided backend examples:
 1. Copy backend config:
    - `cp terraform/dev/backend.hcl.example terraform/dev/backend.hcl`
    - `cp terraform/prod/backend.hcl.example terraform/prod/backend.hcl`
-2. Update bucket/table names if your account uses different names.
+2. Update bucket/region names if your account uses different names.
 3. Initialize each environment:
 
 ```bash
@@ -128,7 +127,7 @@ terraform apply -var-file=terraform.tfvars
 
 ## Local Validation Without Remote State
 
-If the shared S3/DynamoDB state resources are not created yet, validate configuration only:
+If the shared state resources are not created yet, validate configuration only:
 
 ```bash
 cd terraform/dev
@@ -182,11 +181,10 @@ Required GitHub secret:
 Optional GitHub repository variables:
 
 1. `TF_STATE_BUCKET` (defaults to `alfred-terraform-state`)
-2. `TF_STATE_LOCK_TABLE` (defaults to `alfred-terraform-locks`)
-3. `TF_STATE_REGION` (defaults to `AWS_REGION` in workflow)
-4. `TF_STATE_KEY_DEV` (defaults to `dev/terraform.tfstate`)
-5. `DEV_API_IMAGE`
-6. `DEV_WORKER_IMAGE`
-7. `DEV_INGRESS_CERTIFICATE_ARN`
-8. `DEV_ROUTE53_ZONE_ID`
-9. `DEV_ROUTE53_BASE_DOMAIN`
+2. `TF_STATE_REGION` (defaults to `AWS_REGION` in workflow)
+3. `TF_STATE_KEY_DEV` (defaults to `dev/terraform.tfstate`)
+4. `DEV_API_IMAGE`
+5. `DEV_WORKER_IMAGE`
+6. `DEV_INGRESS_CERTIFICATE_ARN`
+7. `DEV_ROUTE53_ZONE_ID`
+8. `DEV_ROUTE53_BASE_DOMAIN`

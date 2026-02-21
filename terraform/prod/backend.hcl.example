@@ -1,5 +1,5 @@
 bucket         = "alfred-terraform-state"
 key            = "prod/terraform.tfstate"
 region         = "us-east-2"
-dynamodb_table = "alfred-terraform-locks"
+use_lockfile   = true
 encrypt        = true
