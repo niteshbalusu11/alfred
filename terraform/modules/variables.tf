@@ -50,9 +50,9 @@ variable "enable_nat_gateway" {
 }
 
 variable "api_port" {
-  description = "API service port exposed behind ALB."
+  description = "API TLS port exposed behind ALB."
   type        = number
-  default     = 8080
+  default     = 8443
 }
 
 variable "db_port" {
@@ -176,28 +176,31 @@ variable "alb_deletion_protection" {
 }
 
 variable "ingress_certificate_arn" {
-  description = "Optional ACM certificate ARN to enable HTTPS listener."
+  description = "ACM certificate ARN for HTTPS ingress."
   type        = string
-  default     = null
 
   validation {
-    condition = var.environment != "prod" || (
-      var.ingress_certificate_arn != null && trimspace(var.ingress_certificate_arn) != ""
-    )
-    error_message = "ingress_certificate_arn is required for prod."
+    condition     = trimspace(var.ingress_certificate_arn) != ""
+    error_message = "ingress_certificate_arn must be set to a non-empty ACM certificate ARN."
   }
-}
-
-variable "ingress_enable_http" {
-  description = "Whether to expose HTTP listener (typically for redirect)."
-  type        = bool
-  default     = true
 }
 
 variable "ingress_ssl_policy" {
   description = "TLS policy for HTTPS listener."
   type        = string
   default     = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+}
+
+variable "route53_zone_id" {
+  description = "Optional Route53 hosted zone ID for creating API DNS record."
+  type        = string
+  default     = null
+}
+
+variable "route53_base_domain" {
+  description = "Optional base domain for API record generation (for example: noderunner.wtf)."
+  type        = string
+  default     = null
 }
 
 variable "rds_db_name" {

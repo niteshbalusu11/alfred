@@ -14,3 +14,36 @@ variable "additional_tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "ingress_certificate_arn" {
+  description = "ACM certificate ARN for HTTPS ingress."
+  type        = string
+}
+
+variable "route53_zone_id" {
+  description = "Route53 hosted zone ID for API DNS record."
+  type        = string
+}
+
+variable "route53_base_domain" {
+  description = "Base domain for API DNS record."
+  type        = string
+}
+
+variable "rds_deletion_protection" {
+  description = "Enable RDS deletion protection."
+  type        = bool
+  default     = true
+}
+
+variable "rds_skip_final_snapshot" {
+  description = "Skip final snapshot on RDS deletion."
+  type        = bool
+  default     = false
+}
+
+variable "rds_multi_az" {
+  description = "Enable Multi-AZ for RDS."
+  type        = bool
+  default     = true
+}

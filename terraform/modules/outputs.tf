@@ -38,6 +38,21 @@ output "api_endpoint" {
   value       = module.ingress.alb_dns_name
 }
 
+output "api_fqdn" {
+  description = "Public API FQDN when Route53 is configured, otherwise ALB DNS name."
+  value       = local.dns_enabled ? module.dns_api[0].api_fqdn : module.ingress.alb_dns_name
+}
+
+output "worker_suggested_fqdn" {
+  description = "Suggested worker subdomain name if private DNS is added later."
+  value       = local.worker_record_name
+}
+
+output "enclave_suggested_fqdn" {
+  description = "Suggested enclave subdomain name if private DNS is added later."
+  value       = local.enclave_record_name
+}
+
 output "api_target_group_arn" {
   description = "API target group ARN."
   value       = module.ingress.target_group_arn

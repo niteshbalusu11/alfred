@@ -23,6 +23,11 @@ output "api_endpoint" {
   value       = module.environment.api_endpoint
 }
 
+output "api_fqdn" {
+  description = "Public API FQDN."
+  value       = module.environment.api_fqdn
+}
+
 output "ecs_cluster_name" {
   description = "ECS cluster name."
   value       = module.environment.ecs_cluster_name
@@ -36,4 +41,14 @@ output "rds_endpoint" {
 output "valkey_primary_endpoint" {
   description = "Valkey primary endpoint hostname."
   value       = module.environment.valkey_primary_endpoint
+}
+
+output "worker_suggested_fqdn" {
+  description = "Suggested worker DNS name for future private DNS routing."
+  value       = module.environment.worker_suggested_fqdn
+}
+
+output "enclave_suggested_fqdn" {
+  description = "Suggested enclave DNS name for future private DNS routing."
+  value       = module.environment.enclave_suggested_fqdn
 }

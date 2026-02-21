@@ -15,12 +15,13 @@ resource "aws_lb" "api" {
 resource "aws_lb_target_group" "api" {
   name        = "${var.name_prefix}-api-tg"
   port        = var.target_port
-  protocol    = "HTTP"
+  protocol    = "HTTPS"
   target_type = "ip"
   vpc_id      = var.vpc_id
 
   health_check {
     enabled             = true
+    protocol            = "HTTPS"
     path                = var.health_check_path
     healthy_threshold   = 2
     unhealthy_threshold = 3
@@ -34,26 +35,7 @@ resource "aws_lb_target_group" "api" {
   }
 }
 
-locals {
-  https_enabled = var.certificate_arn != null
-}
-
-resource "aws_lb_listener" "http_forward" {
-  count = var.enable_http_listener && !local.https_enabled ? 1 : 0
-
-  load_balancer_arn = aws_lb.api.arn
-  port              = 80
-  protocol          = "HTTP"
-
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.api.arn
-  }
-}
-
 resource "aws_lb_listener" "https" {
-  count = local.https_enabled ? 1 : 0
-
   load_balancer_arn = aws_lb.api.arn
   port              = 443
   protocol          = "HTTPS"
@@ -63,23 +45,5 @@ resource "aws_lb_listener" "https" {
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.api.arn
-  }
-}
-
-resource "aws_lb_listener" "http_redirect" {
-  count = var.enable_http_listener && local.https_enabled ? 1 : 0
-
-  load_balancer_arn = aws_lb.api.arn
-  port              = 80
-  protocol          = "HTTP"
-
-  default_action {
-    type = "redirect"
-
-    redirect {
-      port        = "443"
-      protocol    = "HTTPS"
-      status_code = "HTTP_301"
-    }
   }
 }

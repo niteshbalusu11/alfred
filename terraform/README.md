@@ -35,8 +35,15 @@ Current runtime module graph under `modules/`:
 
 ## Security Defaults
 
-- Ingress supports HTTPS with ACM (`ingress_certificate_arn`), and `prod` requires a certificate ARN.
-- ALB security group only opens ports enabled by ingress settings (HTTP and/or HTTPS).
+- Public ingress is HTTPS-only on `443` with ACM (`ingress_certificate_arn` required in both envs).
+- HTTP listener is not created.
+- ALB security group opens `443` only.
+- ALB target group to API uses HTTPS, and API traffic is expected on TLS port `8443`.
+- Internal runtime API access rules (API/worker/enclave) are on TLS port `8443` only.
+- Route53 alias records are created for API when `route53_zone_id` and `route53_base_domain` are set:
+  - `api.alfred-dev.<domain>`
+  - `api.alfred-prod.<domain>`
+- Worker/enclave remain private services; Terraform outputs suggested names for future private DNS.
 - `terraform/prod/terraform.tfvars` enables safer DB lifecycle defaults:
   - `rds_deletion_protection = true`
   - `rds_skip_final_snapshot = false`
@@ -56,6 +63,7 @@ Example naming used by the provided backend examples:
 - S3 bucket: `alfred-terraform-state`
 - DynamoDB table: `alfred-terraform-locks`
 - Region: `us-east-2`
+- Hosted zone in current env tfvars: `Z10154612GBUAYQKQMWC3` (`noderunner.wtf`)
 
 ## Environment Setup
 
