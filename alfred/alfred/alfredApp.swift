@@ -5,6 +5,7 @@
 //  Created by Nitesh Chowdhary Balusu on 2/13/26.
 //
 
+import AlfredAPIClient
 import ClerkKit
 import ClerkKitUI
 import IQKeyboardManagerSwift
@@ -24,6 +25,11 @@ struct alfredApp: App {
         IQKeyboardManager.shared.keyboardDistance = 12
         IQKeyboardManager.shared.resignOnTouchOutside = true
         IQKeyboardToolbarManager.shared.isEnabled = false
+        do {
+            _ = try AutomationNotificationCrypto.registrationMaterial()
+        } catch {
+            AppLogger.warning("Notification key material bootstrap failed.")
+        }
         self.clerk = configuredClerk
         _model = StateObject(wrappedValue: AppModel(clerk: configuredClerk))
     }

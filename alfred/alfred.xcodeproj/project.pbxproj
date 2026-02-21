@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		22F13A7C287F078A1F788EC1 /* AlfredAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = C3AABD002F40C03E00D8F6E7 /* AlfredAPIClient */; };
+		2A08A9A2C7CE792DD0987E00 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95611B0BAFCF4BCF38FA3DCB /* NotificationService.swift */; };
+		93EE5AE298FFD846C8E82DA3 /* alfredNotificationServiceExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = DB36E1109E2802BBA5719436 /* alfredNotificationServiceExtension.appex */; };
 		C36BA2CA2F48CE9F00B2F152 /* IQKeyboardManagerSwift in Frameworks */ = {isa = PBXBuildFile; productRef = C36BA2C92F48CE9F00B2F152 /* IQKeyboardManagerSwift */; };
 		C3AABD012F40C03E00D8F6E7 /* AlfredAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = C3AABD002F40C03E00D8F6E7 /* AlfredAPIClient */; };
 		C3AABD2A2F4133F400D8F6E7 /* ClerkKit in Frameworks */ = {isa = PBXBuildFile; productRef = C3AABD292F4133F400D8F6E7 /* ClerkKit */; };
@@ -15,6 +18,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		ABB44118195993B0BA2EAC1B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C3E6B8B62F3FFFBC00C03FF0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 132420810B8D3F6598D96D28;
+			remoteInfo = alfredNotificationServiceExtension;
+		};
 		C3E6B8CC2F3FFFBD00C03FF0 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = C3E6B8B62F3FFFBC00C03FF0 /* Project object */;
@@ -24,25 +34,55 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		0D74320FB23F2565A5283D90 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				93EE5AE298FFD846C8E82DA3 /* alfredNotificationServiceExtension.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		38DF45289929E341ADF164EE /* alfredNotificationServiceExtension.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = alfredNotificationServiceExtension.entitlements; sourceTree = "<group>"; };
+		95611B0BAFCF4BCF38FA3DCB /* NotificationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
+		95A3C373062B820B4D65D336 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		C3E6B8BE2F3FFFBC00C03FF0 /* alfred.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = alfred.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C3E6B8CB2F3FFFBD00C03FF0 /* alfredTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = alfredTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		DB36E1109E2802BBA5719436 /* alfredNotificationServiceExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = alfredNotificationServiceExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		C3E6B8C02F3FFFBC00C03FF0 /* alfred */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = alfred;
 			sourceTree = "<group>";
 		};
 		C3E6B8CE2F3FFFBD00C03FF0 /* alfredTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = alfredTests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		9ADC70DA28641F21B2E65ABA /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				22F13A7C287F078A1F788EC1 /* AlfredAPIClient in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C3E6B8BB2F3FFFBC00C03FF0 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -65,12 +105,24 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		A1793636008158BD53CE64CC /* alfredNotificationServiceExtension */ = {
+			isa = PBXGroup;
+			children = (
+				95611B0BAFCF4BCF38FA3DCB /* NotificationService.swift */,
+				95A3C373062B820B4D65D336 /* Info.plist */,
+				38DF45289929E341ADF164EE /* alfredNotificationServiceExtension.entitlements */,
+			);
+			name = alfredNotificationServiceExtension;
+			path = alfredNotificationServiceExtension;
+			sourceTree = "<group>";
+		};
 		C3E6B8B52F3FFFBC00C03FF0 = {
 			isa = PBXGroup;
 			children = (
 				C3E6B8C02F3FFFBC00C03FF0 /* alfred */,
 				C3E6B8CE2F3FFFBD00C03FF0 /* alfredTests */,
 				C3E6B8BF2F3FFFBC00C03FF0 /* Products */,
+				A1793636008158BD53CE64CC /* alfredNotificationServiceExtension */,
 			);
 			sourceTree = "<group>";
 		};
@@ -79,6 +131,7 @@
 			children = (
 				C3E6B8BE2F3FFFBC00C03FF0 /* alfred.app */,
 				C3E6B8CB2F3FFFBD00C03FF0 /* alfredTests.xctest */,
+				DB36E1109E2802BBA5719436 /* alfredNotificationServiceExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -86,6 +139,26 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		132420810B8D3F6598D96D28 /* alfredNotificationServiceExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D06A7674F19D68F05CBF540A /* Build configuration list for PBXNativeTarget "alfredNotificationServiceExtension" */;
+			buildPhases = (
+				7731571C098178A4F9224209 /* Sources */,
+				9ADC70DA28641F21B2E65ABA /* Frameworks */,
+				31A84F3236347334014F31B0 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = alfredNotificationServiceExtension;
+			packageProductDependencies = (
+				C3AABD002F40C03E00D8F6E7 /* AlfredAPIClient */,
+			);
+			productName = alfredNotificationServiceExtension;
+			productReference = DB36E1109E2802BBA5719436 /* alfredNotificationServiceExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		C3E6B8BD2F3FFFBC00C03FF0 /* alfred */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = C3E6B8DF2F3FFFBD00C03FF0 /* Build configuration list for PBXNativeTarget "alfred" */;
@@ -93,10 +166,12 @@
 				C3E6B8BA2F3FFFBC00C03FF0 /* Sources */,
 				C3E6B8BB2F3FFFBC00C03FF0 /* Frameworks */,
 				C3E6B8BC2F3FFFBC00C03FF0 /* Resources */,
+				0D74320FB23F2565A5283D90 /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				916B11DA4EAD67D540270A64 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				C3E6B8C02F3FFFBC00C03FF0 /* alfred */,
@@ -130,8 +205,6 @@
 				C3E6B8CE2F3FFFBD00C03FF0 /* alfredTests */,
 			);
 			name = alfredTests;
-			packageProductDependencies = (
-			);
 			productName = alfredTests;
 			productReference = C3E6B8CB2F3FFFBD00C03FF0 /* alfredTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
@@ -165,7 +238,7 @@
 			mainGroup = C3E6B8B52F3FFFBC00C03FF0;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				C3AABCFF2F40C03E00D8F6E7 /* XCLocalSwiftPackageReference "Packages/AlfredAPIClient" */,
+				C3AABCFF2F40C03E00D8F6E7 /* XCLocalSwiftPackageReference "AlfredAPIClient" */,
 				C3AABD282F4133F400D8F6E7 /* XCRemoteSwiftPackageReference "clerk-ios" */,
 				D10100012F50000000D8F6E7 /* XCRemoteSwiftPackageReference "onnxruntime-swift-package-manager" */,
 				C36BA2C82F48CE9F00B2F152 /* XCRemoteSwiftPackageReference "IQKeyboardManager" */,
@@ -177,11 +250,19 @@
 			targets = (
 				C3E6B8BD2F3FFFBC00C03FF0 /* alfred */,
 				C3E6B8CA2F3FFFBD00C03FF0 /* alfredTests */,
+				132420810B8D3F6598D96D28 /* alfredNotificationServiceExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		31A84F3236347334014F31B0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C3E6B8BC2F3FFFBC00C03FF0 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -199,6 +280,14 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		7731571C098178A4F9224209 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2A08A9A2C7CE792DD0987E00 /* NotificationService.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C3E6B8BA2F3FFFBC00C03FF0 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -216,6 +305,12 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		916B11DA4EAD67D540270A64 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = alfredNotificationServiceExtension;
+			target = 132420810B8D3F6598D96D28 /* alfredNotificationServiceExtension */;
+			targetProxy = ABB44118195993B0BA2EAC1B /* PBXContainerItemProxy */;
+		};
 		C3E6B8CD2F3FFFBD00C03FF0 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = C3E6B8BD2F3FFFBC00C03FF0 /* alfred */;
@@ -224,6 +319,69 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		100DCEF2CC634CF770B1B6D7 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = alfredNotificationServiceExtension/alfredNotificationServiceExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = GNQ3HY2357;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = alfredNotificationServiceExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.prodata.alfred.NotificationServiceExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		2AA23022B43C87CEB2E555A5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = alfredNotificationServiceExtension/alfredNotificationServiceExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = GNQ3HY2357;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = alfredNotificationServiceExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.prodata.alfred.NotificationServiceExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 		C3E6B8DD2F3FFFBD00C03FF0 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -492,10 +650,19 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		D06A7674F19D68F05CBF540A /* Build configuration list for PBXNativeTarget "alfredNotificationServiceExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2AA23022B43C87CEB2E555A5 /* Release */,
+				100DCEF2CC634CF770B1B6D7 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		C3AABCFF2F40C03E00D8F6E7 /* XCLocalSwiftPackageReference "Packages/AlfredAPIClient" */ = {
+		C3AABCFF2F40C03E00D8F6E7 /* XCLocalSwiftPackageReference "AlfredAPIClient" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/AlfredAPIClient;
 		};
