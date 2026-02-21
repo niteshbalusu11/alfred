@@ -1,0 +1,64 @@
+# Alfred Terraform Bootstrap
+
+This directory contains Terraform scaffolding for the Alfred AWS deployment baseline in `us-east-2`.
+
+## Layout
+
+- `modules/`: reusable Terraform modules shared by environments.
+- `dev/`: development composition wrapper.
+- `prod/`: production composition wrapper.
+
+Environment roots stay thin: they configure backend/provider defaults and call shared modules.
+
+## Remote State Bootstrap (One-Time)
+
+Terraform remote state is configured with:
+
+- S3 bucket for state objects
+- DynamoDB table for state locking
+
+Create these state resources before running remote-backend init for `dev`/`prod`.
+
+Example naming used by the provided backend examples:
+
+- S3 bucket: `alfred-terraform-state`
+- DynamoDB table: `alfred-terraform-locks`
+- Region: `us-east-2`
+
+## Environment Setup
+
+1. Copy backend config:
+   - `cp terraform/dev/backend.hcl.example terraform/dev/backend.hcl`
+   - `cp terraform/prod/backend.hcl.example terraform/prod/backend.hcl`
+2. Update bucket/table names if your account uses different names.
+3. Initialize each environment:
+
+```bash
+cd terraform/dev
+terraform init -backend-config=backend.hcl
+terraform plan -var-file=terraform.tfvars
+terraform apply -var-file=terraform.tfvars
+```
+
+```bash
+cd terraform/prod
+terraform init -backend-config=backend.hcl
+terraform plan -var-file=terraform.tfvars
+terraform apply -var-file=terraform.tfvars
+```
+
+## Local Validation Without Remote State
+
+If the shared S3/DynamoDB state resources are not created yet, validate configuration only:
+
+```bash
+cd terraform/dev
+terraform init -backend=false
+terraform validate
+```
+
+```bash
+cd terraform/prod
+terraform init -backend=false
+terraform validate
+```
