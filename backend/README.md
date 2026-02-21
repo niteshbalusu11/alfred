@@ -117,6 +117,49 @@ Optional combined startup (API + worker + enclave + ngrok in one terminal):
 just dev
 ```
 
+## Container Images (Issue #232)
+
+Dockerfiles:
+
+1. `backend/docker/Dockerfile.api-server`
+2. `backend/docker/Dockerfile.worker`
+3. `backend/docker/Dockerfile.enclave-runtime`
+
+Local image builds:
+
+1. `just backend-docker-build-images`
+2. or build one service:
+   1. `just backend-docker-build-api-server`
+   2. `just backend-docker-build-worker`
+   3. `just backend-docker-build-enclave-runtime`
+
+Health checks used in container runtime:
+
+1. API server:
+   1. container port `8080`
+   2. health path `GET /healthz`
+2. Worker:
+   1. no HTTP endpoint
+   2. health command checks process liveness (`kill -0 1`)
+3. Enclave runtime:
+   1. container port `8181`
+   2. health path `GET /healthz`
+
+ECR publish pipeline:
+
+1. Workflow: `.github/workflows/ecr-images.yml`
+2. Triggers:
+   1. push to `master`
+   2. push tags `v*`
+   3. `workflow_dispatch`
+3. Tags:
+   1. always pushes commit tag `sha-<12-char-commit>`
+   2. on `v*` tags also pushes `<semver>` and `latest`
+4. Required GitHub secret:
+   1. `AWS_ECR_PUSH_ROLE_ARN` (OIDC-assumable role with ECR push permissions in `us-east-2`)
+5. Output artifact:
+   1. `terraform-image-uris.auto.tfvars.json` with `api_image`, `worker_image`, and `enclave_runtime_image`
+
 ## Notes
 
 1. API handlers are backed by Postgres + `sqlx` for current v1 endpoints.

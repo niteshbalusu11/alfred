@@ -30,6 +30,18 @@ variable "route53_base_domain" {
   type        = string
 }
 
+variable "api_image" {
+  description = "Container image URI for API service."
+  type        = string
+  default     = "public.ecr.aws/docker/library/nginx:latest"
+}
+
+variable "worker_image" {
+  description = "Container image URI for worker service."
+  type        = string
+  default     = "public.ecr.aws/docker/library/nginx:latest"
+}
+
 variable "api_task_cpu" {
   description = "Fargate CPU units for API service."
   type        = number

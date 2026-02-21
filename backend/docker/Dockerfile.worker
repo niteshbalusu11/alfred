@@ -1,0 +1,27 @@
+FROM rust:1.88-bookworm AS builder
+
+WORKDIR /workspace/backend
+
+COPY backend/Cargo.toml backend/Cargo.lock ./
+COPY backend/crates ./crates
+
+RUN cargo build --release -p worker
+
+FROM debian:bookworm-slim AS runtime
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid 10001 app \
+    && useradd --uid 10001 --gid app --create-home --shell /usr/sbin/nologin app
+
+WORKDIR /app
+
+COPY --from=builder /workspace/backend/target/release/worker /usr/local/bin/worker
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD kill -0 1 || exit 1
+
+USER app
+
+ENTRYPOINT ["/usr/local/bin/worker"]

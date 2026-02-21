@@ -4,6 +4,10 @@ additional_tags = {
   owner = "alfred-dev"
 }
 
+# Image URIs from CI artifact `terraform-image-uris.auto.tfvars.json` (issue #232).
+# api_image    = "<account>.dkr.ecr.us-east-2.amazonaws.com/alfred/api-server:sha-<commit>"
+# worker_image = "<account>.dkr.ecr.us-east-2.amazonaws.com/alfred/worker:sha-<commit>"
+
 # Dev profile: small ECS tasks.
 api_task_cpu         = 256
 api_task_memory      = 512

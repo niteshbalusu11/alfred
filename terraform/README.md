@@ -23,6 +23,11 @@ Current runtime module graph under `modules/`:
 - `secrets_wiring`
 - `observability`
 
+Image inputs consumed by environment wrappers:
+
+- `api_image`
+- `worker_image`
+
 ## Dev Cost-Sensitive Defaults
 
 `terraform/dev/terraform.tfvars` sets explicit low-cost defaults for development:
@@ -135,4 +140,25 @@ terraform validate
 cd terraform/prod
 terraform init -backend=false
 terraform validate
+```
+
+## Image Pipeline Handoff (Issue #232)
+
+Runtime images are built/published by `.github/workflows/ecr-images.yml` and exported as a workflow artifact named `terraform-image-uris` containing:
+
+```json
+{
+  "api_image": "<account>.dkr.ecr.us-east-2.amazonaws.com/alfred/api-server:sha-<commit>",
+  "worker_image": "<account>.dkr.ecr.us-east-2.amazonaws.com/alfred/worker:sha-<commit>",
+  "enclave_runtime_image": "<account>.dkr.ecr.us-east-2.amazonaws.com/alfred/enclave-runtime:sha-<commit>"
+}
+```
+
+Use `api_image` and `worker_image` values in `terraform/dev/terraform.tfvars` and `terraform/prod/terraform.tfvars`, or pass the artifact file directly:
+
+```bash
+cd terraform/prod
+terraform plan \
+  -var-file=terraform.tfvars \
+  -var-file=terraform-image-uris.auto.tfvars.json
 ```
