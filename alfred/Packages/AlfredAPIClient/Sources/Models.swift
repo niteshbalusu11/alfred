@@ -136,18 +136,22 @@ public struct ListConnectorsResponse: Codable, Sendable {
 }
 
 public struct CreateAutomationRequest: Codable, Sendable {
+    public let title: String
     public let schedule: AutomationSchedule
     public let promptEnvelope: AssistantEncryptedRequestEnvelope
 
     enum CodingKeys: String, CodingKey {
+        case title
         case schedule
         case promptEnvelope = "prompt_envelope"
     }
 
     public init(
+        title: String,
         schedule: AutomationSchedule,
         promptEnvelope: AssistantEncryptedRequestEnvelope
     ) {
+        self.title = title
         self.schedule = schedule
         self.promptEnvelope = promptEnvelope
     }
@@ -177,21 +181,25 @@ public enum AutomationStatus: String, Codable, Sendable {
 }
 
 public struct UpdateAutomationRequest: Codable, Sendable {
+    public let title: String?
     public let schedule: AutomationSchedule?
     public let promptEnvelope: AssistantEncryptedRequestEnvelope?
     public let status: AutomationStatus?
 
     enum CodingKeys: String, CodingKey {
+        case title
         case schedule
         case promptEnvelope = "prompt_envelope"
         case status
     }
 
     public init(
+        title: String? = nil,
         schedule: AutomationSchedule? = nil,
         promptEnvelope: AssistantEncryptedRequestEnvelope? = nil,
         status: AutomationStatus? = nil
     ) {
+        self.title = title
         self.schedule = schedule
         self.promptEnvelope = promptEnvelope
         self.status = status
@@ -207,6 +215,7 @@ public enum AutomationScheduleType: String, Codable, Sendable {
 
 public struct AutomationRuleSummary: Codable, Sendable {
     public let ruleId: UUID
+    public let title: String
     public let status: AutomationStatus
     public let schedule: AutomationSchedule
     public let nextRunAt: Date
@@ -217,6 +226,7 @@ public struct AutomationRuleSummary: Codable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case ruleId = "rule_id"
+        case title
         case status
         case schedule
         case nextRunAt = "next_run_at"

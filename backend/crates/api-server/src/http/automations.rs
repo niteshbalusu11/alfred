@@ -32,8 +32,10 @@ use super::{AppState, AuthUser};
 const AUTOMATION_LIST_DEFAULT_LIMIT: i64 = 50;
 const AUTOMATION_LIST_MAX_LIMIT: i64 = 200;
 const MAX_PROMPT_ENVELOPE_CIPHERTEXT_BYTES: usize = 65_536;
+const MAX_AUTOMATION_TITLE_CHARS: usize = 120;
 type PromptValidationError = (&'static str, &'static str);
 type ScheduleValidationError = (&'static str, &'static str);
+type TitleValidationError = (&'static str, &'static str);
 
 #[derive(Debug, Deserialize)]
 pub(super) struct ListAutomationsQuery {
@@ -54,6 +56,10 @@ pub(super) async fn create_automation(
     Extension(user): Extension<AuthUser>,
     Json(request): Json<CreateAutomationRequest>,
 ) -> Response {
+    let title = match validated_title(request.title.as_str()) {
+        Ok(title) => title,
+        Err((code, message)) => return bad_request_response(code, message),
+    };
     let prompt_payload = match validated_prompt_payload(&request.prompt_envelope) {
         Ok(payload) => payload,
         Err((code, message)) => return bad_request_response(code, message),
@@ -69,6 +75,7 @@ pub(super) async fn create_automation(
         .store
         .create_automation_rule(
             user.user_id,
+            &title,
             &schedule,
             next_run_at,
             &prompt_payload,
@@ -82,6 +89,7 @@ pub(super) async fn create_automation(
 
     let mut metadata = HashMap::new();
     metadata.insert("rule_id".to_string(), created_rule.id.to_string());
+    metadata.insert("title".to_string(), created_rule.title.clone());
     metadata.insert(
         "schedule_type".to_string(),
         created_rule.schedule_type.as_str().to_string(),
@@ -138,10 +146,14 @@ pub(super) async fn update_automation(
         Err(_) => return automation_not_found_response(),
     };
 
-    if request.schedule.is_none() && request.prompt_envelope.is_none() && request.status.is_none() {
+    if request.title.is_none()
+        && request.schedule.is_none()
+        && request.prompt_envelope.is_none()
+        && request.status.is_none()
+    {
         return bad_request_response(
             "invalid_automation_update",
-            "Provide at least one update field: schedule, prompt_envelope, or status",
+            "Provide at least one update field: title, schedule, prompt_envelope, or status",
         );
     }
 
@@ -152,6 +164,24 @@ pub(super) async fn update_automation(
     };
 
     let mut changed_fields: Vec<&str> = Vec::new();
+
+    if let Some(title_update) = request.title {
+        let title = match validated_title(title_update.as_str()) {
+            Ok(value) => value,
+            Err((code, message)) => return bad_request_response(code, message),
+        };
+
+        rule = match state
+            .store
+            .update_automation_rule_title(user.user_id, rule_id, &title)
+            .await
+        {
+            Ok(Some(rule)) => rule,
+            Ok(None) => return automation_not_found_response(),
+            Err(err) => return automation_store_error_response(err),
+        };
+        changed_fields.push("title");
+    }
 
     if let Some(schedule_update) = request.schedule {
         let now = Utc::now();
@@ -523,6 +553,7 @@ fn automation_rule_summary(rule: AutomationRuleRecord) -> AutomationRuleSummary 
 
     AutomationRuleSummary {
         rule_id: rule.id.to_string(),
+        title: rule.title,
         status,
         schedule: AutomationSchedule {
             schedule_type: rule.schedule_type,
@@ -535,6 +566,20 @@ fn automation_rule_summary(rule: AutomationRuleRecord) -> AutomationRuleSummary 
         created_at: rule.created_at,
         updated_at: rule.updated_at,
     }
+}
+
+fn validated_title(value: &str) -> Result<String, TitleValidationError> {
+    let title = value.trim();
+    if title.is_empty() {
+        return Err(("invalid_title", "title must not be empty"));
+    }
+    if title.chars().count() > MAX_AUTOMATION_TITLE_CHARS {
+        return Err((
+            "invalid_title",
+            "title exceeds maximum length of 120 characters",
+        ));
+    }
+    Ok(title.to_string())
 }
 
 fn automation_store_error_response(err: StoreError) -> Response {

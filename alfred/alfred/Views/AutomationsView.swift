@@ -4,17 +4,26 @@ import SwiftUI
 struct AutomationsView: View {
     @ObservedObject var model: AppModel
     @State private var rules: [AutomationRuleSummary] = []
-    @State private var localTitles: [UUID: String] = [:]
+    @State private var cachedPrompts: [UUID: String] = [:]
     @State private var isLoading = false
     @State private var loadErrorMessage: String?
     @State private var mutationErrorMessage: String?
     @State private var mutatingRuleIDs: Set<UUID> = []
     @State private var activeSheet: SheetRoute?
+    private let automationRuleStore = AutomationRuleStore()
 
-    private enum SheetRoute: String, Identifiable {
+    private enum SheetRoute: Hashable, Identifiable {
         case create
+        case edit(UUID)
 
-        var id: String { rawValue }
+        var id: String {
+            switch self {
+            case .create:
+                return "create"
+            case .edit(let ruleID):
+                return "edit-\(ruleID.uuidString.lowercased())"
+            }
+        }
     }
 
     var body: some View {
@@ -57,9 +66,10 @@ struct AutomationsView: View {
                         } else {
                             ForEach(rules, id: \.ruleId) { rule in
                                 AutomationRuleCard(
-                                    title: title(for: rule),
+                                    title: rule.title,
                                     rule: rule,
                                     isMutating: mutatingRuleIDs.contains(rule.ruleId),
+                                    onEdit: { activeSheet = .edit(rule.ruleId) },
                                     onTogglePause: { togglePause(for: rule) },
                                     onDelete: { delete(rule: rule) },
                                     onDebugRun: debugRunAction(for: rule)
@@ -88,16 +98,36 @@ struct AutomationsView: View {
         .appScreenBackground()
         .task {
             if rules.isEmpty {
+                await loadCachedAutomations()
                 await loadAutomations()
             }
         }
-        .fullScreenCover(item: $activeSheet) { _ in
-            AutomationCreateSheet(
-                defaultTimeZone: TimeZone.current.identifier,
-                onSubmit: { payload in
-                    try await createAutomation(payload)
+        .fullScreenCover(item: $activeSheet) { route in
+            switch route {
+            case .create:
+                AutomationEditorSheet(
+                    mode: .create,
+                    defaultTimeZone: TimeZone.current.identifier,
+                    onSubmit: { payload in
+                        try await createAutomation(payload)
+                    }
+                )
+            case .edit(let ruleID):
+                if let rule = rules.first(where: { $0.ruleId == ruleID }) {
+                    AutomationEditorSheet(
+                        mode: .edit(existing: rule, existingPrompt: cachedPrompts[rule.ruleId]),
+                        defaultTimeZone: rule.schedule.timeZone,
+                        onSubmit: { payload in
+                            try await updateAutomation(ruleID: ruleID, payload: payload)
+                        }
+                    )
+                } else {
+                    Color.clear
+                        .onAppear {
+                            activeSheet = nil
+                        }
                 }
-            )
+            }
         }
     }
 
@@ -148,7 +178,10 @@ struct AutomationsView: View {
 
         do {
             let response = try await model.apiClient.listAutomations(limit: 100)
-            rules = response.items.sorted(by: { $0.nextRunAt < $1.nextRunAt })
+            let fetchedRules = response.items.sorted(by: { $0.nextRunAt < $1.nextRunAt })
+            cachedPrompts = mergedPromptCache(for: fetchedRules)
+            rules = fetchedRules
+            await persistCachedAutomations()
             loadErrorMessage = nil
         } catch {
             loadErrorMessage = AppModel.errorMessage(from: error)
@@ -156,19 +189,41 @@ struct AutomationsView: View {
     }
 
     @MainActor
-    private func createAutomation(_ payload: AutomationCreatePayload) async throws {
+    private func createAutomation(_ payload: AutomationEditorPayload) async throws {
+        guard let prompt = payload.prompt else {
+            throw AlfredAPIClientError.serverError(
+                statusCode: 400,
+                code: "invalid_prompt",
+                message: "Prompt is required"
+            )
+        }
+
         let created = try await model.apiClient.createAutomationEncrypted(
+            title: payload.title,
             schedule: payload.schedule,
-            prompt: payload.prompt,
+            prompt: prompt,
             attestationConfig: AppConfiguration.assistantAttestationVerificationConfig
         )
 
-        if !payload.title.isEmpty {
-            localTitles[created.ruleId] = payload.title
-        }
-
-        upsert(created)
+        upsert(created, prompt: payload.prompt)
+        await persistCachedAutomations()
         loadErrorMessage = nil
+        mutationErrorMessage = nil
+    }
+
+    @MainActor
+    private func updateAutomation(ruleID: UUID, payload: AutomationEditorPayload) async throws {
+        let updated = try await model.apiClient.updateAutomationEncrypted(
+            ruleID: ruleID,
+            title: payload.title,
+            schedule: payload.schedule,
+            prompt: payload.prompt,
+            status: nil,
+            attestationConfig: AppConfiguration.assistantAttestationVerificationConfig
+        )
+        upsert(updated, prompt: payload.prompt)
+        await persistCachedAutomations()
+        mutationErrorMessage = nil
     }
 
     private func togglePause(for rule: AutomationRuleSummary) {
@@ -184,6 +239,7 @@ struct AutomationsView: View {
                     request: UpdateAutomationRequest(status: nextStatus)
                 )
                 upsert(updated)
+                await persistCachedAutomations()
                 mutationErrorMessage = nil
             } catch {
                 mutationErrorMessage = AppModel.errorMessage(from: error)
@@ -200,7 +256,8 @@ struct AutomationsView: View {
             do {
                 _ = try await model.apiClient.deleteAutomation(ruleID: rule.ruleId)
                 rules.removeAll(where: { $0.ruleId == rule.ruleId })
-                localTitles.removeValue(forKey: rule.ruleId)
+                cachedPrompts.removeValue(forKey: rule.ruleId)
+                await persistCachedAutomations()
                 mutationErrorMessage = nil
             } catch {
                 mutationErrorMessage = AppModel.errorMessage(from: error)
@@ -231,19 +288,78 @@ struct AutomationsView: View {
         #endif
     }
 
-    private func upsert(_ updated: AutomationRuleSummary) {
+    private func upsert(_ updated: AutomationRuleSummary, prompt: String? = nil) {
+        let previous = rules.first(where: { $0.ruleId == updated.ruleId })
         if let index = rules.firstIndex(where: { $0.ruleId == updated.ruleId }) {
             rules[index] = updated
         } else {
             rules.append(updated)
         }
         rules.sort { $0.nextRunAt < $1.nextRunAt }
+
+        if let prompt {
+            let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                cachedPrompts.removeValue(forKey: updated.ruleId)
+            } else {
+                cachedPrompts[updated.ruleId] = trimmed
+            }
+        } else if let previous, previous.promptSha256 != updated.promptSha256 {
+            cachedPrompts.removeValue(forKey: updated.ruleId)
+        }
     }
 
-    private func title(for rule: AutomationRuleSummary) -> String {
-        if let local = localTitles[rule.ruleId], !local.isEmpty {
-            return local
+    @MainActor
+    private func loadCachedAutomations() async {
+        guard let userID = automationStorageUserID else { return }
+
+        do {
+            let snapshot = try await automationRuleStore.load(for: userID)
+            rules = snapshot.entries.map(\.rule).sorted(by: { $0.nextRunAt < $1.nextRunAt })
+            cachedPrompts = snapshot.promptByRuleID
+        } catch {
+            rules = []
+            cachedPrompts = [:]
         }
-        return "Task \(rule.ruleId.uuidString.prefix(8))"
+    }
+
+    @MainActor
+    private func persistCachedAutomations() async {
+        guard let userID = automationStorageUserID else { return }
+        let entries = rules.map { rule in
+            AutomationRuleCacheEntry(
+                rule: rule,
+                prompt: cachedPrompts[rule.ruleId]
+            )
+        }
+
+        do {
+            try await automationRuleStore.save(AutomationRuleCacheSnapshot(entries: entries), for: userID)
+        } catch {
+            // Best-effort cache only; server remains source of truth.
+        }
+    }
+
+    private func mergedPromptCache(for fetchedRules: [AutomationRuleSummary]) -> [UUID: String] {
+        let previousByRuleID = Dictionary(uniqueKeysWithValues: rules.map { ($0.ruleId, $0) })
+        var merged: [UUID: String] = [:]
+
+        for rule in fetchedRules {
+            guard let cachedPrompt = cachedPrompts[rule.ruleId] else { continue }
+            guard let previousRule = previousByRuleID[rule.ruleId] else { continue }
+            guard previousRule.promptSha256 == rule.promptSha256 else { continue }
+            merged[rule.ruleId] = cachedPrompt
+        }
+
+        return merged
+    }
+
+    private var automationStorageUserID: String? {
+        guard let value = model.assistantStorageUserID?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty
+        else {
+            return nil
+        }
+        return value
     }
 }

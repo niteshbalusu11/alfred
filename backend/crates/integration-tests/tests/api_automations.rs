@@ -27,6 +27,7 @@ async fn automation_crud_flow_succeeds_for_owner() {
             "/v1/automations",
             Some(&auth),
             Some(json!({
+                "title": "Morning planning",
                 "schedule": schedule_payload("DAILY", "UTC", "09:00"),
                 "prompt_envelope": prompt_envelope("create-request")
             })),
@@ -37,6 +38,10 @@ async fn automation_crud_flow_succeeds_for_owner() {
     assert_eq!(
         create.body.get("status").and_then(Value::as_str),
         Some("ACTIVE")
+    );
+    assert_eq!(
+        create.body.get("title").and_then(Value::as_str),
+        Some("Morning planning")
     );
     assert_eq!(
         create
@@ -98,6 +103,24 @@ async fn automation_crud_flow_succeeds_for_owner() {
             .and_then(|value| value.get("local_time"))
             .and_then(Value::as_str),
         Some("10:30")
+    );
+
+    let update_title = send_json(
+        &app,
+        request(
+            Method::PATCH,
+            &format!("/v1/automations/{rule_id}"),
+            Some(&auth),
+            Some(json!({
+                "title": "Weekly planning"
+            })),
+        ),
+    )
+    .await;
+    assert_eq!(update_title.status, StatusCode::OK);
+    assert_eq!(
+        update_title.body.get("title").and_then(Value::as_str),
+        Some("Weekly planning")
     );
 
     let pause = send_json(
@@ -212,6 +235,7 @@ async fn automation_create_rejects_invalid_schedule() {
             "/v1/automations",
             Some(&auth),
             Some(json!({
+                "title": "Bad schedule task",
                 "schedule": schedule_payload("DAILY", "UTC", "25:00"),
                 "prompt_envelope": prompt_envelope("invalid-schedule")
             })),
@@ -245,6 +269,7 @@ async fn automation_create_rejects_invalid_envelope() {
             "/v1/automations",
             Some(&auth),
             Some(json!({
+                "title": "Bad envelope task",
                 "schedule": schedule_payload("DAILY", "UTC", "09:00"),
                 "prompt_envelope": invalid
             })),
@@ -274,6 +299,7 @@ async fn automation_mutations_are_user_scoped() {
             "/v1/automations",
             Some(&auth_a),
             Some(json!({
+                "title": "Owner A task",
                 "schedule": schedule_payload("DAILY", "UTC", "09:00"),
                 "prompt_envelope": prompt_envelope("owner-a")
             })),

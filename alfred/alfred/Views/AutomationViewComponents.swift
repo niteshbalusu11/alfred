@@ -5,6 +5,7 @@ struct AutomationRuleCard: View {
     let title: String
     let rule: AutomationRuleSummary
     let isMutating: Bool
+    let onEdit: () -> Void
     let onTogglePause: () -> Void
     let onDelete: () -> Void
     let onDebugRun: (() -> Void)?
@@ -34,19 +35,41 @@ struct AutomationRuleCard: View {
                     AutomationMetadataRow(label: "Last run", value: format(date: rule.lastRunAt))
                 }
 
-                HStack(spacing: 8) {
-                    Button(rule.status == .active ? "Pause" : "Resume", action: onTogglePause)
-                        .buttonStyle(.appSecondary)
-                        .disabled(isMutating)
+                HStack(spacing: 10) {
+                    AutomationActionIconButton(
+                        systemImage: "pencil",
+                        accessibilityLabel: "Edit task",
+                        foregroundColor: AppTheme.Colors.textPrimary,
+                        action: onEdit
+                    )
+                    .disabled(isMutating)
 
-                    Button("Delete", role: .destructive, action: onDelete)
-                        .buttonStyle(.appSecondary)
-                        .disabled(isMutating)
+                    AutomationActionIconButton(
+                        systemImage: rule.status == .active ? "pause.fill" : "play.fill",
+                        accessibilityLabel: rule.status == .active ? "Pause task" : "Resume task",
+                        foregroundColor: AppTheme.Colors.textPrimary,
+                        action: onTogglePause
+                    )
+                    .disabled(isMutating)
+
+                    AutomationActionIconButton(
+                        systemImage: "trash",
+                        accessibilityLabel: "Delete task",
+                        foregroundColor: AppTheme.Colors.danger,
+                        destructive: true,
+                        role: .destructive,
+                        action: onDelete
+                    )
+                    .disabled(isMutating)
 
                     if let onDebugRun {
-                        Button("Run now", action: onDebugRun)
-                            .buttonStyle(.appSecondary)
-                            .disabled(isMutating)
+                        AutomationActionIconButton(
+                            systemImage: "bolt.fill",
+                            accessibilityLabel: "Run task now",
+                            foregroundColor: AppTheme.Colors.textPrimary,
+                            action: onDebugRun
+                        )
+                        .disabled(isMutating)
                     }
                 }
 
@@ -88,6 +111,41 @@ struct AutomationRuleCard: View {
     }
 }
 
+private struct AutomationActionIconButton: View {
+    let systemImage: String
+    let accessibilityLabel: String
+    let foregroundColor: Color
+    var destructive = false
+    var role: ButtonRole? = nil
+    let action: () -> Void
+
+    var body: some View {
+        Button(role: role, action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(foregroundColor)
+                .frame(width: 34, height: 34)
+                .background(
+                    destructive
+                        ? AppTheme.Colors.danger.opacity(0.18)
+                        : AppTheme.Colors.surfaceElevated,
+                    in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(
+                            destructive
+                                ? AppTheme.Colors.danger.opacity(0.55)
+                                : AppTheme.Colors.outline,
+                            lineWidth: 1
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
+    }
+}
+
 private struct AutomationMetadataRow: View {
     let label: String
     let value: String
@@ -106,10 +164,15 @@ private struct AutomationMetadataRow: View {
     }
 }
 
-struct AutomationCreatePayload {
+struct AutomationEditorPayload {
     let title: String
     let schedule: AutomationSchedule
-    let prompt: String
+    let prompt: String?
+}
+
+enum AutomationEditorMode {
+    case create
+    case edit(existing: AutomationRuleSummary, existingPrompt: String?)
 }
 
 private enum TaskFrequency: String, CaseIterable, Identifiable {
@@ -145,13 +208,27 @@ private enum TaskFrequency: String, CaseIterable, Identifiable {
             return .annually
         }
     }
+
+    init(from scheduleType: AutomationScheduleType) {
+        switch scheduleType {
+        case .daily:
+            self = .daily
+        case .weekly:
+            self = .weekly
+        case .monthly:
+            self = .monthly
+        case .annually:
+            self = .annually
+        }
+    }
 }
 
-struct AutomationCreateSheet: View {
+struct AutomationEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
 
+    let mode: AutomationEditorMode
     let defaultTimeZone: String
-    let onSubmit: @Sendable (AutomationCreatePayload) async throws -> Void
+    let onSubmit: @Sendable (AutomationEditorPayload) async throws -> Void
 
     @State private var title = ""
     @State private var frequency: TaskFrequency = .daily
@@ -160,6 +237,7 @@ struct AutomationCreateSheet: View {
     @State private var prompt = ""
     @State private var isSubmitting = false
     @State private var errorMessage: String?
+    @State private var didPrefill = false
 
     var body: some View {
         NavigationStack {
@@ -184,13 +262,13 @@ struct AutomationCreateSheet: View {
 
                         Spacer(minLength: 0)
 
-                        Text("New Task")
+                        Text(isEditing ? "Edit Task" : "New Task")
                             .font(.headline.weight(.semibold))
                             .foregroundStyle(AppTheme.Colors.textPrimary)
 
                         Spacer(minLength: 0)
 
-                        Button(isSubmitting ? "Creating..." : "Create") {
+                        Button(isSubmitting ? (isEditing ? "Saving..." : "Creating...") : (isEditing ? "Save" : "Create")) {
                             Task {
                                 await submit()
                             }
@@ -271,22 +349,38 @@ struct AutomationCreateSheet: View {
 
                         ZStack(alignment: .topLeading) {
                             if prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                Text("Enter prompt")
-                                    .font(.body)
-                                    .foregroundStyle(AppTheme.Colors.textSecondary.opacity(0.7))
-                                    .padding(.horizontal, 14)
-                                    .padding(.vertical, 18)
+                                Text(promptPlaceholder)
+                                    .font(.callout)
+                                    .foregroundStyle(AppTheme.Colors.textSecondary.opacity(0.72))
+                                    .multilineTextAlignment(.leading)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 16)
                             }
 
                             TextEditor(text: $prompt)
-                                .frame(minHeight: 160)
-                                .padding(8)
+                                .frame(minHeight: 170)
+                                .scrollContentBackground(.hidden)
+                                .background(Color.clear)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 8)
                         }
-                        .background(AppTheme.Colors.surfaceElevated)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .background(
+                            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            AppTheme.Colors.surfaceElevated.opacity(0.95),
+                                            AppTheme.Colors.surface.opacity(0.92),
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .stroke(AppTheme.Colors.outline, lineWidth: 1)
+                            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                .stroke(AppTheme.Colors.outline.opacity(0.9), lineWidth: 1)
                         )
                     }
 
@@ -309,14 +403,34 @@ struct AutomationCreateSheet: View {
                 if timeZone.isEmpty {
                     timeZone = defaultTimeZone
                 }
+                applyPrefillIfNeeded()
             }
         }
     }
 
+    private var isEditing: Bool {
+        if case .edit = mode {
+            return true
+        }
+        return false
+    }
+
+    private var promptPlaceholder: String {
+        switch mode {
+        case .create:
+            return "Example: Check my calendar for today, summarize top meetings, and flag any conflicts."
+        case .edit(_, let existingPrompt):
+            if existingPrompt == nil {
+                return "Prompt history is not on this device yet. Enter a new prompt now, or leave blank to keep existing instructions on the server."
+            }
+            return "Leave blank to keep existing instructions, or enter a new prompt. Example: Review today's schedule and highlight what needs prep."
+        }
+    }
+
     private func submit() async {
-        let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedPrompt.isEmpty else {
-            errorMessage = "Prompt is required."
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty else {
+            errorMessage = "Task title is required."
             return
         }
 
@@ -330,24 +444,53 @@ struct AutomationCreateSheet: View {
             return
         }
 
+        let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        let promptValue: String?
+        switch mode {
+        case .create:
+            guard !trimmedPrompt.isEmpty else {
+                errorMessage = "Instructions are required."
+                return
+            }
+            promptValue = trimmedPrompt
+        case .edit:
+            promptValue = trimmedPrompt.isEmpty ? nil : trimmedPrompt
+        }
+
         isSubmitting = true
         defer { isSubmitting = false }
 
         do {
             try await onSubmit(
-                AutomationCreatePayload(
-                    title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+                AutomationEditorPayload(
+                    title: trimmedTitle,
                     schedule: AutomationSchedule(
                         scheduleType: frequency.scheduleType,
                         timeZone: trimmedTimeZone,
                         localTime: Self.localTimeFormatter.string(from: selectedTime)
                     ),
-                    prompt: trimmedPrompt
+                    prompt: promptValue
                 )
             )
             dismiss()
         } catch {
             errorMessage = AppModel.errorMessage(from: error)
+        }
+    }
+
+    private func applyPrefillIfNeeded() {
+        guard !didPrefill else { return }
+        didPrefill = true
+
+        guard case .edit(let existing, let existingPrompt) = mode else { return }
+        title = existing.title
+        frequency = TaskFrequency(from: existing.schedule.scheduleType)
+        timeZone = existing.schedule.timeZone
+        if let existingPrompt {
+            prompt = existingPrompt
+        }
+        if let parsed = Self.localTimeFormatter.date(from: existing.schedule.localTime) {
+            selectedTime = parsed
         }
     }
 

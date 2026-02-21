@@ -838,8 +838,13 @@ components:
           description: Base64-encoded encrypted automation prompt payload.
     CreateAutomationRequest:
       type: object
-      required: [schedule, prompt_envelope]
+      required: [title, schedule, prompt_envelope]
       properties:
+        title:
+          type: string
+          description: User-visible task title.
+          minLength: 1
+          maxLength: 120
         schedule:
           $ref: "#/components/schemas/AutomationSchedule"
         prompt_envelope:
@@ -865,6 +870,11 @@ components:
     UpdateAutomationRequest:
       type: object
       properties:
+        title:
+          type: string
+          description: Updated user-visible task title.
+          minLength: 1
+          maxLength: 120
         schedule:
           $ref: "#/components/schemas/AutomationSchedule"
         prompt_envelope:
@@ -879,6 +889,7 @@ components:
       required:
         [
           rule_id,
+          title,
           status,
           schedule,
           next_run_at,
@@ -890,6 +901,8 @@ components:
         rule_id:
           type: string
           format: uuid
+        title:
+          type: string
         status:
           $ref: "#/components/schemas/AutomationStatus"
         schedule:

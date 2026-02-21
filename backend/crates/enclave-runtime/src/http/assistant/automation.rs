@@ -7,7 +7,6 @@ use base64::Engine as _;
 use chacha20poly1305::aead::{Aead, Payload};
 use chacha20poly1305::{ChaCha20Poly1305, KeyInit, Nonce};
 use serde::Serialize;
-use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use shared::assistant_crypto::{
     ASSISTANT_ENCRYPTION_ALGORITHM_X25519_CHACHA20POLY1305, ASSISTANT_ENVELOPE_VERSION_V1,
@@ -19,22 +18,19 @@ use shared::enclave::{
     EnclaveAutomationRecipientDevice, EnclaveRpcExecuteAutomationRequest,
     EnclaveRpcExecuteAutomationResponse,
 };
-use shared::llm::contracts::GeneralChatSummaryOutput;
-use shared::llm::{
-    AssistantCapability, AssistantOutputContract, LlmExecutionSource, LlmGatewayRequest,
-    SafeOutputSource, generate_with_telemetry, resolve_safe_output, sanitize_context_payload,
-    template_for_capability,
-};
+use shared::models::AssistantQueryCapability;
 use tracing::warn;
 use x25519_dalek::{PublicKey, StaticSecret};
 
-use super::mapping::{append_llm_telemetry_metadata, log_telemetry};
+use super::orchestrator::AssistantOrchestratorResult;
 use crate::RuntimeState;
 use crate::http::rpc;
 
 const AUTOMATION_NOTIFICATION_TITLE_MAX_CHARS: usize = 64;
 const AUTOMATION_NOTIFICATION_BODY_MAX_CHARS: usize = 180;
 const AUTOMATION_PROMPT_MAX_CHARS: usize = 4_000;
+const AUTOMATION_NOTIFICATION_DEFAULT_TITLE: &str = "Task update";
+const AUTOMATION_NOTIFICATION_DEFAULT_BODY: &str = "Your scheduled task ran.";
 
 #[derive(Debug, Clone, Serialize)]
 struct AutomationNotificationPlaintext {
@@ -46,6 +42,12 @@ struct AutomationNotificationPlaintext {
 struct NotificationContent {
     title: String,
     body: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AutomationNotificationSource {
+    OrchestratorResult,
+    DeterministicFallback,
 }
 
 pub(super) async fn execute_automation(
@@ -68,43 +70,26 @@ pub(super) async fn execute_automation(
             .into_response();
         }
     };
-
-    let raw_context_payload = json!({
-        "current_query": prompt_query,
-        "automation": {
-            "automation_rule_id": request.automation_rule_id,
-            "automation_run_id": request.automation_run_id,
-            "scheduled_for": request.scheduled_for,
-        }
-    });
-    let context_payload = sanitize_context_payload(&raw_context_payload);
-
-    let llm_request = LlmGatewayRequest::from_template(
-        template_for_capability(AssistantCapability::GeneralChatSummary),
-        context_payload.clone(),
+    let execution = match super::orchestrator::execute_query(
+        &state,
+        request.user_id,
+        request.request_id.as_str(),
+        prompt_query.as_str(),
+        None,
     )
-    .with_requester_id(request.user_id.to_string());
-
-    let (llm_result, telemetry) = generate_with_telemetry(
-        state.worker_gateway(),
-        LlmExecutionSource::WorkerAutomationRun,
-        llm_request,
-    )
-    .await;
-    log_telemetry(request.user_id, &telemetry, "automation_run");
-
-    let model_output = match llm_result {
-        Ok(response) => Some(response.output),
-        Err(err) => {
+    .await
+    {
+        Ok(execution) => execution,
+        Err(response) => {
             warn!(
                 user_id = %request.user_id,
-                "automation provider request failed: {err}"
+                status = response.status().as_u16(),
+                "automation orchestrator execution failed"
             );
-            None
+            return response;
         }
     };
-    let (notification, output_source) =
-        resolve_notification_content(&context_payload, model_output.as_ref());
+    let (notification, output_source) = resolve_notification_content(&execution);
 
     let mut notification_artifacts = Vec::with_capacity(request.recipient_devices.len());
     for device in &request.recipient_devices {
@@ -131,7 +116,7 @@ pub(super) async fn execute_automation(
     let mut metadata = HashMap::new();
     metadata.insert(
         "action_source".to_string(),
-        "enclave_automation_llm_orchestrator".to_string(),
+        "enclave_automation_orchestrator".to_string(),
     );
     metadata.insert(
         "automation_rule_id".to_string(),
@@ -148,10 +133,14 @@ pub(super) async fn execute_automation(
     metadata.insert(
         "llm_output_source".to_string(),
         match output_source {
-            SafeOutputSource::ModelOutput => "model_output",
-            SafeOutputSource::DeterministicFallback => "deterministic_fallback",
+            AutomationNotificationSource::OrchestratorResult => "orchestrator_result",
+            AutomationNotificationSource::DeterministicFallback => "deterministic_fallback",
         }
         .to_string(),
+    );
+    metadata.insert(
+        "llm_capability".to_string(),
+        capability_label(&execution.capability).to_string(),
     );
     metadata.insert("prompt_key_id".to_string(), decrypted_key_id);
     metadata.insert(
@@ -166,7 +155,6 @@ pub(super) async fn execute_automation(
         "attested_measurement".to_string(),
         state.config.measurement.clone(),
     );
-    append_llm_telemetry_metadata(&mut metadata, &telemetry);
 
     let attested_identity = runtime_attested_identity(&state);
     Json(EnclaveRpcExecuteAutomationResponse {
@@ -215,49 +203,75 @@ fn validate_prompt_query(value: &str) -> Result<String, String> {
 }
 
 fn resolve_notification_content(
-    context_payload: &Value,
-    model_output: Option<&Value>,
-) -> (NotificationContent, SafeOutputSource) {
-    let resolved = resolve_safe_output(
-        AssistantCapability::GeneralChatSummary,
-        model_output,
-        context_payload,
-    );
-    let AssistantOutputContract::GeneralChatSummary(contract) = resolved.contract else {
-        return (
-            NotificationContent {
-                title: "Automation update".to_string(),
-                body: "Your scheduled automation ran.".to_string(),
-            },
-            SafeOutputSource::DeterministicFallback,
-        );
-    };
+    execution: &AssistantOrchestratorResult,
+) -> (NotificationContent, AutomationNotificationSource) {
+    let title = notification_candidate(execution.payload.title.as_str())
+        .map(|value| {
+            truncate_for_notification(value.as_str(), AUTOMATION_NOTIFICATION_TITLE_MAX_CHARS)
+        })
+        .unwrap_or_else(|| {
+            truncate_for_notification(
+                default_title_for_capability(&execution.capability),
+                AUTOMATION_NOTIFICATION_TITLE_MAX_CHARS,
+            )
+        });
 
-    (
-        notification_from_general_chat_output(&contract.output),
-        resolved.source,
-    )
+    let body = notification_candidate(execution.display_text.as_str())
+        .or_else(|| notification_candidate(execution.payload.summary.as_str()))
+        .or_else(|| {
+            execution
+                .payload
+                .key_points
+                .iter()
+                .find_map(|item| notification_candidate(item.as_str()))
+        });
+
+    match body {
+        Some(body) => (
+            NotificationContent {
+                title,
+                body: truncate_for_notification(
+                    body.as_str(),
+                    AUTOMATION_NOTIFICATION_BODY_MAX_CHARS,
+                ),
+            },
+            AutomationNotificationSource::OrchestratorResult,
+        ),
+        None => (
+            NotificationContent {
+                title,
+                body: AUTOMATION_NOTIFICATION_DEFAULT_BODY.to_string(),
+            },
+            AutomationNotificationSource::DeterministicFallback,
+        ),
+    }
 }
 
-fn notification_from_general_chat_output(output: &GeneralChatSummaryOutput) -> NotificationContent {
-    let title = truncate_for_notification(
-        non_empty(&output.title).unwrap_or("Automation update"),
-        AUTOMATION_NOTIFICATION_TITLE_MAX_CHARS,
-    );
+fn notification_candidate(value: &str) -> Option<String> {
+    let collapsed = value.split_whitespace().collect::<Vec<_>>().join(" ");
+    non_empty(collapsed.as_str()).map(ToString::to_string)
+}
 
-    let body = if let Some(summary) = non_empty(&output.summary) {
-        truncate_for_notification(summary, AUTOMATION_NOTIFICATION_BODY_MAX_CHARS)
-    } else if let Some(key_point) = output
-        .key_points
-        .iter()
-        .find_map(|item| non_empty(item.as_str()))
-    {
-        truncate_for_notification(key_point, AUTOMATION_NOTIFICATION_BODY_MAX_CHARS)
-    } else {
-        "Your scheduled automation ran.".to_string()
-    };
+fn capability_label(capability: &AssistantQueryCapability) -> &'static str {
+    match capability {
+        AssistantQueryCapability::MeetingsToday => "meetings_today",
+        AssistantQueryCapability::CalendarLookup => "calendar_lookup",
+        AssistantQueryCapability::EmailLookup => "email_lookup",
+        AssistantQueryCapability::GeneralChat => "general_chat",
+        AssistantQueryCapability::Mixed => "mixed",
+    }
+}
 
-    NotificationContent { title, body }
+fn default_title_for_capability(capability: &AssistantQueryCapability) -> &'static str {
+    match capability {
+        AssistantQueryCapability::MeetingsToday | AssistantQueryCapability::CalendarLookup => {
+            "Calendar update"
+        }
+        AssistantQueryCapability::EmailLookup => "Email update",
+        AssistantQueryCapability::GeneralChat | AssistantQueryCapability::Mixed => {
+            AUTOMATION_NOTIFICATION_DEFAULT_TITLE
+        }
+    }
 }
 
 fn encrypt_for_recipient(
@@ -389,39 +403,65 @@ fn non_empty(value: &str) -> Option<&str> {
 
 #[cfg(test)]
 mod tests {
-    use serde_json::json;
+    use shared::enclave::AttestedIdentityPayload;
+    use shared::models::{AssistantResponsePart, AssistantStructuredPayload};
 
     use super::*;
 
     #[test]
-    fn resolve_notification_content_uses_model_output_when_valid() {
-        let context = json!({"current_query":"status update"});
-        let output = json!({
-            "version":"2026-02-15",
-            "output":{
-                "title":"Build status",
-                "summary":"Everything is healthy.",
-                "key_points":[],
-                "follow_ups":[],
-                "response_style":"conversational"
-            }
-        });
+    fn resolve_notification_content_uses_orchestrator_result_when_present() {
+        let execution = AssistantOrchestratorResult {
+            capability: AssistantQueryCapability::CalendarLookup,
+            display_text: "You have three meetings today.".to_string(),
+            payload: AssistantStructuredPayload {
+                title: "Today's calendar".to_string(),
+                summary: "You have three meetings today.".to_string(),
+                key_points: Vec::new(),
+                follow_ups: Vec::new(),
+            },
+            response_parts: vec![AssistantResponsePart::chat_text(
+                "You have three meetings today.".to_string(),
+            )],
+            attested_identity: AttestedIdentityPayload {
+                runtime: "test-runtime".to_string(),
+                measurement: "test-measurement".to_string(),
+            },
+        };
 
-        let (notification, source) = resolve_notification_content(&context, Some(&output));
-        assert_eq!(notification.title, "Build status");
-        assert_eq!(notification.body, "Everything is healthy.");
-        assert!(matches!(source, SafeOutputSource::ModelOutput));
+        let (notification, source) = resolve_notification_content(&execution);
+        assert_eq!(notification.title, "Today's calendar");
+        assert_eq!(notification.body, "You have three meetings today.");
+        assert!(matches!(
+            source,
+            AutomationNotificationSource::OrchestratorResult
+        ));
     }
 
     #[test]
-    fn resolve_notification_content_falls_back_when_model_output_is_invalid() {
-        let context = json!({"current_query":"status update"});
-        let invalid_output = json!({"version":"invalid"});
+    fn resolve_notification_content_falls_back_when_orchestrator_fields_are_empty() {
+        let execution = AssistantOrchestratorResult {
+            capability: AssistantQueryCapability::GeneralChat,
+            display_text: "   ".to_string(),
+            payload: AssistantStructuredPayload {
+                title: "   ".to_string(),
+                summary: "   ".to_string(),
+                key_points: Vec::new(),
+                follow_ups: Vec::new(),
+            },
+            response_parts: Vec::new(),
+            attested_identity: AttestedIdentityPayload {
+                runtime: "test-runtime".to_string(),
+                measurement: "test-measurement".to_string(),
+            },
+        };
 
-        let (notification, source) = resolve_notification_content(&context, Some(&invalid_output));
-        assert!(matches!(source, SafeOutputSource::DeterministicFallback));
-        assert!(!notification.title.is_empty());
-        assert!(!notification.body.is_empty());
+        let (notification, source) = resolve_notification_content(&execution);
+        assert_eq!(notification.title, "Task update");
+        assert_eq!(notification.body, "Your scheduled task ran.");
+        assert!(matches!(
+            source,
+            AutomationNotificationSource::DeterministicFallback
+        ));
     }
 
     #[test]

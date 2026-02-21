@@ -24,6 +24,7 @@ async fn automation_rule_crud_pause_resume_and_delete_flow() {
     let created = store
         .create_automation_rule(
             user_id,
+            "Morning Task",
             &daily_schedule("America/Los_Angeles", 9, 0),
             next_run_at,
             prompt_ciphertext,
@@ -33,6 +34,7 @@ async fn automation_rule_crud_pause_resume_and_delete_flow() {
         .expect("rule should be created");
 
     assert_eq!(created.user_id, user_id);
+    assert_eq!(created.title, "Morning Task");
     assert_eq!(created.schedule_type.as_str(), "DAILY");
     assert_eq!(created.local_time_minutes, 540);
     assert_eq!(created.prompt_sha256, PROMPT_HASH_A);
@@ -119,6 +121,7 @@ async fn due_claims_are_lease_safe_and_split_across_workers() {
     let rule_a = store
         .create_automation_rule(
             Uuid::new_v4(),
+            "Rule A",
             &daily_schedule("UTC", 8, 0),
             now - ChronoDuration::minutes(1),
             b"prompt-a",
@@ -129,6 +132,7 @@ async fn due_claims_are_lease_safe_and_split_across_workers() {
     let rule_b = store
         .create_automation_rule(
             Uuid::new_v4(),
+            "Rule B",
             &daily_schedule("UTC", 9, 0),
             now - ChronoDuration::minutes(1),
             b"prompt-b",
@@ -182,6 +186,7 @@ async fn run_materialization_is_idempotent_for_same_rule_and_scheduled_time() {
     let rule = store
         .create_automation_rule(
             user_id,
+            "Idempotency Task",
             &daily_schedule("UTC", 12, 0),
             scheduled_for,
             b"prompt-c",
@@ -267,6 +272,7 @@ async fn materialized_run_can_be_enqueued_with_stable_job_reference() {
     let rule = store
         .create_automation_rule(
             user_id,
+            "Stable Job Task",
             &daily_schedule("UTC", 14, 30),
             scheduled_for,
             b"prompt-z",

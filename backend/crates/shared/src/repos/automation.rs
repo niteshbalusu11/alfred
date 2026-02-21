@@ -13,22 +13,27 @@ use super::{
     ClaimedAutomationRule, Store, StoreError,
 };
 
+const MAX_AUTOMATION_TITLE_CHARS: usize = 120;
+
 impl Store {
     pub async fn create_automation_rule(
         &self,
         user_id: Uuid,
+        title: &str,
         schedule: &AutomationScheduleSpec,
         next_run_at: DateTime<Utc>,
         prompt_ciphertext: &[u8],
         prompt_sha256: &str,
     ) -> Result<AutomationRuleRecord, StoreError> {
         self.ensure_user(user_id).await?;
+        let title = normalized_automation_title(title)?;
         let schedule = normalized_schedule_spec(schedule)?;
         let prompt_sha256 = normalized_prompt_sha256(prompt_sha256)?;
 
         let row = sqlx::query(
             "INSERT INTO automation_rules (
                 user_id,
+                title,
                 status,
                 schedule_type,
                 interval_seconds,
@@ -42,8 +47,8 @@ impl Store {
                 prompt_sha256
              ) VALUES (
                 $1,
-                'ACTIVE',
                 $2,
+                'ACTIVE',
                 $3,
                 $4,
                 $5,
@@ -51,12 +56,14 @@ impl Store {
                 $7,
                 $8,
                 $9,
-                pgp_sym_encrypt(encode($10, 'base64'), $11),
-                $12
+                $10,
+                pgp_sym_encrypt(encode($11, 'base64'), $12),
+                $13
              )
              RETURNING
                 id,
                 user_id,
+                title,
                 status,
                 schedule_type,
                 local_time_minutes,
@@ -71,6 +78,7 @@ impl Store {
                 updated_at",
         )
         .bind(user_id)
+        .bind(&title)
         .bind(schedule.schedule_type.as_str())
         .bind(interval_seconds_hint(schedule.schedule_type))
         .bind(schedule.time_zone.as_str())
@@ -97,6 +105,7 @@ impl Store {
             "SELECT
                 id,
                 user_id,
+                title,
                 status,
                 schedule_type,
                 local_time_minutes,
@@ -159,6 +168,7 @@ impl Store {
             "SELECT
                 id,
                 user_id,
+                title,
                 status,
                 schedule_type,
                 local_time_minutes,
@@ -186,6 +196,46 @@ impl Store {
             .collect()
     }
 
+    pub async fn update_automation_rule_title(
+        &self,
+        user_id: Uuid,
+        rule_id: Uuid,
+        title: &str,
+    ) -> Result<Option<AutomationRuleRecord>, StoreError> {
+        let title = normalized_automation_title(title)?;
+
+        let row = sqlx::query(
+            "UPDATE automation_rules
+             SET title = $3,
+                 updated_at = NOW()
+             WHERE user_id = $1
+               AND id = $2
+             RETURNING
+                id,
+                user_id,
+                title,
+                status,
+                schedule_type,
+                local_time_minutes,
+                anchor_day_of_week,
+                anchor_day_of_month,
+                anchor_month,
+                time_zone,
+                next_run_at,
+                last_run_at,
+                prompt_sha256,
+                created_at,
+                updated_at",
+        )
+        .bind(user_id)
+        .bind(rule_id)
+        .bind(&title)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        row.map(|row| automation_rule_from_row(&row)).transpose()
+    }
+
     pub async fn update_automation_rule_schedule(
         &self,
         user_id: Uuid,
@@ -211,6 +261,7 @@ impl Store {
              RETURNING
                 id,
                 user_id,
+                title,
                 status,
                 schedule_type,
                 local_time_minutes,
@@ -259,6 +310,7 @@ impl Store {
              RETURNING
                 id,
                 user_id,
+                title,
                 status,
                 schedule_type,
                 local_time_minutes,
@@ -447,6 +499,7 @@ fn automation_rule_from_row(
     Ok(AutomationRuleRecord {
         id: row.try_get("id")?,
         user_id: row.try_get("user_id")?,
+        title: row.try_get("title")?,
         status: AutomationRuleStatus::from_db(&status)?,
         schedule_type: AutomationScheduleType::from_db(&schedule_type)?,
         local_time_minutes: row.try_get("local_time_minutes")?,
@@ -530,4 +583,20 @@ fn normalized_prompt_sha256(value: &str) -> Result<String, StoreError> {
     }
 
     Ok(trimmed.to_ascii_lowercase())
+}
+
+fn normalized_automation_title(value: &str) -> Result<String, StoreError> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err(StoreError::InvalidData(
+            "title must not be empty".to_string(),
+        ));
+    }
+    if trimmed.chars().count() > MAX_AUTOMATION_TITLE_CHARS {
+        return Err(StoreError::InvalidData(format!(
+            "title exceeds maximum length of {MAX_AUTOMATION_TITLE_CHARS} characters"
+        )));
+    }
+
+    Ok(trimmed.to_string())
 }

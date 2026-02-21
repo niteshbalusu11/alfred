@@ -189,6 +189,7 @@ pub struct ClaimedJob {
 pub struct AutomationRuleRecord {
     pub id: Uuid,
     pub user_id: Uuid,
+    pub title: String,
     pub status: AutomationRuleStatus,
     pub schedule_type: AutomationScheduleType,
     pub local_time_minutes: i32,

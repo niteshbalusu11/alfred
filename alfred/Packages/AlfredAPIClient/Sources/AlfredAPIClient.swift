@@ -209,44 +209,21 @@ public final class AlfredAPIClient: Sendable {
     }
 
     public func createAutomationEncrypted(
+        title: String,
         schedule: AutomationSchedule,
         prompt: String,
         attestationConfig: AssistantAttestationVerificationConfig
     ) async throws -> AutomationRuleSummary {
-        let challengeNonce = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
-        let requestID = UUID().uuidString
-        let issuedAt = Int64(Date().timeIntervalSince1970)
-        let expiresAt = issuedAt + Int64(attestationConfig.challengeWindowSeconds)
-        let keyResponse = try await fetchAssistantAttestedKey(
-            AssistantAttestedKeyRequest(
-                challengeNonce: challengeNonce,
-                issuedAt: issuedAt,
-                expiresAt: expiresAt,
-                requestId: requestID
-            )
-        )
-
-        try AssistantEnvelopeCrypto.verifyAttestedKeyResponse(
-            keyResponse,
-            expectedChallengeNonce: challengeNonce,
-            expectedRequestID: requestID,
-            config: attestationConfig
-        )
-
-        let plaintextRequest = AssistantPlaintextQueryRequest(
-            query: prompt,
-            sessionId: nil
-        )
-        let encryptedPayload = try AssistantEnvelopeCrypto.encryptRequest(
-            plaintextRequest: plaintextRequest,
-            requestID: requestID,
-            attestedKey: keyResponse
+        let encryptedEnvelope = try await encryptAutomationPromptEnvelope(
+            prompt: prompt,
+            attestationConfig: attestationConfig
         )
 
         return try await createAutomation(
             CreateAutomationRequest(
+                title: title,
                 schedule: schedule,
-                promptEnvelope: encryptedPayload.envelope
+                promptEnvelope: encryptedEnvelope
             )
         )
     }
@@ -260,6 +237,40 @@ public final class AlfredAPIClient: Sendable {
             path: "/v1/automations/\(ruleID.uuidString.lowercased())",
             body: request,
             requiresAuth: true
+        )
+    }
+
+    public func updateAutomationEncrypted(
+        ruleID: UUID,
+        title: String? = nil,
+        schedule: AutomationSchedule? = nil,
+        prompt: String? = nil,
+        status: AutomationStatus? = nil,
+        attestationConfig: AssistantAttestationVerificationConfig
+    ) async throws -> AutomationRuleSummary {
+        let promptEnvelope: AssistantEncryptedRequestEnvelope?
+        if let prompt {
+            let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                promptEnvelope = nil
+            } else {
+                promptEnvelope = try await encryptAutomationPromptEnvelope(
+                    prompt: trimmed,
+                    attestationConfig: attestationConfig
+                )
+            }
+        } else {
+            promptEnvelope = nil
+        }
+
+        return try await updateAutomation(
+            ruleID: ruleID,
+            request: UpdateAutomationRequest(
+                title: title,
+                schedule: schedule,
+                promptEnvelope: promptEnvelope,
+                status: status
+            )
         )
     }
 
@@ -352,6 +363,40 @@ public final class AlfredAPIClient: Sendable {
                 message: envelope?.error.message
             )
         }
+    }
+
+    private func encryptAutomationPromptEnvelope(
+        prompt: String,
+        attestationConfig: AssistantAttestationVerificationConfig
+    ) async throws -> AssistantEncryptedRequestEnvelope {
+        let challengeNonce = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
+        let requestID = UUID().uuidString
+        let issuedAt = Int64(Date().timeIntervalSince1970)
+        let expiresAt = issuedAt + Int64(attestationConfig.challengeWindowSeconds)
+        let keyResponse = try await fetchAssistantAttestedKey(
+            AssistantAttestedKeyRequest(
+                challengeNonce: challengeNonce,
+                issuedAt: issuedAt,
+                expiresAt: expiresAt,
+                requestId: requestID
+            )
+        )
+
+        try AssistantEnvelopeCrypto.verifyAttestedKeyResponse(
+            keyResponse,
+            expectedChallengeNonce: challengeNonce,
+            expectedRequestID: requestID,
+            config: attestationConfig
+        )
+
+        let plaintextRequest = AssistantPlaintextQueryRequest(query: prompt, sessionId: nil)
+        let encryptedPayload = try AssistantEnvelopeCrypto.encryptRequest(
+            plaintextRequest: plaintextRequest,
+            requestID: requestID,
+            attestedKey: keyResponse
+        )
+
+        return encryptedPayload.envelope
     }
 }
 

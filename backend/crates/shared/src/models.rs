@@ -275,6 +275,7 @@ pub struct AutomationPromptEnvelope {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateAutomationRequest {
+    pub title: String,
     pub schedule: AutomationSchedule,
     pub prompt_envelope: AutomationPromptEnvelope,
 }
@@ -298,6 +299,8 @@ pub enum AutomationStatus {
 #[serde(deny_unknown_fields)]
 pub struct UpdateAutomationRequest {
     #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
     pub schedule: Option<AutomationSchedule>,
     #[serde(default)]
     pub prompt_envelope: Option<AutomationPromptEnvelope>,
@@ -308,6 +311,7 @@ pub struct UpdateAutomationRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutomationRuleSummary {
     pub rule_id: String,
+    pub title: String,
     pub status: AutomationStatus,
     pub schedule: AutomationSchedule,
     pub next_run_at: DateTime<Utc>,

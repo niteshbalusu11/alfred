@@ -5,6 +5,7 @@ import XCTest
 final class AutomationAPIModelCodableTests: XCTestCase {
     func testCreateAutomationRequestEncodesSnakeCaseFields() throws {
         let request = CreateAutomationRequest(
+            title: "Morning Plan",
             schedule: AutomationSchedule(
                 scheduleType: .weekly,
                 timeZone: "America/Los_Angeles",
@@ -15,6 +16,7 @@ final class AutomationAPIModelCodableTests: XCTestCase {
 
         let data = try JSONEncoder().encode(request)
         let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(json["title"] as? String, "Morning Plan")
 
         let schedule = try XCTUnwrap(json["schedule"] as? [String: Any])
         XCTAssertEqual(schedule["schedule_type"] as? String, "WEEKLY")
@@ -29,6 +31,7 @@ final class AutomationAPIModelCodableTests: XCTestCase {
 
     func testUpdateAutomationRequestEncodesStatusAndSchedule() throws {
         let request = UpdateAutomationRequest(
+            title: "Updated plan",
             schedule: AutomationSchedule(
                 scheduleType: .daily,
                 timeZone: "UTC",
@@ -40,6 +43,7 @@ final class AutomationAPIModelCodableTests: XCTestCase {
         let data = try JSONEncoder().encode(request)
         let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
 
+        XCTAssertEqual(json["title"] as? String, "Updated plan")
         XCTAssertEqual(json["status"] as? String, "PAUSED")
 
         let schedule = try XCTUnwrap(json["schedule"] as? [String: Any])
@@ -54,6 +58,7 @@ final class AutomationAPIModelCodableTests: XCTestCase {
           "items": [
             {
               "rule_id": "f92ee2cb-1a34-4e40-aa4e-e8c2bd1522de",
+              "title": "Daily summary",
               "status": "ACTIVE",
               "schedule": {
                 "schedule_type": "MONTHLY",
@@ -75,6 +80,7 @@ final class AutomationAPIModelCodableTests: XCTestCase {
         let response = try decoder.decode(ListAutomationsResponse.self, from: Data(payload.utf8))
 
         XCTAssertEqual(response.items.count, 1)
+        XCTAssertEqual(response.items[0].title, "Daily summary")
         XCTAssertEqual(response.items[0].status, .active)
         XCTAssertEqual(response.items[0].schedule.scheduleType, .monthly)
         XCTAssertEqual(response.items[0].schedule.timeZone, "UTC")
