@@ -1,0 +1,6 @@
+#include? "LocalProdExtension.xcconfig"
+
+ALFRED_APP_GROUP_IDENTIFIER = group.com.prodata.alfred.shared
+ALFRED_KEYCHAIN_ACCESS_GROUP_SUFFIX = com.prodata.alfred.shared
+ALFRED_NOTIFICATION_KEYCHAIN_SERVICE = com.prodata.alfred.automation-notification
+PRODUCT_BUNDLE_IDENTIFIER = com.prodata.alfred.NotificationServiceExtension

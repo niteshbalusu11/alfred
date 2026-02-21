@@ -96,7 +96,13 @@ public enum AutomationNotificationCrypto {
     public static let versionV1 = "v1"
     public static let algorithmX25519ChaCha20Poly1305 = "x25519-chacha20poly1305"
 
-    private static let keychainService = "com.prodata.alfred.automation-notification"
+    private static var keychainService: String {
+        configValue(
+            envKey: "ALFRED_NOTIFICATION_KEYCHAIN_SERVICE",
+            bundleKey: "ALFRED_NOTIFICATION_KEYCHAIN_SERVICE",
+            fallback: "com.prodata.alfred.automation-notification"
+        )
+    }
     private static let keychainAccount = "device-key-material-v1"
 
     private struct StoredKeyMaterial: Codable {
@@ -422,5 +428,13 @@ public enum AutomationNotificationCrypto {
         guard updateStatus == errSecSuccess else {
             throw AutomationNotificationCryptoError.keychain(updateStatus)
         }
+    }
+
+    private static func configValue(envKey: String, bundleKey: String, fallback: String) -> String {
+        let envValue = ProcessInfo.processInfo.environment[envKey]
+        let bundleValue = Bundle.main.object(forInfoDictionaryKey: bundleKey) as? String
+        return [envValue, bundleValue]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first(where: { !$0.isEmpty }) ?? fallback
     }
 }

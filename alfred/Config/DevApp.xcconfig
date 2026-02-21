@@ -1,0 +1,13 @@
+#include? "LocalDevApp.xcconfig"
+
+ALFRED_API_BASE_URL = http:/$()/100.122.127.87:8080
+ALFRED_APP_GROUP_IDENTIFIER = group.com.prodata.alfred.dev.shared
+ALFRED_ASSOCIATED_DOMAIN = webcredentials:obliging-mammoth-40.clerk.accounts.dev
+ALFRED_KEYCHAIN_ACCESS_GROUP_SUFFIX = com.prodata.alfred.dev.shared
+ALFRED_NOTIFICATION_KEYCHAIN_SERVICE = com.prodata.alfred.dev.automation-notification
+ALFRED_OAUTH_URL_NAME = com.prodata.alfred.dev.oauth
+ALFRED_URL_SCHEME = alfred
+APP_DISPLAY_NAME = Alfred Dev
+APS_ENVIRONMENT = development
+GOOGLE_OAUTH_REDIRECT_URI = alfred:/$()/oauth/google/callback
+PRODUCT_BUNDLE_IDENTIFIER = com.prodata.alfred.dev

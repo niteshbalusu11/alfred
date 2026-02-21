@@ -3,7 +3,47 @@ import CryptoKit
 import Foundation
 
 enum AppConfiguration {
-    static let defaultAPIBaseURL = URL(string: "http://100.122.127.87:8080")!
+    private static let fallbackAPIBaseURL = "http://100.122.127.87:8080"
+    private static let fallbackGoogleOAuthRedirectURI = "alfred://oauth/google/callback"
+    private static let fallbackAppGroupIdentifier = "group.com.prodata.alfred.shared"
+    private static let fallbackAutomationNotificationKeychainService =
+        "com.prodata.alfred.automation-notification"
+
+    static var defaultAPIBaseURL: URL {
+        let rawValue = configValue(
+            envKey: "ALFRED_API_BASE_URL",
+            bundleKey: "ALFRED_API_BASE_URL",
+            fallback: fallbackAPIBaseURL
+        )
+        guard let parsed = URL(string: rawValue) else {
+            preconditionFailure("ALFRED_API_BASE_URL must be a valid URL.")
+        }
+        return parsed
+    }
+
+    static var defaultGoogleOAuthRedirectURI: String {
+        configValue(
+            envKey: "GOOGLE_OAUTH_REDIRECT_URI",
+            bundleKey: "GOOGLE_OAUTH_REDIRECT_URI",
+            fallback: fallbackGoogleOAuthRedirectURI
+        )
+    }
+
+    static var appGroupIdentifier: String {
+        configValue(
+            envKey: "ALFRED_APP_GROUP_IDENTIFIER",
+            bundleKey: "ALFRED_APP_GROUP_IDENTIFIER",
+            fallback: fallbackAppGroupIdentifier
+        )
+    }
+
+    static var automationNotificationKeychainService: String {
+        configValue(
+            envKey: "ALFRED_NOTIFICATION_KEYCHAIN_SERVICE",
+            bundleKey: "ALFRED_NOTIFICATION_KEYCHAIN_SERVICE",
+            fallback: fallbackAutomationNotificationKeychainService
+        )
+    }
 
     static var clerkPublishableKey: String {
         let envValue = ProcessInfo.processInfo.environment["CLERK_PUBLISHABLE_KEY"]

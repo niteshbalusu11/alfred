@@ -3,22 +3,22 @@
 <plist version="1.0">
 <dict>
 	<key>aps-environment</key>
-	<string>development</string>
+	<string>$(APS_ENVIRONMENT)</string>
 	<key>com.apple.developer.applesignin</key>
 	<array>
 		<string>Default</string>
 	</array>
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>group.com.prodata.alfred.shared</string>
+		<string>$(ALFRED_APP_GROUP_IDENTIFIER)</string>
 	</array>
 	<key>com.apple.developer.associated-domains</key>
 	<array>
-		<string>webcredentials:obliging-mammoth-40.clerk.accounts.dev</string>
+		<string>$(ALFRED_ASSOCIATED_DOMAIN)</string>
 	</array>
 	<key>keychain-access-groups</key>
 	<array>
-		<string>$(AppIdentifierPrefix)com.prodata.alfred.shared</string>
+		<string>$(AppIdentifierPrefix)$(ALFRED_KEYCHAIN_ACCESS_GROUP_SUFFIX)</string>
 	</array>
 </dict>
 </plist>

@@ -24,6 +24,9 @@ final class NotificationService: UNNotificationServiceExtension {
             let visiblePreview = AutomationNotificationPreview.makeVisiblePreview(from: resolved)
             content.title = visiblePreview.title
             content.body = visiblePreview.body
+            if content.sound == nil {
+                content.sound = .default
+            }
 
             if resolved != .fallback,
                let requestID = AutomationNotificationCrypto.requestID(from: request.content.userInfo)
@@ -46,11 +49,15 @@ final class NotificationService: UNNotificationServiceExtension {
         if let content = bestAttemptContent {
             content.title = AutomationNotificationContent.fallback.title
             content.body = AutomationNotificationContent.fallback.body
+            if content.sound == nil {
+                content.sound = .default
+            }
             deliver(content)
         } else {
             let fallback = UNMutableNotificationContent()
             fallback.title = AutomationNotificationContent.fallback.title
             fallback.body = AutomationNotificationContent.fallback.body
+            fallback.sound = .default
             deliver(fallback)
         }
     }

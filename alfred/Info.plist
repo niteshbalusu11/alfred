@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Alfred</string>
+	<string>$(APP_DISPLAY_NAME)</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -26,15 +26,23 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>com.prodata.alfred.oauth</string>
+			<string>$(ALFRED_OAUTH_URL_NAME)</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>alfred</string>
+				<string>$(ALFRED_URL_SCHEME)</string>
 			</array>
 		</dict>
 	</array>
+	<key>ALFRED_API_BASE_URL</key>
+	<string>$(ALFRED_API_BASE_URL)</string>
+	<key>ALFRED_APP_GROUP_IDENTIFIER</key>
+	<string>$(ALFRED_APP_GROUP_IDENTIFIER)</string>
+	<key>ALFRED_NOTIFICATION_KEYCHAIN_SERVICE</key>
+	<string>$(ALFRED_NOTIFICATION_KEYCHAIN_SERVICE)</string>
 	<key>CLERK_PUBLISHABLE_KEY</key>
-	<string>pk_test_b2JsaWdpbmctbWFtbW90aC00MC5jbGVyay5hY2NvdW50cy5kZXYk</string>
+	<string>$(CLERK_PUBLISHABLE_KEY)</string>
+	<key>GOOGLE_OAUTH_REDIRECT_URI</key>
+	<string>$(GOOGLE_OAUTH_REDIRECT_URI)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSAppTransportSecurity</key>

@@ -18,3 +18,4 @@ xcuserdata/
 !.env.example
 .ngrok-domain
 *.p8
+alfred/Config/Local*.xcconfig

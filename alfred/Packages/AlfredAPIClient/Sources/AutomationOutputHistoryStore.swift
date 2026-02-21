@@ -38,7 +38,13 @@ public enum AutomationOutputHistoryStoreError: Error {
 }
 
 public actor AutomationOutputHistoryStore {
-    public static let appGroupIdentifier = "group.com.prodata.alfred.shared"
+    public static var appGroupIdentifier: String {
+        configValue(
+            envKey: "ALFRED_APP_GROUP_IDENTIFIER",
+            bundleKey: "ALFRED_APP_GROUP_IDENTIFIER",
+            fallback: "group.com.prodata.alfred.shared"
+        )
+    }
 
     private struct Snapshot: Codable {
         var pendingOpenRequestID: String?
@@ -348,5 +354,13 @@ public actor AutomationOutputHistoryStore {
             return lhs.requestID > rhs.requestID
         }
         return lhs.receivedAt > rhs.receivedAt
+    }
+
+    private static func configValue(envKey: String, bundleKey: String, fallback: String) -> String {
+        let envValue = ProcessInfo.processInfo.environment[envKey]
+        let bundleValue = Bundle.main.object(forInfoDictionaryKey: bundleKey) as? String
+        return [envValue, bundleValue]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first(where: { !$0.isEmpty }) ?? fallback
     }
 }

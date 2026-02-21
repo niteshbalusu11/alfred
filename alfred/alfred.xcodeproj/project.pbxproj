@@ -50,6 +50,10 @@
 
 /* Begin PBXFileReference section */
 		38DF45289929E341ADF164EE /* alfredNotificationServiceExtension.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = alfredNotificationServiceExtension.entitlements; sourceTree = "<group>"; };
+		F1A1B2C3D4E5000000000001 /* DevApp.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = DevApp.xcconfig; sourceTree = "<group>"; };
+		F1A1B2C3D4E5000000000002 /* ProdApp.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = ProdApp.xcconfig; sourceTree = "<group>"; };
+		F1A1B2C3D4E5000000000003 /* DevExtension.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = DevExtension.xcconfig; sourceTree = "<group>"; };
+		F1A1B2C3D4E5000000000004 /* ProdExtension.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = ProdExtension.xcconfig; sourceTree = "<group>"; };
 		95611B0BAFCF4BCF38FA3DCB /* NotificationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		95A3C373062B820B4D65D336 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		C3E6B8BE2F3FFFBC00C03FF0 /* alfred.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = alfred.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -101,6 +105,17 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		F1A1B2C3D4E5000000000005 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				F1A1B2C3D4E5000000000001 /* DevApp.xcconfig */,
+				F1A1B2C3D4E5000000000002 /* ProdApp.xcconfig */,
+				F1A1B2C3D4E5000000000003 /* DevExtension.xcconfig */,
+				F1A1B2C3D4E5000000000004 /* ProdExtension.xcconfig */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
 		A1793636008158BD53CE64CC /* alfredNotificationServiceExtension */ = {
 			isa = PBXGroup;
 			children = (
@@ -116,6 +131,7 @@
 			children = (
 				C3E6B8C02F3FFFBC00C03FF0 /* alfred */,
 				C3E6B8CE2F3FFFBD00C03FF0 /* alfredTests */,
+				F1A1B2C3D4E5000000000005 /* Config */,
 				C3E6B8BF2F3FFFBC00C03FF0 /* Products */,
 				A1793636008158BD53CE64CC /* alfredNotificationServiceExtension */,
 			);
@@ -316,6 +332,7 @@
 /* Begin XCBuildConfiguration section */
 		100DCEF2CC634CF770B1B6D7 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = F1A1B2C3D4E5000000000003 /* DevExtension.xcconfig */;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CLANG_ENABLE_OBJC_WEAK = NO;
@@ -332,7 +349,6 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.prodata.alfred.NotificationServiceExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -347,6 +363,7 @@
 		};
 		2AA23022B43C87CEB2E555A5 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = F1A1B2C3D4E5000000000004 /* ProdExtension.xcconfig */;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CLANG_ENABLE_OBJC_WEAK = NO;
@@ -363,7 +380,6 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.prodata.alfred.NotificationServiceExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -500,6 +516,7 @@
 		};
 		C3E6B8E02F3FFFBD00C03FF0 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = F1A1B2C3D4E5000000000001 /* DevApp.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = alfred;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -509,8 +526,8 @@
 				DEVELOPMENT_TEAM = GNQ3HY2357;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = Info.Debug.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Alfred;
+				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "$(APP_DISPLAY_NAME)";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Alfred uses your microphone to transcribe your voice into text.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Alfred uses speech recognition to convert your spoken words into text.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -524,7 +541,6 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.prodata.alfred;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -538,6 +554,7 @@
 		};
 		C3E6B8E12F3FFFBD00C03FF0 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = F1A1B2C3D4E5000000000002 /* ProdApp.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = alfred;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -546,8 +563,9 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = GNQ3HY2357;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Alfred;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "$(APP_DISPLAY_NAME)";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Alfred uses your microphone to transcribe your voice into text.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Alfred uses speech recognition to convert your spoken words into text.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -561,7 +579,6 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.prodata.alfred;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;

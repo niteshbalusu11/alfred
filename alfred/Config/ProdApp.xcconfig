@@ -1,0 +1,13 @@
+#include? "LocalProdApp.xcconfig"
+
+ALFRED_API_BASE_URL = https:/$()/api.placeholder.example
+ALFRED_APP_GROUP_IDENTIFIER = group.com.prodata.alfred.shared
+ALFRED_ASSOCIATED_DOMAIN = webcredentials:prod-placeholder.clerk.accounts.dev
+ALFRED_KEYCHAIN_ACCESS_GROUP_SUFFIX = com.prodata.alfred.shared
+ALFRED_NOTIFICATION_KEYCHAIN_SERVICE = com.prodata.alfred.automation-notification
+ALFRED_OAUTH_URL_NAME = com.prodata.alfred.oauth
+ALFRED_URL_SCHEME = alfred
+APP_DISPLAY_NAME = Alfred
+APS_ENVIRONMENT = production
+GOOGLE_OAUTH_REDIRECT_URI = alfred:/$()/oauth/google/callback
+PRODUCT_BUNDLE_IDENTIFIER = com.prodata.alfred

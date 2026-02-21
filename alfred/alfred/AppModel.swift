@@ -46,7 +46,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var inFlightActions: Set<Action> = []
     @Published var errorBanner: ErrorBanner?
 
-    @Published var redirectURI = "alfred://oauth/google/callback"
+    @Published var redirectURI = AppConfiguration.defaultGoogleOAuthRedirectURI
     @Published var googleAuthURL = ""
     @Published var googleState = ""
     @Published var googleCode = ""

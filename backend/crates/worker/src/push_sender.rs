@@ -194,7 +194,8 @@ fn apns_payload(content: &NotificationContent) -> Result<Value, PushSendError> {
             "alert": {
                 "title": content.title,
                 "body": content.body
-            }
+            },
+            "sound": "default"
         }
     });
 
@@ -363,6 +364,7 @@ mod tests {
         };
 
         let payload = apns_payload(&content).expect("payload should serialize");
+        assert_eq!(payload["aps"]["sound"], json!("default"));
         assert_eq!(payload["aps"]["mutable-content"], json!(1));
         assert_eq!(
             payload["alfred_automation"]["envelope"]["algorithm"],
@@ -383,6 +385,7 @@ mod tests {
         };
         let payload = apns_payload(&content).expect("payload should serialize");
 
+        assert_eq!(payload["aps"]["sound"], json!("default"));
         assert!(payload.get("alfred_automation").is_none());
         assert!(payload["aps"].get("mutable-content").is_none());
     }
