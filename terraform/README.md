@@ -23,6 +23,25 @@ Current runtime module graph under `modules/`:
 - `secrets_wiring`
 - `observability`
 
+## Dev Cost-Sensitive Defaults
+
+`terraform/dev/terraform.tfvars` sets explicit low-cost defaults for development:
+
+- ECS: `api` and `worker` set to `256 CPU / 512 MiB`, desired count `1`
+- RDS: `db.t4g.micro`, single-AZ (`multi_az = false`), short backup retention
+- Valkey: `cache.t4g.micro`, single cache node
+- Enclave host: one `c6i.large` parent host
+- Observability: 7-day log retention and alarms disabled by default
+
+## Security Defaults
+
+- Ingress supports HTTPS with ACM (`ingress_certificate_arn`), and `prod` requires a certificate ARN.
+- ALB security group only opens ports enabled by ingress settings (HTTP and/or HTTPS).
+- `terraform/prod/terraform.tfvars` enables safer DB lifecycle defaults:
+  - `rds_deletion_protection = true`
+  - `rds_skip_final_snapshot = false`
+  - `rds_multi_az = true`
+
 ## Remote State Bootstrap (One-Time)
 
 Terraform remote state is configured with:

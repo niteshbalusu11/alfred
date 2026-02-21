@@ -35,3 +35,21 @@ variable "deletion_protection" {
   type        = bool
   default     = false
 }
+
+variable "certificate_arn" {
+  description = "Optional ACM certificate ARN for HTTPS listener."
+  type        = string
+  default     = null
+}
+
+variable "enable_http_listener" {
+  description = "Whether to expose HTTP listener on port 80."
+  type        = bool
+  default     = true
+}
+
+variable "ssl_policy" {
+  description = "SSL policy for HTTPS listener."
+  type        = string
+  default     = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+}
