@@ -1,13 +1,14 @@
 use std::collections::HashMap;
 
 use chrono::Utc;
+use shared::enclave::EncryptedAutomationNotificationEnvelope;
 use shared::repos::{AuditResult, ClaimedJob, Store};
 use shared::timezone::user_local_time;
 use tracing::{info, warn};
 
 use crate::{
-    FailureClass, JobExecutionError, NotificationContent, PushSendError, PushSender,
-    WorkerTickMetrics, apns_environment_label,
+    FailureClass, JobExecutionError, NotificationContent, PushPayloadMode, PushSendError,
+    PushSender, WorkerTickMetrics, apns_environment_label,
 };
 
 mod automation;
@@ -39,6 +40,7 @@ pub(super) async fn dispatch_job_action(
         );
         JobActionResult {
             notification: Some(content),
+            encrypted_envelopes_by_device: HashMap::new(),
             metadata,
         }
     } else {
@@ -138,6 +140,7 @@ pub(super) async fn dispatch_job_action(
         context.push_sender,
         job,
         content,
+        &action.encrypted_envelopes_by_device,
         &action.metadata,
         metrics,
     )
@@ -149,6 +152,7 @@ async fn send_notification_to_devices(
     push_sender: &PushSender,
     job: &ClaimedJob,
     content: &NotificationContent,
+    encrypted_envelopes_by_device: &HashMap<String, EncryptedAutomationNotificationEnvelope>,
     metadata_base: &HashMap<String, String>,
     metrics: &mut WorkerTickMetrics,
 ) -> Result<(), JobExecutionError> {
@@ -176,9 +180,13 @@ async fn send_notification_to_devices(
 
     for device in &devices {
         metrics.push_attempts += 1;
+        let mut content_for_device = content.clone();
+        if let Some(envelope) = encrypted_envelopes_by_device.get(&device.device_id) {
+            content_for_device.encrypted_envelope = Some(envelope.clone());
+        }
 
-        match push_sender.send(device, content).await {
-            Ok(()) => {
+        match push_sender.send(device, &content_for_device).await {
+            Ok(payload_mode) => {
                 delivered += 1;
                 metrics.push_delivered += 1;
 
@@ -187,6 +195,10 @@ async fn send_notification_to_devices(
                 metadata.insert(
                     "environment".to_string(),
                     apns_environment_label(&device.environment).to_string(),
+                );
+                metadata.insert(
+                    "push_payload_mode".to_string(),
+                    payload_mode.as_str().to_string(),
                 );
                 metadata.insert("outcome".to_string(), "delivered".to_string());
 
@@ -216,6 +228,13 @@ async fn send_notification_to_devices(
                 metadata.insert(
                     "environment".to_string(),
                     apns_environment_label(&device.environment).to_string(),
+                );
+                metadata.insert(
+                    "push_payload_mode".to_string(),
+                    match content_for_device.encrypted_envelope.as_ref() {
+                        Some(_) => PushPayloadMode::Encrypted.as_str().to_string(),
+                        None => PushPayloadMode::Fallback.as_str().to_string(),
+                    },
                 );
                 metadata.insert("outcome".to_string(), "failed".to_string());
                 metadata.insert("error_code".to_string(), error_code.clone());

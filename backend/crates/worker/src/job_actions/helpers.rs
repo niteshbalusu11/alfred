@@ -39,6 +39,7 @@ pub(super) fn parse_notification_payload(payload: Option<&[u8]>) -> Option<Notif
     Some(NotificationContent {
         title: title.to_string(),
         body: body.to_string(),
+        encrypted_envelope: None,
     })
 }
 

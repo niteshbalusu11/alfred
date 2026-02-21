@@ -20,7 +20,7 @@ mod types;
 
 use job_processing::process_due_jobs;
 pub(crate) use push_sender::{
-    NotificationContent, PushSendError, PushSender, apns_environment_label,
+    NotificationContent, PushPayloadMode, PushSendError, PushSender, apns_environment_label,
 };
 pub(crate) use retry::retry_delay_seconds;
 pub(crate) use types::{FailureClass, JobExecutionError, WorkerTickMetrics};
