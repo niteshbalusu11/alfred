@@ -4,6 +4,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::automation_schedule::AutomationScheduleType;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ApnsEnvironment {
@@ -273,16 +275,16 @@ pub struct AutomationPromptEnvelope {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateAutomationRequest {
-    pub interval_seconds: u32,
-    pub time_zone: String,
+    pub schedule: AutomationSchedule,
     pub prompt_envelope: AutomationPromptEnvelope,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct AutomationScheduleUpdate {
-    pub interval_seconds: u32,
+pub struct AutomationSchedule {
+    pub schedule_type: AutomationScheduleType,
     pub time_zone: String,
+    pub local_time: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -296,7 +298,7 @@ pub enum AutomationStatus {
 #[serde(deny_unknown_fields)]
 pub struct UpdateAutomationRequest {
     #[serde(default)]
-    pub schedule: Option<AutomationScheduleUpdate>,
+    pub schedule: Option<AutomationSchedule>,
     #[serde(default)]
     pub prompt_envelope: Option<AutomationPromptEnvelope>,
     #[serde(default)]
@@ -304,18 +306,10 @@ pub struct UpdateAutomationRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum AutomationScheduleKind {
-    IntervalSeconds,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutomationRuleSummary {
     pub rule_id: String,
     pub status: AutomationStatus,
-    pub schedule_type: AutomationScheduleKind,
-    pub interval_seconds: i32,
-    pub time_zone: String,
+    pub schedule: AutomationSchedule,
     pub next_run_at: DateTime<Utc>,
     pub last_run_at: Option<DateTime<Utc>>,
     pub prompt_sha256: String,
@@ -326,6 +320,12 @@ pub struct AutomationRuleSummary {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ListAutomationsResponse {
     pub items: Vec<AutomationRuleSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TriggerAutomationDebugRunResponse {
+    pub queued_job_id: String,
+    pub status: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

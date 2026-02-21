@@ -1,8 +1,10 @@
 use std::env;
+use std::fs;
 use std::io::ErrorKind;
 use std::net::IpAddr;
 use std::path::PathBuf;
 
+use base64::Engine as _;
 use thiserror::Error;
 
 use crate::config_enclave_runtime::{
@@ -13,10 +15,11 @@ use crate::config_env::{
     optional_trimmed_env, parse_bool_env, parse_i32_env, parse_ip_list_env, parse_list_env,
     parse_list_env_with_fallback, parse_u32_env, parse_u64_env, require_env,
 };
-use crate::enclave_runtime::EnclaveRuntimeMode;
+use crate::enclave_runtime::{AlfredEnvironment, EnclaveRuntimeMode};
 
 #[derive(Debug, Clone)]
 pub struct ApiConfig {
+    pub alfred_environment: AlfredEnvironment,
     pub bind_addr: String,
     pub api_http_timeout_ms: u64,
     pub database_url: String,
@@ -65,9 +68,10 @@ pub struct WorkerConfig {
     pub per_user_concurrency_limit: u32,
     pub retry_base_delay_seconds: u64,
     pub retry_max_delay_seconds: u64,
-    pub apns_sandbox_endpoint: Option<String>,
-    pub apns_production_endpoint: Option<String>,
-    pub apns_auth_token: Option<String>,
+    pub apns_key_id: String,
+    pub apns_team_id: String,
+    pub apns_topic: String,
+    pub apns_auth_key_p8: String,
     pub google_client_id: String,
     pub google_client_secret: String,
     pub google_token_url: String,
@@ -215,6 +219,7 @@ impl ApiConfig {
         }
 
         Ok(Self {
+            alfred_environment,
             bind_addr: env::var("API_BIND_ADDR").unwrap_or_else(|_| "127.0.0.1:8080".to_string()),
             api_http_timeout_ms,
             database_url: require_env("DATABASE_URL")?,
@@ -388,6 +393,7 @@ impl WorkerConfig {
             ));
         }
         let enclave_rpc_shared_secret = parse_enclave_rpc_shared_secret(alfred_environment)?;
+        let apns_auth_key_p8 = load_apns_auth_key_p8()?;
 
         Ok(Self {
             tick_seconds,
@@ -397,9 +403,10 @@ impl WorkerConfig {
             per_user_concurrency_limit,
             retry_base_delay_seconds,
             retry_max_delay_seconds,
-            apns_sandbox_endpoint: optional_trimmed_env("APNS_SANDBOX_ENDPOINT"),
-            apns_production_endpoint: optional_trimmed_env("APNS_PRODUCTION_ENDPOINT"),
-            apns_auth_token: optional_trimmed_env("APNS_AUTH_TOKEN"),
+            apns_key_id: require_env("APNS_KEY_ID")?,
+            apns_team_id: require_env("APNS_TEAM_ID")?,
+            apns_topic: require_env("APNS_TOPIC")?,
+            apns_auth_key_p8,
             google_client_id: require_env("GOOGLE_OAUTH_CLIENT_ID")?,
             google_client_secret: require_env("GOOGLE_OAUTH_CLIENT_SECRET")?,
             google_token_url: env::var("GOOGLE_OAUTH_TOKEN_URL")
@@ -433,6 +440,58 @@ impl WorkerConfig {
                 .unwrap_or_else(|| "redis://127.0.0.1:6379/0".to_string()),
         })
     }
+}
+
+fn load_apns_auth_key_p8() -> Result<String, ConfigError> {
+    if let Some(inline) = optional_trimmed_env("APNS_AUTH_KEY_P8") {
+        return normalize_pem(inline);
+    }
+
+    if let Some(encoded) = optional_trimmed_env("APNS_AUTH_KEY_P8_BASE64") {
+        let decoded = base64::engine::general_purpose::STANDARD
+            .decode(encoded.as_bytes())
+            .map_err(|_| {
+                ConfigError::InvalidConfiguration(
+                    "APNS_AUTH_KEY_P8_BASE64 must be valid base64".to_string(),
+                )
+            })?;
+        let pem = String::from_utf8(decoded).map_err(|_| {
+            ConfigError::InvalidConfiguration(
+                "APNS_AUTH_KEY_P8_BASE64 must decode to UTF-8 PEM text".to_string(),
+            )
+        })?;
+        return normalize_pem(pem);
+    }
+
+    if let Some(path) = optional_trimmed_env("APNS_AUTH_KEY_P8_PATH") {
+        let pem = fs::read_to_string(path.as_str()).map_err(|err| {
+            ConfigError::InvalidConfiguration(format!(
+                "failed to read APNS_AUTH_KEY_P8_PATH ({path}): {err}"
+            ))
+        })?;
+        return normalize_pem(pem);
+    }
+
+    Err(ConfigError::InvalidConfiguration(
+        "one of APNS_AUTH_KEY_P8, APNS_AUTH_KEY_P8_BASE64, or APNS_AUTH_KEY_P8_PATH must be set"
+            .to_string(),
+    ))
+}
+
+fn normalize_pem(raw: String) -> Result<String, ConfigError> {
+    let normalized = raw.replace("\\n", "\n");
+    let trimmed = normalized.trim().to_string();
+    if trimmed.is_empty() {
+        return Err(ConfigError::InvalidConfiguration(
+            "APNS auth key PEM must not be empty".to_string(),
+        ));
+    }
+    if !trimmed.contains("BEGIN PRIVATE KEY") || !trimmed.contains("END PRIVATE KEY") {
+        return Err(ConfigError::InvalidConfiguration(
+            "APNS auth key PEM must contain BEGIN/END PRIVATE KEY markers".to_string(),
+        ));
+    }
+    Ok(trimmed)
 }
 
 #[cfg(test)]

@@ -7,6 +7,7 @@ struct AutomationRuleCard: View {
     let isMutating: Bool
     let onTogglePause: () -> Void
     let onDelete: () -> Void
+    let onDebugRun: (() -> Void)?
 
     var body: some View {
         AppCard {
@@ -28,7 +29,7 @@ struct AutomationRuleCard: View {
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
-                    AutomationMetadataRow(label: "Time zone", value: rule.timeZone)
+                    AutomationMetadataRow(label: "Time zone", value: rule.schedule.timeZone)
                     AutomationMetadataRow(label: "Next run", value: format(date: rule.nextRunAt))
                     AutomationMetadataRow(label: "Last run", value: format(date: rule.lastRunAt))
                 }
@@ -41,6 +42,12 @@ struct AutomationRuleCard: View {
                     Button("Delete", role: .destructive, action: onDelete)
                         .buttonStyle(.appSecondary)
                         .disabled(isMutating)
+
+                    if let onDebugRun {
+                        Button("Run now", action: onDebugRun)
+                            .buttonStyle(.appSecondary)
+                            .disabled(isMutating)
+                    }
                 }
 
                 if isMutating {
@@ -52,7 +59,7 @@ struct AutomationRuleCard: View {
     }
 
     private var intervalSummary: String {
-        "Runs \(AutomationIntervalFormatter.label(for: rule.intervalSeconds))"
+        AutomationScheduleFormatter.label(for: rule.schedule)
     }
 
     private var statusTitle: String {
@@ -101,9 +108,43 @@ private struct AutomationMetadataRow: View {
 
 struct AutomationCreatePayload {
     let title: String
-    let intervalSeconds: Int
-    let timeZone: String
+    let schedule: AutomationSchedule
     let prompt: String
+}
+
+private enum TaskFrequency: String, CaseIterable, Identifiable {
+    case daily
+    case weekly
+    case monthly
+    case annually
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .daily:
+            return "Daily"
+        case .weekly:
+            return "Weekly"
+        case .monthly:
+            return "Monthly"
+        case .annually:
+            return "Annually"
+        }
+    }
+
+    var scheduleType: AutomationScheduleType {
+        switch self {
+        case .daily:
+            return .daily
+        case .weekly:
+            return .weekly
+        case .monthly:
+            return .monthly
+        case .annually:
+            return .annually
+        }
+    }
 }
 
 struct AutomationCreateSheet: View {
@@ -113,80 +154,157 @@ struct AutomationCreateSheet: View {
     let onSubmit: @Sendable (AutomationCreatePayload) async throws -> Void
 
     @State private var title = ""
-    @State private var intervalMinutes = 60
+    @State private var frequency: TaskFrequency = .daily
+    @State private var selectedTime = Date()
     @State private var timeZone = ""
     @State private var prompt = ""
     @State private var isSubmitting = false
     @State private var errorMessage: String?
 
-    private let quickIntervals: [Int] = [15, 60, 240, 1_440]
-
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Automation") {
-                    TextField("Name (optional)", text: $title)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    HStack(spacing: 12) {
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(AppTheme.Colors.textSecondary)
+                                .frame(width: 42, height: 42)
+                                .background(AppTheme.Colors.surfaceElevated, in: Circle())
+                                .overlay(
+                                    Circle()
+                                        .stroke(AppTheme.Colors.outline, lineWidth: 1)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isSubmitting)
 
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Interval")
-                            .font(.subheadline.weight(.semibold))
+                        Spacer(minLength: 0)
 
-                        HStack(spacing: 8) {
-                            ForEach(quickIntervals, id: \.self) { minutes in
-                                Button(quickLabel(minutes: minutes)) {
-                                    intervalMinutes = minutes
-                                }
-                                .buttonStyle(.appSecondary)
+                        Text("New Task")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(AppTheme.Colors.textPrimary)
+
+                        Spacer(minLength: 0)
+
+                        Button(isSubmitting ? "Creating..." : "Create") {
+                            Task {
+                                await submit()
                             }
                         }
-
-                        Stepper(value: $intervalMinutes, in: 1...10_080) {
-                            Text(AutomationIntervalFormatter.label(for: intervalMinutes * 60))
-                        }
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(AppTheme.Colors.textPrimary.opacity(isSubmitting ? 0.5 : 1))
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 10)
+                        .background(AppTheme.Colors.surfaceElevated.opacity(0.95), in: Capsule())
+                        .overlay(
+                            Capsule()
+                                .stroke(AppTheme.Colors.outline, lineWidth: 1)
+                        )
+                        .disabled(isSubmitting)
                     }
 
-                    TextField("Time zone", text: $timeZone)
+                    TextField("Name of task", text: $title)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                }
+                        .appFieldStyle()
 
-                Section("Prompt") {
-                    TextEditor(text: $prompt)
-                        .frame(minHeight: 180)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Schedule")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(AppTheme.Colors.textSecondary)
 
-                    Text("Prompt and output remain encrypted outside the enclave path.")
-                        .font(.footnote)
-                        .foregroundStyle(AppTheme.Colors.textSecondary)
-                }
+                        VStack(spacing: 0) {
+                            TaskPickerRow(label: "Frequency") {
+                                Menu {
+                                    ForEach(TaskFrequency.allCases) { option in
+                                        Button {
+                                            frequency = option
+                                        } label: {
+                                            if option == frequency {
+                                                Label(option.title, systemImage: "checkmark")
+                                            } else {
+                                                Text(option.title)
+                                            }
+                                        }
+                                    }
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Text(frequency.title)
+                                        Image(systemName: "chevron.up.chevron.down")
+                                            .font(.system(size: 11, weight: .semibold))
+                                    }
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(AppTheme.Colors.textPrimary)
+                                }
+                            }
 
-                if let errorMessage {
-                    Section {
+                            Divider()
+                                .overlay(AppTheme.Colors.outline)
+
+                            TaskPickerRow(label: "Time") {
+                                DatePicker(
+                                    "",
+                                    selection: $selectedTime,
+                                    displayedComponents: .hourAndMinute
+                                )
+                                .labelsHidden()
+                                .datePickerStyle(.compact)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                        .background(AppTheme.Colors.surfaceElevated)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(AppTheme.Colors.outline, lineWidth: 1)
+                        )
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Instructions")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(AppTheme.Colors.textSecondary)
+
+                        ZStack(alignment: .topLeading) {
+                            if prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                Text("Enter prompt")
+                                    .font(.body)
+                                    .foregroundStyle(AppTheme.Colors.textSecondary.opacity(0.7))
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 18)
+                            }
+
+                            TextEditor(text: $prompt)
+                                .frame(minHeight: 160)
+                                .padding(8)
+                        }
+                        .background(AppTheme.Colors.surfaceElevated)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(AppTheme.Colors.outline, lineWidth: 1)
+                        )
+                    }
+
+                    if let errorMessage {
                         Text(errorMessage)
                             .font(.footnote)
                             .foregroundStyle(AppTheme.Colors.danger)
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(AppTheme.Colors.surfaceElevated)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
                 }
+                .padding(.horizontal, AppTheme.Layout.screenPadding)
+                .padding(.vertical, AppTheme.Layout.sectionSpacing)
             }
+            .appScreenBackground()
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle("New Automation")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .disabled(isSubmitting)
-                }
-
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(isSubmitting ? "Creating…" : "Create") {
-                        Task {
-                            await submit()
-                        }
-                    }
-                    .disabled(isSubmitting)
-                }
-            }
             .onAppear {
                 if timeZone.isEmpty {
                     timeZone = defaultTimeZone
@@ -219,8 +337,11 @@ struct AutomationCreateSheet: View {
             try await onSubmit(
                 AutomationCreatePayload(
                     title: title.trimmingCharacters(in: .whitespacesAndNewlines),
-                    intervalSeconds: intervalMinutes * 60,
-                    timeZone: trimmedTimeZone,
+                    schedule: AutomationSchedule(
+                        scheduleType: frequency.scheduleType,
+                        timeZone: trimmedTimeZone,
+                        localTime: Self.localTimeFormatter.string(from: selectedTime)
+                    ),
                     prompt: trimmedPrompt
                 )
             )
@@ -230,43 +351,28 @@ struct AutomationCreateSheet: View {
         }
     }
 
-    private func quickLabel(minutes: Int) -> String {
-        AutomationIntervalFormatter.label(for: minutes * 60)
-    }
+    private static let localTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
 }
 
-enum AutomationIntervalFormatter {
-    static func label(for intervalSeconds: Int) -> String {
-        if intervalSeconds % 86_400 == 0 {
-            return "every \(intervalSeconds / 86_400)d"
+enum AutomationScheduleFormatter {
+    static func label(for schedule: AutomationSchedule) -> String {
+        let frequency = switch schedule.scheduleType {
+        case .daily:
+            "Daily"
+        case .weekly:
+            "Weekly"
+        case .monthly:
+            "Monthly"
+        case .annually:
+            "Annually"
         }
-        if intervalSeconds % 3_600 == 0 {
-            return "every \(intervalSeconds / 3_600)h"
-        }
-        if intervalSeconds % 60 == 0 {
-            return "every \(intervalSeconds / 60)m"
-        }
-        return "every \(intervalSeconds)s"
-    }
-}
 
-struct AutomationInlineButton: View {
-    let title: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(title, action: action)
-            .font(.caption.weight(.semibold))
-            .buttonStyle(.plain)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(AppTheme.Colors.surfaceElevated)
-            .clipShape(Capsule())
-            .overlay(
-                Capsule()
-                    .stroke(AppTheme.Colors.outline, lineWidth: 1)
-            )
-            .foregroundStyle(AppTheme.Colors.textPrimary)
+        return "\(frequency) at \(schedule.localTime)"
     }
 }
 
@@ -301,7 +407,7 @@ struct AutomationLoadingStateCard: View {
                 ProgressView()
                     .tint(AppTheme.Colors.accent)
 
-                Text("Loading automations…")
+                Text("Loading tasks...")
                     .font(.subheadline)
                     .foregroundStyle(AppTheme.Colors.textSecondary)
             }

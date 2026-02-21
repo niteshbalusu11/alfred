@@ -3,6 +3,7 @@ use sqlx::PgPool;
 use thiserror::Error;
 use uuid::Uuid;
 
+use crate::automation_schedule::{AutomationScheduleSpec, AutomationScheduleType};
 use crate::models::ApnsEnvironment;
 
 mod assistant_encrypted_sessions;
@@ -89,21 +90,22 @@ impl AutomationRuleStatus {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AutomationScheduleType {
-    IntervalSeconds,
-}
-
 impl AutomationScheduleType {
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::IntervalSeconds => "INTERVAL_SECONDS",
+            Self::Daily => "DAILY",
+            Self::Weekly => "WEEKLY",
+            Self::Monthly => "MONTHLY",
+            Self::Annually => "ANNUALLY",
         }
     }
 
     fn from_db(value: &str) -> Result<Self, StoreError> {
         match value {
-            "INTERVAL_SECONDS" => Ok(Self::IntervalSeconds),
+            "DAILY" => Ok(Self::Daily),
+            "WEEKLY" => Ok(Self::Weekly),
+            "MONTHLY" => Ok(Self::Monthly),
+            "ANNUALLY" => Ok(Self::Annually),
             _ => Err(StoreError::InvalidData(format!(
                 "unknown automation schedule type persisted: {value}"
             ))),
@@ -195,7 +197,10 @@ pub struct AutomationRuleRecord {
     pub user_id: Uuid,
     pub status: AutomationRuleStatus,
     pub schedule_type: AutomationScheduleType,
-    pub interval_seconds: i32,
+    pub local_time_minutes: i32,
+    pub anchor_day_of_week: Option<i16>,
+    pub anchor_day_of_month: Option<i16>,
+    pub anchor_month: Option<i16>,
     pub time_zone: String,
     pub next_run_at: DateTime<Utc>,
     pub last_run_at: Option<DateTime<Utc>>,
@@ -208,9 +213,19 @@ pub struct AutomationRuleRecord {
 pub struct ClaimedAutomationRule {
     pub id: Uuid,
     pub user_id: Uuid,
-    pub interval_seconds: i32,
+    pub schedule_type: AutomationScheduleType,
+    pub local_time_minutes: i32,
+    pub anchor_day_of_week: Option<i16>,
+    pub anchor_day_of_month: Option<i16>,
+    pub anchor_month: Option<i16>,
     pub time_zone: String,
     pub next_run_at: DateTime<Utc>,
+    pub prompt_ciphertext: Vec<u8>,
+    pub prompt_sha256: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct AutomationPromptMaterial {
     pub prompt_ciphertext: Vec<u8>,
     pub prompt_sha256: String,
 }
@@ -283,4 +298,64 @@ pub struct DeviceRegistration {
     pub environment: ApnsEnvironment,
     pub notification_key_algorithm: Option<String>,
     pub notification_public_key: Option<String>,
+}
+
+impl AutomationRuleRecord {
+    pub fn schedule_spec(&self) -> Result<AutomationScheduleSpec, StoreError> {
+        automation_schedule_spec_from_fields(
+            self.schedule_type,
+            self.time_zone.as_str(),
+            self.local_time_minutes,
+            self.anchor_day_of_week,
+            self.anchor_day_of_month,
+            self.anchor_month,
+        )
+    }
+}
+
+impl ClaimedAutomationRule {
+    pub fn schedule_spec(&self) -> Result<AutomationScheduleSpec, StoreError> {
+        automation_schedule_spec_from_fields(
+            self.schedule_type,
+            self.time_zone.as_str(),
+            self.local_time_minutes,
+            self.anchor_day_of_week,
+            self.anchor_day_of_month,
+            self.anchor_month,
+        )
+    }
+}
+
+fn automation_schedule_spec_from_fields(
+    schedule_type: AutomationScheduleType,
+    time_zone: &str,
+    local_time_minutes: i32,
+    anchor_day_of_week: Option<i16>,
+    anchor_day_of_month: Option<i16>,
+    anchor_month: Option<i16>,
+) -> Result<AutomationScheduleSpec, StoreError> {
+    let local_time_minutes = u16::try_from(local_time_minutes)
+        .map_err(|_| StoreError::InvalidData("local_time_minutes must be >= 0".to_string()))?;
+    let anchor_day_of_week = option_i16_to_u8(anchor_day_of_week, "anchor_day_of_week")?;
+    let anchor_day_of_month = option_i16_to_u8(anchor_day_of_month, "anchor_day_of_month")?;
+    let anchor_month = option_i16_to_u8(anchor_month, "anchor_month")?;
+
+    Ok(AutomationScheduleSpec {
+        schedule_type,
+        time_zone: time_zone.to_string(),
+        local_time_minutes,
+        anchor_day_of_week,
+        anchor_day_of_month,
+        anchor_month,
+    })
+}
+
+fn option_i16_to_u8(value: Option<i16>, field: &str) -> Result<Option<u8>, StoreError> {
+    value
+        .map(|inner| {
+            u8::try_from(inner).map_err(|_| {
+                StoreError::InvalidData(format!("{field} could not be represented as u8"))
+            })
+        })
+        .transpose()
 }

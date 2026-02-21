@@ -418,6 +418,35 @@ paths:
           $ref: "#/components/responses/NotFound"
         "429":
           $ref: "#/components/responses/TooManyRequests"
+  /v1/automations/{rule_id}/debug/run:
+    post:
+      tags: [Automations]
+      summary: Enqueue an immediate debug run for an automation rule (local/dev only)
+      operationId: triggerAutomationDebugRun
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: rule_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Debug automation run queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TriggerAutomationDebugRunResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
   /v1/audit-events:
     get:
       tags: [Audit]
@@ -847,34 +876,27 @@ components:
           description: Base64-encoded encrypted automation prompt payload.
     CreateAutomationRequest:
       type: object
-      required: [interval_seconds, time_zone, prompt_envelope]
+      required: [schedule, prompt_envelope]
       properties:
-        interval_seconds:
-          type: integer
-          format: int32
-          minimum: 60
-          maximum: 604800
-        time_zone:
-          type: string
-          description: IANA timezone identifier (for example, America/Los_Angeles).
-          minLength: 1
-          maxLength: 64
+        schedule:
+          $ref: "#/components/schemas/AutomationSchedule"
         prompt_envelope:
           $ref: "#/components/schemas/AutomationPromptEnvelope"
-    AutomationScheduleUpdate:
+    AutomationSchedule:
       type: object
-      required: [interval_seconds, time_zone]
+      required: [schedule_type, time_zone, local_time]
       properties:
-        interval_seconds:
-          type: integer
-          format: int32
-          minimum: 60
-          maximum: 604800
+        schedule_type:
+          $ref: "#/components/schemas/AutomationScheduleType"
         time_zone:
           type: string
           description: IANA timezone identifier (for example, America/Los_Angeles).
           minLength: 1
           maxLength: 64
+        local_time:
+          type: string
+          description: 24-hour local time in HH:MM format.
+          pattern: "^([01]\\d|2[0-3]):[0-5]\\d$"
     AutomationStatus:
       type: string
       enum: [ACTIVE, PAUSED]
@@ -882,23 +904,21 @@ components:
       type: object
       properties:
         schedule:
-          $ref: "#/components/schemas/AutomationScheduleUpdate"
+          $ref: "#/components/schemas/AutomationSchedule"
         prompt_envelope:
           $ref: "#/components/schemas/AutomationPromptEnvelope"
         status:
           $ref: "#/components/schemas/AutomationStatus"
     AutomationScheduleType:
       type: string
-      enum: [INTERVAL_SECONDS]
+      enum: [DAILY, WEEKLY, MONTHLY, ANNUALLY]
     AutomationRuleSummary:
       type: object
       required:
         [
           rule_id,
           status,
-          schedule_type,
-          interval_seconds,
-          time_zone,
+          schedule,
           next_run_at,
           prompt_sha256,
           created_at,
@@ -910,13 +930,8 @@ components:
           format: uuid
         status:
           $ref: "#/components/schemas/AutomationStatus"
-        schedule_type:
-          $ref: "#/components/schemas/AutomationScheduleType"
-        interval_seconds:
-          type: integer
-          format: int32
-        time_zone:
-          type: string
+        schedule:
+          $ref: "#/components/schemas/AutomationSchedule"
         next_run_at:
           type: string
           format: date-time
@@ -940,6 +955,15 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AutomationRuleSummary"
+    TriggerAutomationDebugRunResponse:
+      type: object
+      required: [queued_job_id, status]
+      properties:
+        queued_job_id:
+          type: string
+          format: uuid
+        status:
+          type: string
     Preferences:
       type: object
       required:

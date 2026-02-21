@@ -13,7 +13,7 @@ enum AppTab: Hashable, CaseIterable {
         case .threads:
             return "Threads"
         case .automations:
-            return "Automations"
+            return "Tasks"
         case .connectors:
             return "Connectors"
         }

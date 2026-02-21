@@ -2,6 +2,7 @@ pub mod assistant_crypto;
 pub mod assistant_memory;
 pub mod assistant_planner;
 pub mod assistant_semantic_plan;
+pub mod automation_schedule;
 pub mod config;
 mod config_enclave_runtime;
 mod config_env;

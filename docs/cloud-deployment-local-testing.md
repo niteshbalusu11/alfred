@@ -223,9 +223,14 @@ Security/TEE:
 4. Production key policy must allow decrypt only for approved attested enclave measurements and deny direct host-role decrypt paths.
 5. Use `docs/tee-kms-rotation-runbook.md` and `scripts/security/tee-kms-rotation.sh` for staged key/measurement rotation with evidence capture and rollback.
 
-Worker/APNs (if testing push delivery):
-1. `APNS_SANDBOX_ENDPOINT` and/or `APNS_PRODUCTION_ENDPOINT`
-2. `APNS_AUTH_TOKEN` (if your APNs proxy endpoint requires bearer auth)
+Worker/APNs (if testing real push delivery):
+1. `APNS_KEY_ID`
+2. `APNS_TEAM_ID`
+3. `APNS_TOPIC` (iOS bundle id / APNs topic)
+4. One APNs private-key source:
+   1. `APNS_AUTH_KEY_P8`, or
+   2. `APNS_AUTH_KEY_P8_BASE64`, or
+   3. `APNS_AUTH_KEY_P8_PATH`
 
 ### Post-deploy smoke tests
 

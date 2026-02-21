@@ -2,6 +2,8 @@ import AlfredAPIClient
 import ClerkKit
 import Combine
 import Foundation
+import UIKit
+import UserNotifications
 
 @MainActor
 final class AppModel: ObservableObject {
@@ -81,7 +83,10 @@ final class AppModel: ObservableObject {
     let apiClient: AlfredAPIClient
     let assistantThreadStore: AssistantThreadStore
     private var authEventsTask: Task<Void, Never>?
+    private var apnsTokenObserverTask: Task<Void, Never>?
     private var lastBootstrappedUserID: String?
+    private var latestAPNSToken: String?
+    private var lastRegisteredAPNSToken: String?
     var assistantStorageUserID: String?
 
     init(
@@ -103,11 +108,15 @@ final class AppModel: ObservableObject {
             }
         )
 
+        if !isRunningUnderTests {
+            startAPNSTokenObserver()
+        }
         startAuthEventObserver()
     }
 
     deinit {
         authEventsTask?.cancel()
+        apnsTokenObserverTask?.cancel()
     }
 
     var canLoadMoreAuditEvents: Bool { nextAuditCursor != nil }
@@ -438,12 +447,16 @@ final class AppModel: ObservableObject {
 
         lastBootstrappedUserID = currentUserID
         startupRoute = .signedIn
+        if !isRunningUnderTests {
+            await bootstrapAPNSRegistration()
+        }
     }
 
     private func resetAuthenticationState() {
         isAuthenticated = false
         startupRoute = .signedOut
         lastBootstrappedUserID = nil
+        lastRegisteredAPNSToken = nil
         assistantStorageUserID = nil
         connectorID = ""
         auditEvents = []
@@ -455,6 +468,131 @@ final class AppModel: ObservableObject {
         guard isAuthenticated else { return false }
         guard !hasAuthBootstrapFailure else { return false }
         return userID == lastBootstrappedUserID
+    }
+
+    private var isRunningUnderTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
+
+    private func startAPNSTokenObserver() {
+        apnsTokenObserverTask?.cancel()
+        apnsTokenObserverTask = Task { [weak self] in
+            guard let self else { return }
+            for await notification in NotificationCenter.default.notifications(
+                named: PushNotificationEvents.didUpdateAPNSToken
+            ) {
+                guard let token = notification.userInfo?["token"] as? String else {
+                    continue
+                }
+                await self.handleAPNSTokenUpdate(token)
+            }
+        }
+    }
+
+    private func handleAPNSTokenUpdate(_ token: String) async {
+        let normalized = token.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !normalized.isEmpty else {
+            return
+        }
+
+        latestAPNSToken = normalized
+        guard case .signedIn = startupRoute, isAuthenticated else {
+            return
+        }
+
+        await registerAPNSDeviceIfNeeded(token: normalized)
+    }
+
+    private func bootstrapAPNSRegistration() async {
+        await requestNotificationAuthorizationAndRegister()
+        if let token = latestAPNSToken {
+            await registerAPNSDeviceIfNeeded(token: token)
+        }
+    }
+
+    private func requestNotificationAuthorizationAndRegister() async {
+        let notificationCenter = UNUserNotificationCenter.current()
+        let settings = await notificationCenter.notificationSettings()
+
+        switch settings.authorizationStatus {
+        case .authorized, .provisional, .ephemeral:
+            break
+        case .notDetermined:
+            do {
+                let granted = try await notificationCenter.requestAuthorization(
+                    options: [.alert, .badge, .sound]
+                )
+                if !granted {
+                    AppLogger.warning(
+                        "Notification permission not granted; APNs registration skipped.",
+                        category: .network
+                    )
+                    return
+                }
+            } catch {
+                AppLogger.warning(
+                    "Notification permission request failed.",
+                    category: .network
+                )
+                return
+            }
+        case .denied:
+            AppLogger.warning(
+                "Notification permission denied; APNs registration skipped.",
+                category: .network
+            )
+            return
+        @unknown default:
+            return
+        }
+
+        await MainActor.run {
+            UIApplication.shared.registerForRemoteNotifications()
+        }
+    }
+
+    private func registerAPNSDeviceIfNeeded(token: String) async {
+        guard lastRegisteredAPNSToken != token else {
+            return
+        }
+
+        let registrationMaterial: AutomationNotificationRegistrationMaterial
+        do {
+            registrationMaterial = try AutomationNotificationCrypto.registrationMaterial()
+        } catch {
+            AppLogger.warning(
+                "Notification key material unavailable; APNs device registration skipped.",
+                category: .network
+            )
+            return
+        }
+
+        let environment: APNSEnvironment = {
+            #if DEBUG
+                .sandbox
+            #else
+                .production
+            #endif
+        }()
+
+        do {
+            _ = try await apiClient.registerAPNSDevice(
+                RegisterDeviceRequest(
+                    deviceId: registrationMaterial.deviceID,
+                    apnsToken: token,
+                    environment: environment,
+                    notificationKeyAlgorithm: registrationMaterial.algorithm,
+                    notificationPublicKey: registrationMaterial.publicKey
+                )
+            )
+            lastRegisteredAPNSToken = token
+            AppLogger.info("APNs device registration synced.", category: .network)
+        } catch {
+            AppLogger.warning(
+                "APNs device registration failed: \(Self.errorMessage(from: error))",
+                category: .network
+            )
+        }
     }
 
     private func resetGoogleOAuthState() {

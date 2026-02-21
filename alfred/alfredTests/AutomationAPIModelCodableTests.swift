@@ -5,16 +5,21 @@ import XCTest
 final class AutomationAPIModelCodableTests: XCTestCase {
     func testCreateAutomationRequestEncodesSnakeCaseFields() throws {
         let request = CreateAutomationRequest(
-            intervalSeconds: 900,
-            timeZone: "America/Los_Angeles",
+            schedule: AutomationSchedule(
+                scheduleType: .weekly,
+                timeZone: "America/Los_Angeles",
+                localTime: "09:30"
+            ),
             promptEnvelope: try makePromptEnvelope()
         )
 
         let data = try JSONEncoder().encode(request)
         let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
 
-        XCTAssertEqual(json["interval_seconds"] as? Int, 900)
-        XCTAssertEqual(json["time_zone"] as? String, "America/Los_Angeles")
+        let schedule = try XCTUnwrap(json["schedule"] as? [String: Any])
+        XCTAssertEqual(schedule["schedule_type"] as? String, "WEEKLY")
+        XCTAssertEqual(schedule["time_zone"] as? String, "America/Los_Angeles")
+        XCTAssertEqual(schedule["local_time"] as? String, "09:30")
 
         let envelope = try XCTUnwrap(json["prompt_envelope"] as? [String: Any])
         XCTAssertEqual(envelope["key_id"] as? String, "key-1")
@@ -24,9 +29,10 @@ final class AutomationAPIModelCodableTests: XCTestCase {
 
     func testUpdateAutomationRequestEncodesStatusAndSchedule() throws {
         let request = UpdateAutomationRequest(
-            schedule: AutomationScheduleUpdate(
-                intervalSeconds: 3_600,
-                timeZone: "UTC"
+            schedule: AutomationSchedule(
+                scheduleType: .daily,
+                timeZone: "UTC",
+                localTime: "08:00"
             ),
             status: .paused
         )
@@ -37,8 +43,9 @@ final class AutomationAPIModelCodableTests: XCTestCase {
         XCTAssertEqual(json["status"] as? String, "PAUSED")
 
         let schedule = try XCTUnwrap(json["schedule"] as? [String: Any])
-        XCTAssertEqual(schedule["interval_seconds"] as? Int, 3_600)
+        XCTAssertEqual(schedule["schedule_type"] as? String, "DAILY")
         XCTAssertEqual(schedule["time_zone"] as? String, "UTC")
+        XCTAssertEqual(schedule["local_time"] as? String, "08:00")
     }
 
     func testListAutomationsResponseDecodesDatesAndEnums() throws {
@@ -48,9 +55,11 @@ final class AutomationAPIModelCodableTests: XCTestCase {
             {
               "rule_id": "f92ee2cb-1a34-4e40-aa4e-e8c2bd1522de",
               "status": "ACTIVE",
-              "schedule_type": "INTERVAL_SECONDS",
-              "interval_seconds": 1800,
-              "time_zone": "UTC",
+              "schedule": {
+                "schedule_type": "MONTHLY",
+                "time_zone": "UTC",
+                "local_time": "11:45"
+              },
               "next_run_at": "2026-02-21T12:00:00Z",
               "last_run_at": null,
               "prompt_sha256": "abc123",
@@ -67,9 +76,9 @@ final class AutomationAPIModelCodableTests: XCTestCase {
 
         XCTAssertEqual(response.items.count, 1)
         XCTAssertEqual(response.items[0].status, .active)
-        XCTAssertEqual(response.items[0].scheduleType, .intervalSeconds)
-        XCTAssertEqual(response.items[0].intervalSeconds, 1_800)
-        XCTAssertEqual(response.items[0].timeZone, "UTC")
+        XCTAssertEqual(response.items[0].schedule.scheduleType, .monthly)
+        XCTAssertEqual(response.items[0].schedule.timeZone, "UTC")
+        XCTAssertEqual(response.items[0].schedule.localTime, "11:45")
         XCTAssertNil(response.items[0].lastRunAt)
     }
 

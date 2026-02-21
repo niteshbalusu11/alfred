@@ -136,39 +136,38 @@ public struct ListConnectorsResponse: Codable, Sendable {
 }
 
 public struct CreateAutomationRequest: Codable, Sendable {
-    public let intervalSeconds: Int
-    public let timeZone: String
+    public let schedule: AutomationSchedule
     public let promptEnvelope: AssistantEncryptedRequestEnvelope
 
     enum CodingKeys: String, CodingKey {
-        case intervalSeconds = "interval_seconds"
-        case timeZone = "time_zone"
+        case schedule
         case promptEnvelope = "prompt_envelope"
     }
 
     public init(
-        intervalSeconds: Int,
-        timeZone: String,
+        schedule: AutomationSchedule,
         promptEnvelope: AssistantEncryptedRequestEnvelope
     ) {
-        self.intervalSeconds = intervalSeconds
-        self.timeZone = timeZone
+        self.schedule = schedule
         self.promptEnvelope = promptEnvelope
     }
 }
 
-public struct AutomationScheduleUpdate: Codable, Sendable {
-    public let intervalSeconds: Int
+public struct AutomationSchedule: Codable, Sendable {
+    public let scheduleType: AutomationScheduleType
     public let timeZone: String
+    public let localTime: String
 
     enum CodingKeys: String, CodingKey {
-        case intervalSeconds = "interval_seconds"
+        case scheduleType = "schedule_type"
         case timeZone = "time_zone"
+        case localTime = "local_time"
     }
 
-    public init(intervalSeconds: Int, timeZone: String) {
-        self.intervalSeconds = intervalSeconds
+    public init(scheduleType: AutomationScheduleType, timeZone: String, localTime: String) {
+        self.scheduleType = scheduleType
         self.timeZone = timeZone
+        self.localTime = localTime
     }
 }
 
@@ -178,7 +177,7 @@ public enum AutomationStatus: String, Codable, Sendable {
 }
 
 public struct UpdateAutomationRequest: Codable, Sendable {
-    public let schedule: AutomationScheduleUpdate?
+    public let schedule: AutomationSchedule?
     public let promptEnvelope: AssistantEncryptedRequestEnvelope?
     public let status: AutomationStatus?
 
@@ -189,7 +188,7 @@ public struct UpdateAutomationRequest: Codable, Sendable {
     }
 
     public init(
-        schedule: AutomationScheduleUpdate? = nil,
+        schedule: AutomationSchedule? = nil,
         promptEnvelope: AssistantEncryptedRequestEnvelope? = nil,
         status: AutomationStatus? = nil
     ) {
@@ -200,15 +199,16 @@ public struct UpdateAutomationRequest: Codable, Sendable {
 }
 
 public enum AutomationScheduleType: String, Codable, Sendable {
-    case intervalSeconds = "INTERVAL_SECONDS"
+    case daily = "DAILY"
+    case weekly = "WEEKLY"
+    case monthly = "MONTHLY"
+    case annually = "ANNUALLY"
 }
 
 public struct AutomationRuleSummary: Codable, Sendable {
     public let ruleId: UUID
     public let status: AutomationStatus
-    public let scheduleType: AutomationScheduleType
-    public let intervalSeconds: Int
-    public let timeZone: String
+    public let schedule: AutomationSchedule
     public let nextRunAt: Date
     public let lastRunAt: Date?
     public let promptSha256: String
@@ -218,9 +218,7 @@ public struct AutomationRuleSummary: Codable, Sendable {
     enum CodingKeys: String, CodingKey {
         case ruleId = "rule_id"
         case status
-        case scheduleType = "schedule_type"
-        case intervalSeconds = "interval_seconds"
-        case timeZone = "time_zone"
+        case schedule
         case nextRunAt = "next_run_at"
         case lastRunAt = "last_run_at"
         case promptSha256 = "prompt_sha256"
@@ -231,6 +229,16 @@ public struct AutomationRuleSummary: Codable, Sendable {
 
 public struct ListAutomationsResponse: Codable, Sendable {
     public let items: [AutomationRuleSummary]
+}
+
+public struct TriggerAutomationDebugRunResponse: Codable, Sendable {
+    public let queuedJobId: String
+    public let status: String
+
+    enum CodingKeys: String, CodingKey {
+        case queuedJobId = "queued_job_id"
+        case status
+    }
 }
 
 public struct Preferences: Codable, Sendable {

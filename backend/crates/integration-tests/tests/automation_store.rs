@@ -2,6 +2,7 @@ mod support;
 
 use chrono::{Duration as ChronoDuration, Utc};
 use serial_test::serial;
+use shared::automation_schedule::{AutomationScheduleSpec, AutomationScheduleType};
 use shared::repos::JobType;
 use tokio::join;
 use uuid::Uuid;
@@ -23,8 +24,7 @@ async fn automation_rule_crud_pause_resume_and_delete_flow() {
     let created = store
         .create_automation_rule(
             user_id,
-            900,
-            "America/Los_Angeles",
+            &daily_schedule("America/Los_Angeles", 9, 0),
             next_run_at,
             prompt_ciphertext,
             PROMPT_HASH_A,
@@ -33,7 +33,8 @@ async fn automation_rule_crud_pause_resume_and_delete_flow() {
         .expect("rule should be created");
 
     assert_eq!(created.user_id, user_id);
-    assert_eq!(created.interval_seconds, 900);
+    assert_eq!(created.schedule_type.as_str(), "DAILY");
+    assert_eq!(created.local_time_minutes, 540);
     assert_eq!(created.prompt_sha256, PROMPT_HASH_A);
     assert_eq!(created.time_zone, "America/Los_Angeles");
     assert_eq!(created.status.as_str(), "ACTIVE");
@@ -49,14 +50,15 @@ async fn automation_rule_crud_pause_resume_and_delete_flow() {
         .update_automation_rule_schedule(
             user_id,
             created.id,
-            1_200,
-            "America/New_York",
+            &weekly_schedule("America/New_York", 10, 30, 5),
             next_run_at + ChronoDuration::minutes(10),
         )
         .await
         .expect("schedule update should succeed")
         .expect("rule should exist");
-    assert_eq!(updated_schedule.interval_seconds, 1_200);
+    assert_eq!(updated_schedule.schedule_type.as_str(), "WEEKLY");
+    assert_eq!(updated_schedule.local_time_minutes, 630);
+    assert_eq!(updated_schedule.anchor_day_of_week, Some(5));
     assert_eq!(updated_schedule.time_zone, "America/New_York");
 
     let updated_prompt = store
@@ -117,8 +119,7 @@ async fn due_claims_are_lease_safe_and_split_across_workers() {
     let rule_a = store
         .create_automation_rule(
             Uuid::new_v4(),
-            600,
-            "UTC",
+            &daily_schedule("UTC", 8, 0),
             now - ChronoDuration::minutes(1),
             b"prompt-a",
             PROMPT_HASH_A,
@@ -128,8 +129,7 @@ async fn due_claims_are_lease_safe_and_split_across_workers() {
     let rule_b = store
         .create_automation_rule(
             Uuid::new_v4(),
-            600,
-            "UTC",
+            &daily_schedule("UTC", 9, 0),
             now - ChronoDuration::minutes(1),
             b"prompt-b",
             PROMPT_HASH_B,
@@ -176,15 +176,13 @@ async fn run_materialization_is_idempotent_for_same_rule_and_scheduled_time() {
 
     let user_id = Uuid::new_v4();
     let now = Utc::now();
-    let interval = 900_i32;
     let scheduled_for = now - ChronoDuration::minutes(1);
     let next_run_at = now + ChronoDuration::minutes(14);
 
     let rule = store
         .create_automation_rule(
             user_id,
-            interval as u32,
-            "UTC",
+            &daily_schedule("UTC", 12, 0),
             scheduled_for,
             b"prompt-c",
             PROMPT_HASH_A,
@@ -212,7 +210,12 @@ async fn run_materialization_is_idempotent_for_same_rule_and_scheduled_time() {
         .expect("lease owner should materialize run");
 
     store
-        .update_automation_rule_schedule(user_id, rule.id, interval as u32, "UTC", scheduled_for)
+        .update_automation_rule_schedule(
+            user_id,
+            rule.id,
+            &daily_schedule("UTC", 12, 0),
+            scheduled_for,
+        )
         .await
         .expect("rule schedule reset should succeed")
         .expect("rule should still exist");
@@ -264,8 +267,7 @@ async fn materialized_run_can_be_enqueued_with_stable_job_reference() {
     let rule = store
         .create_automation_rule(
             user_id,
-            600,
-            "UTC",
+            &daily_schedule("UTC", 14, 30),
             scheduled_for,
             b"prompt-z",
             PROMPT_HASH_A,
@@ -316,4 +318,31 @@ async fn materialized_run_can_be_enqueued_with_stable_job_reference() {
     assert_eq!(runs[0].id, run.id);
     assert_eq!(runs[0].state.as_str(), "ENQUEUED");
     assert_eq!(runs[0].job_id, Some(job_id));
+}
+
+fn daily_schedule(time_zone: &str, hour: u16, minute: u16) -> AutomationScheduleSpec {
+    AutomationScheduleSpec {
+        schedule_type: AutomationScheduleType::Daily,
+        time_zone: time_zone.to_string(),
+        local_time_minutes: (hour * 60) + minute,
+        anchor_day_of_week: None,
+        anchor_day_of_month: None,
+        anchor_month: None,
+    }
+}
+
+fn weekly_schedule(
+    time_zone: &str,
+    hour: u16,
+    minute: u16,
+    day_of_week: u8,
+) -> AutomationScheduleSpec {
+    AutomationScheduleSpec {
+        schedule_type: AutomationScheduleType::Weekly,
+        time_zone: time_zone.to_string(),
+        local_time_minutes: (hour * 60) + minute,
+        anchor_day_of_week: Some(day_of_week),
+        anchor_day_of_month: None,
+        anchor_month: None,
+    }
 }

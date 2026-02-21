@@ -1,21 +1,34 @@
+import AlfredAPIClient
 import Testing
 @testable import alfred
 
-struct AutomationIntervalFormatterTests {
+struct AutomationScheduleFormatterTests {
     @Test
-    func formatsMinutesIntervals() {
-        #expect(AutomationIntervalFormatter.label(for: 60) == "every 1m")
-        #expect(AutomationIntervalFormatter.label(for: 900) == "every 15m")
+    func formatsDailySchedule() {
+        let schedule = AutomationSchedule(
+            scheduleType: .daily,
+            timeZone: "UTC",
+            localTime: "09:00"
+        )
+        #expect(AutomationScheduleFormatter.label(for: schedule) == "Daily at 09:00")
     }
 
     @Test
-    func formatsHoursAndDaysIntervals() {
-        #expect(AutomationIntervalFormatter.label(for: 3_600) == "every 1h")
-        #expect(AutomationIntervalFormatter.label(for: 86_400) == "every 1d")
-    }
-
-    @Test
-    func formatsRawSecondsWhenNotDivisibleByMinute() {
-        #expect(AutomationIntervalFormatter.label(for: 95) == "every 95s")
+    func formatsWeeklyMonthlyAndAnnualSchedules() {
+        #expect(
+            AutomationScheduleFormatter.label(
+                for: AutomationSchedule(scheduleType: .weekly, timeZone: "UTC", localTime: "10:30")
+            ) == "Weekly at 10:30"
+        )
+        #expect(
+            AutomationScheduleFormatter.label(
+                for: AutomationSchedule(scheduleType: .monthly, timeZone: "UTC", localTime: "08:15")
+            ) == "Monthly at 08:15"
+        )
+        #expect(
+            AutomationScheduleFormatter.label(
+                for: AutomationSchedule(scheduleType: .annually, timeZone: "UTC", localTime: "07:45")
+            ) == "Annually at 07:45"
+        )
     }
 }

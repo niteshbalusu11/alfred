@@ -58,11 +58,18 @@ async fn main() {
         }
     };
 
-    let push_sender = PushSender::new(
-        config.apns_sandbox_endpoint.clone(),
-        config.apns_production_endpoint.clone(),
-        config.apns_auth_token.clone(),
-    );
+    let push_sender = match PushSender::new(
+        config.apns_key_id.clone(),
+        config.apns_team_id.clone(),
+        config.apns_topic.clone(),
+        config.apns_auth_key_p8.clone(),
+    ) {
+        Ok(sender) => sender,
+        Err(err) => {
+            error!("failed to initialize APNs sender: {err}");
+            std::process::exit(1);
+        }
+    };
     let oauth_client = match reqwest::Client::builder()
         .timeout(Duration::from_secs(15))
         .build()
@@ -122,8 +129,7 @@ async fn main() {
         assistant_session_purge_batch_size = config.assistant_session_purge_batch_size,
         lease_seconds = config.lease_seconds,
         per_user_concurrency_limit = config.per_user_concurrency_limit,
-        apns_sandbox_endpoint_configured = config.apns_sandbox_endpoint.is_some(),
-        apns_production_endpoint_configured = config.apns_production_endpoint.is_some(),
+        apns_topic = %config.apns_topic,
         "worker starting"
     );
 

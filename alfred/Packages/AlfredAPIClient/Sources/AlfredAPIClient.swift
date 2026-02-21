@@ -227,8 +227,7 @@ public final class AlfredAPIClient: Sendable {
     }
 
     public func createAutomationEncrypted(
-        intervalSeconds: Int,
-        timeZone: String,
+        schedule: AutomationSchedule,
         prompt: String,
         attestationConfig: AssistantAttestationVerificationConfig
     ) async throws -> AutomationRuleSummary {
@@ -264,8 +263,7 @@ public final class AlfredAPIClient: Sendable {
 
         return try await createAutomation(
             CreateAutomationRequest(
-                intervalSeconds: intervalSeconds,
-                timeZone: timeZone,
+                schedule: schedule,
                 promptEnvelope: encryptedPayload.envelope
             )
         )
@@ -287,6 +285,15 @@ public final class AlfredAPIClient: Sendable {
         try await send(
             method: "DELETE",
             path: "/v1/automations/\(ruleID.uuidString.lowercased())",
+            body: Optional<EmptyBody>.none,
+            requiresAuth: true
+        )
+    }
+
+    public func triggerAutomationDebugRun(ruleID: UUID) async throws -> TriggerAutomationDebugRunResponse {
+        try await send(
+            method: "POST",
+            path: "/v1/automations/\(ruleID.uuidString.lowercased())/debug/run",
             body: Optional<EmptyBody>.none,
             requiresAuth: true
         )
