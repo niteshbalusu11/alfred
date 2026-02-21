@@ -5,6 +5,7 @@ final class NotificationService: UNNotificationServiceExtension {
     private var contentHandler: ((UNNotificationContent) -> Void)?
     private var bestAttemptContent: UNMutableNotificationContent?
     private var processingTask: Task<Void, Never>?
+    private let outputHistoryStore = AutomationOutputHistoryStore()
     private let stateLock = NSLock()
     private var didDeliver = false
 
@@ -22,6 +23,17 @@ final class NotificationService: UNNotificationServiceExtension {
             let resolved = await AutomationNotificationCrypto.resolveVisibleContent(from: request.content.userInfo)
             content.title = resolved.title
             content.body = resolved.body
+
+            if resolved != .fallback,
+               let requestID = AutomationNotificationCrypto.requestID(from: request.content.userInfo)
+            {
+                _ = try? await outputHistoryStore.upsertDelivered(
+                    requestID: requestID,
+                    title: resolved.title,
+                    body: resolved.body
+                )
+            }
+
             self.deliver(content)
         }
     }
