@@ -17,3 +17,23 @@ output "tags" {
   description = "Resolved default and custom tags."
   value       = module.environment.tags
 }
+
+output "api_endpoint" {
+  description = "Public API endpoint DNS."
+  value       = module.environment.api_endpoint
+}
+
+output "ecs_cluster_name" {
+  description = "ECS cluster name."
+  value       = module.environment.ecs_cluster_name
+}
+
+output "rds_endpoint" {
+  description = "RDS endpoint hostname."
+  value       = module.environment.rds_endpoint
+}
+
+output "valkey_primary_endpoint" {
+  description = "Valkey primary endpoint hostname."
+  value       = module.environment.valkey_primary_endpoint
+}

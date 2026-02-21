@@ -10,6 +10,19 @@ This directory contains Terraform scaffolding for the Alfred AWS deployment base
 
 Environment roots stay thin: they configure backend/provider defaults and call shared modules.
 
+Current runtime module graph under `modules/`:
+
+- `network`
+- `security_groups`
+- `ingress`
+- `ecs_services`
+- `enclave_host`
+- `rds_postgres`
+- `valkey`
+- `iam_runtime`
+- `secrets_wiring`
+- `observability`
+
 ## Remote State Bootstrap (One-Time)
 
 Terraform remote state is configured with:
