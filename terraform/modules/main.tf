@@ -56,6 +56,7 @@ module "iam_runtime" {
   name_prefix          = local.stack_name
   ssm_parameter_arns   = module.secrets_wiring.all_ssm_secret_arns
   secrets_manager_arns = module.secrets_wiring.all_secrets_manager_arns
+  kms_key_arns         = var.kms_key_arns
 }
 
 module "ingress" {
@@ -124,12 +125,17 @@ module "ecs_services" {
   api_desired_count           = var.api_desired_count
   worker_desired_count        = var.worker_desired_count
   api_target_group_arn        = module.ingress.target_group_arn
-  api_log_group_name          = local.api_log_group_name
-  worker_log_group_name       = local.worker_log_group_name
+  api_log_group_name          = module.observability.api_log_group_name
+  worker_log_group_name       = module.observability.worker_log_group_name
   api_environment             = var.api_environment
   worker_environment          = var.worker_environment
   api_secrets                 = module.secrets_wiring.api_ecs_secrets
   worker_secrets              = module.secrets_wiring.worker_ecs_secrets
+
+  depends_on = [
+    module.ingress,
+    module.observability
+  ]
 }
 
 module "enclave_host" {

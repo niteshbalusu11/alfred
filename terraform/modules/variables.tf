@@ -76,7 +76,7 @@ variable "api_image" {
 variable "worker_image" {
   description = "Container image URI for worker ECS task."
   type        = string
-  default     = "public.ecr.aws/docker/library/busybox:latest"
+  default     = "public.ecr.aws/docker/library/nginx:latest"
 }
 
 variable "api_task_cpu" {
@@ -166,7 +166,7 @@ variable "enclave_secrets_manager_arns" {
 variable "ingress_health_check_path" {
   description = "Health check path for API target group."
   type        = string
-  default     = "/health"
+  default     = "/"
 }
 
 variable "alb_deletion_protection" {
@@ -297,6 +297,12 @@ variable "create_alarms" {
 
 variable "alarm_actions" {
   description = "Alarm action ARNs (for example SNS topic ARNs)."
+  type        = list(string)
+  default     = []
+}
+
+variable "kms_key_arns" {
+  description = "Optional KMS key ARNs runtime tasks may decrypt with."
   type        = list(string)
   default     = []
 }

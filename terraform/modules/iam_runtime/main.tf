@@ -1,6 +1,8 @@
 locals {
-  ssm_resources = length(var.ssm_parameter_arns) > 0 ? var.ssm_parameter_arns : ["*"]
-  sm_resources  = length(var.secrets_manager_arns) > 0 ? var.secrets_manager_arns : ["*"]
+  has_ssm_access             = length(var.ssm_parameter_arns) > 0
+  has_secrets_manager_access = length(var.secrets_manager_arns) > 0
+  has_kms_access             = length(var.kms_key_arns) > 0
+  has_runtime_secret_access  = local.has_ssm_access || local.has_secrets_manager_access || local.has_kms_access
 }
 
 data "aws_iam_policy_document" "ecs_task_assume_role" {
@@ -25,26 +27,40 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution_managed" {
 }
 
 data "aws_iam_policy_document" "runtime_access" {
-  statement {
-    sid       = "ReadSsmParameters"
-    actions   = ["ssm:GetParameter", "ssm:GetParameters", "ssm:GetParametersByPath"]
-    resources = local.ssm_resources
+  dynamic "statement" {
+    for_each = local.has_ssm_access ? [1] : []
+
+    content {
+      sid       = "ReadSsmParameters"
+      actions   = ["ssm:GetParameter", "ssm:GetParameters", "ssm:GetParametersByPath"]
+      resources = var.ssm_parameter_arns
+    }
   }
 
-  statement {
-    sid       = "ReadSecretsManager"
-    actions   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
-    resources = local.sm_resources
+  dynamic "statement" {
+    for_each = local.has_secrets_manager_access ? [1] : []
+
+    content {
+      sid       = "ReadSecretsManager"
+      actions   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
+      resources = var.secrets_manager_arns
+    }
   }
 
-  statement {
-    sid       = "DecryptViaKms"
-    actions   = ["kms:Decrypt"]
-    resources = ["*"]
+  dynamic "statement" {
+    for_each = local.has_kms_access ? [1] : []
+
+    content {
+      sid       = "DecryptViaKms"
+      actions   = ["kms:Decrypt"]
+      resources = var.kms_key_arns
+    }
   }
 }
 
 resource "aws_iam_policy" "runtime_access" {
+  count = local.has_runtime_secret_access ? 1 : 0
+
   name   = "${var.name_prefix}-runtime-access"
   policy = data.aws_iam_policy_document.runtime_access.json
 }
@@ -55,8 +71,10 @@ resource "aws_iam_role" "api_task" {
 }
 
 resource "aws_iam_role_policy_attachment" "api_runtime_access" {
+  count = local.has_runtime_secret_access ? 1 : 0
+
   role       = aws_iam_role.api_task.name
-  policy_arn = aws_iam_policy.runtime_access.arn
+  policy_arn = aws_iam_policy.runtime_access[0].arn
 }
 
 resource "aws_iam_role" "worker_task" {
@@ -65,8 +83,10 @@ resource "aws_iam_role" "worker_task" {
 }
 
 resource "aws_iam_role_policy_attachment" "worker_runtime_access" {
+  count = local.has_runtime_secret_access ? 1 : 0
+
   role       = aws_iam_role.worker_task.name
-  policy_arn = aws_iam_policy.runtime_access.arn
+  policy_arn = aws_iam_policy.runtime_access[0].arn
 }
 
 data "aws_iam_policy_document" "ec2_assume_role" {

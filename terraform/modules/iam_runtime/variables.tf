@@ -14,3 +14,9 @@ variable "secrets_manager_arns" {
   type        = list(string)
   default     = []
 }
+
+variable "kms_key_arns" {
+  description = "Optional KMS key ARNs runtime tasks may decrypt with."
+  type        = list(string)
+  default     = []
+}
