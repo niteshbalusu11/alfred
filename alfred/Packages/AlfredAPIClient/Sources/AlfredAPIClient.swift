@@ -203,6 +203,95 @@ public final class AlfredAPIClient: Sendable {
         )
     }
 
+    public func listAutomations(limit: Int? = nil) async throws -> ListAutomationsResponse {
+        var path = "/v1/automations"
+        if let limit {
+            path += "?limit=\(limit)"
+        }
+
+        return try await send(
+            method: "GET",
+            path: path,
+            body: Optional<EmptyBody>.none,
+            requiresAuth: true
+        )
+    }
+
+    public func createAutomation(_ request: CreateAutomationRequest) async throws -> AutomationRuleSummary {
+        try await send(
+            method: "POST",
+            path: "/v1/automations",
+            body: request,
+            requiresAuth: true
+        )
+    }
+
+    public func createAutomationEncrypted(
+        intervalSeconds: Int,
+        timeZone: String,
+        prompt: String,
+        attestationConfig: AssistantAttestationVerificationConfig
+    ) async throws -> AutomationRuleSummary {
+        let challengeNonce = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
+        let requestID = UUID().uuidString
+        let issuedAt = Int64(Date().timeIntervalSince1970)
+        let expiresAt = issuedAt + Int64(attestationConfig.challengeWindowSeconds)
+        let keyResponse = try await fetchAssistantAttestedKey(
+            AssistantAttestedKeyRequest(
+                challengeNonce: challengeNonce,
+                issuedAt: issuedAt,
+                expiresAt: expiresAt,
+                requestId: requestID
+            )
+        )
+
+        try AssistantEnvelopeCrypto.verifyAttestedKeyResponse(
+            keyResponse,
+            expectedChallengeNonce: challengeNonce,
+            expectedRequestID: requestID,
+            config: attestationConfig
+        )
+
+        let plaintextRequest = AssistantPlaintextQueryRequest(
+            query: prompt,
+            sessionId: nil
+        )
+        let encryptedPayload = try AssistantEnvelopeCrypto.encryptRequest(
+            plaintextRequest: plaintextRequest,
+            requestID: requestID,
+            attestedKey: keyResponse
+        )
+
+        return try await createAutomation(
+            CreateAutomationRequest(
+                intervalSeconds: intervalSeconds,
+                timeZone: timeZone,
+                promptEnvelope: encryptedPayload.envelope
+            )
+        )
+    }
+
+    public func updateAutomation(
+        ruleID: UUID,
+        request: UpdateAutomationRequest
+    ) async throws -> AutomationRuleSummary {
+        try await send(
+            method: "PATCH",
+            path: "/v1/automations/\(ruleID.uuidString.lowercased())",
+            body: request,
+            requiresAuth: true
+        )
+    }
+
+    public func deleteAutomation(ruleID: UUID) async throws -> OkResponse {
+        try await send(
+            method: "DELETE",
+            path: "/v1/automations/\(ruleID.uuidString.lowercased())",
+            body: Optional<EmptyBody>.none,
+            requiresAuth: true
+        )
+    }
+
     public func listAuditEvents(cursor: String? = nil) async throws -> ListAuditEventsResponse {
         var path = "/v1/audit-events"
         if let cursor, !cursor.isEmpty {

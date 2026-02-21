@@ -6,8 +6,8 @@ struct AppTabShellView: View {
     @Environment(Clerk.self) private var clerk
     @ObservedObject var model: AppModel
     @State private var tabPaths: [AppTab: NavigationPath] = AppTabShellView.defaultPaths()
-    private let swipeTabs: [AppTab] = [.threads, .home, .activity, .connectors]
-    private let visibleTopTabs: [AppTab] = [.home, .activity, .connectors]
+    private let swipeTabs: [AppTab] = [.threads, .home, .automations, .connectors]
+    private let visibleTopTabs: [AppTab] = [.home, .automations, .connectors]
     private let threadsHomeButtonSize: CGFloat = 47
 
     var body: some View {
@@ -173,8 +173,8 @@ struct AppTabShellView: View {
             HomeView(model: model)
         case .threads:
             AssistantThreadsView(model: model, reservesTrailingOverlaySpace: true)
-        case .activity:
-            ActivityView(model: model)
+        case .automations:
+            AutomationsView(model: model)
         case .connectors:
             ConnectorsView(model: model)
         }
