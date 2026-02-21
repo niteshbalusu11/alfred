@@ -28,6 +28,11 @@ output "api_fqdn" {
   value       = module.environment.api_fqdn
 }
 
+output "ingress_certificate_arn" {
+  description = "Effective ACM certificate ARN used for HTTPS ingress."
+  value       = module.environment.ingress_certificate_arn
+}
+
 output "api_target_group_arn" {
   description = "API target group ARN."
   value       = module.environment.api_target_group_arn

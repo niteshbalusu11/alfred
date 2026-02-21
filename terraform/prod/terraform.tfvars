@@ -35,7 +35,9 @@ alb_deletion_protection = true
 log_retention_days      = 30
 create_alarms           = true
 
-# Prod should use TLS at ingress. Replace with real ACM cert ARN before apply.
-ingress_certificate_arn = "arn:aws:acm:us-east-2:123456789012:certificate/replace-me"
-route53_zone_id         = "Z10154612GBUAYQKQMWC3"
-route53_base_domain     = "noderunner.wtf"
+# Prod should use TLS at ingress.
+# Optional override:
+# ingress_certificate_arn = "arn:aws:acm:us-east-2:123456789012:certificate/replace-me"
+# Default behavior auto-creates and DNS-validates ACM cert for api.alfred-prod.<domain>.
+route53_zone_id     = "Z10154612GBUAYQKQMWC3"
+route53_base_domain = "noderunner.wtf"

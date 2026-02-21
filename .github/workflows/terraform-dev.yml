@@ -51,7 +51,6 @@ env:
   TF_STATE_KEY_DEV: ${{ vars.TF_STATE_KEY_DEV }}
   DEV_API_IMAGE: ${{ vars.DEV_API_IMAGE }}
   DEV_WORKER_IMAGE: ${{ vars.DEV_WORKER_IMAGE }}
-  DEV_INGRESS_CERTIFICATE_ARN: ${{ vars.DEV_INGRESS_CERTIFICATE_ARN }}
   DEV_ROUTE53_ZONE_ID: ${{ vars.DEV_ROUTE53_ZONE_ID }}
   DEV_ROUTE53_BASE_DOMAIN: ${{ vars.DEV_ROUTE53_BASE_DOMAIN }}
 
@@ -101,7 +100,6 @@ jobs:
           PLAN_ARGS=(-var-file=terraform.tfvars)
           [[ -n "${DEV_API_IMAGE}" ]] && PLAN_ARGS+=(-var "api_image=${DEV_API_IMAGE}")
           [[ -n "${DEV_WORKER_IMAGE}" ]] && PLAN_ARGS+=(-var "worker_image=${DEV_WORKER_IMAGE}")
-          [[ -n "${DEV_INGRESS_CERTIFICATE_ARN}" ]] && PLAN_ARGS+=(-var "ingress_certificate_arn=${DEV_INGRESS_CERTIFICATE_ARN}")
           [[ -n "${DEV_ROUTE53_ZONE_ID}" ]] && PLAN_ARGS+=(-var "route53_zone_id=${DEV_ROUTE53_ZONE_ID}")
           [[ -n "${DEV_ROUTE53_BASE_DOMAIN}" ]] && PLAN_ARGS+=(-var "route53_base_domain=${DEV_ROUTE53_BASE_DOMAIN}")
 
@@ -163,13 +161,12 @@ jobs:
 
           EFFECTIVE_API_IMAGE="${INPUT_API_IMAGE:-${DEV_API_IMAGE}}"
           EFFECTIVE_WORKER_IMAGE="${INPUT_WORKER_IMAGE:-${DEV_WORKER_IMAGE}}"
-          EFFECTIVE_CERT_ARN="${INPUT_INGRESS_CERTIFICATE_ARN:-${DEV_INGRESS_CERTIFICATE_ARN}}"
           EFFECTIVE_ZONE_ID="${INPUT_ROUTE53_ZONE_ID:-${DEV_ROUTE53_ZONE_ID}}"
           EFFECTIVE_BASE_DOMAIN="${INPUT_ROUTE53_BASE_DOMAIN:-${DEV_ROUTE53_BASE_DOMAIN}}"
 
           [[ -n "${EFFECTIVE_API_IMAGE}" ]] && PLAN_ARGS+=(-var "api_image=${EFFECTIVE_API_IMAGE}")
           [[ -n "${EFFECTIVE_WORKER_IMAGE}" ]] && PLAN_ARGS+=(-var "worker_image=${EFFECTIVE_WORKER_IMAGE}")
-          [[ -n "${EFFECTIVE_CERT_ARN}" ]] && PLAN_ARGS+=(-var "ingress_certificate_arn=${EFFECTIVE_CERT_ARN}")
+          [[ -n "${INPUT_INGRESS_CERTIFICATE_ARN}" ]] && PLAN_ARGS+=(-var "ingress_certificate_arn=${INPUT_INGRESS_CERTIFICATE_ARN}")
           [[ -n "${EFFECTIVE_ZONE_ID}" ]] && PLAN_ARGS+=(-var "route53_zone_id=${EFFECTIVE_ZONE_ID}")
           [[ -n "${EFFECTIVE_BASE_DOMAIN}" ]] && PLAN_ARGS+=(-var "route53_base_domain=${EFFECTIVE_BASE_DOMAIN}")
 

@@ -16,8 +16,15 @@ variable "additional_tags" {
 }
 
 variable "ingress_certificate_arn" {
-  description = "ACM certificate ARN for HTTPS ingress."
+  description = "Optional ACM certificate ARN for HTTPS ingress. Leave unset to auto-manage certificate via Route53."
   type        = string
+  default     = null
+}
+
+variable "ingress_auto_create_certificate" {
+  description = "Whether to auto-create and DNS-validate an ACM certificate when ingress_certificate_arn is unset."
+  type        = bool
+  default     = true
 }
 
 variable "route53_zone_id" {

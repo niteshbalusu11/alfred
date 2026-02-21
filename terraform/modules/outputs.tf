@@ -43,6 +43,11 @@ output "api_fqdn" {
   value       = local.dns_enabled ? module.dns_api[0].api_fqdn : module.ingress.alb_dns_name
 }
 
+output "ingress_certificate_arn" {
+  description = "Effective ACM certificate ARN attached to ingress HTTPS listener."
+  value       = local.ingress_certificate_arn
+}
+
 output "worker_suggested_fqdn" {
   description = "Suggested worker subdomain name if private DNS is added later."
   value       = local.worker_record_name

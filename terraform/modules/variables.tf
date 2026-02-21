@@ -176,13 +176,20 @@ variable "alb_deletion_protection" {
 }
 
 variable "ingress_certificate_arn" {
-  description = "ACM certificate ARN for HTTPS ingress."
+  description = "Optional ACM certificate ARN for HTTPS ingress. Leave unset to auto-manage ACM certificate via Route53."
   type        = string
+  default     = null
 
   validation {
-    condition     = trimspace(var.ingress_certificate_arn) != ""
-    error_message = "ingress_certificate_arn must be set to a non-empty ACM certificate ARN."
+    condition     = var.ingress_certificate_arn == null || trimspace(var.ingress_certificate_arn) != ""
+    error_message = "ingress_certificate_arn must be null or a non-empty ACM certificate ARN."
   }
+}
+
+variable "ingress_auto_create_certificate" {
+  description = "Whether to auto-create and DNS-validate an ACM certificate when ingress_certificate_arn is not provided."
+  type        = bool
+  default     = true
 }
 
 variable "ingress_ssl_policy" {

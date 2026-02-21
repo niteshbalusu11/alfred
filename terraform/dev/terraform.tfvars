@@ -36,6 +36,8 @@ log_retention_days = 7
 create_alarms      = false
 
 # HTTPS-only ingress and API TLS.
-ingress_certificate_arn = "arn:aws:acm:us-east-2:123456789012:certificate/replace-dev"
-route53_zone_id         = "Z10154612GBUAYQKQMWC3"
-route53_base_domain     = "noderunner.wtf"
+# Optional override:
+# ingress_certificate_arn = "arn:aws:acm:us-east-2:123456789012:certificate/replace-dev"
+# Default behavior auto-creates and DNS-validates ACM cert for api.alfred-dev.<domain>.
+route53_zone_id     = "Z10154612GBUAYQKQMWC3"
+route53_base_domain = "noderunner.wtf"

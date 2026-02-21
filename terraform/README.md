@@ -77,7 +77,9 @@ All environment differences are variable-driven through `terraform/dev` and `ter
 
 ## Security Defaults
 
-- Public ingress is HTTPS-only on `443` with ACM (`ingress_certificate_arn` required in both envs).
+- Public ingress is HTTPS-only on `443` with ACM.
+- ACM certificate is auto-created and DNS-validated when `route53_zone_id` + `route53_base_domain` are set.
+- `ingress_certificate_arn` remains available as an optional override if you want to reuse an existing certificate.
 - HTTP listener is not created.
 - ALB security group opens `443` only.
 - ALB target group to API uses HTTPS, and API traffic is expected on TLS port `8443`.
@@ -172,7 +174,7 @@ Workflow: `.github/workflows/terraform-dev.yml`
    3. `terraform plan` against the shared dev state backend
 2. Manual dev deploy test is supported via `workflow_dispatch`:
    1. set `apply=true`
-   2. optional input overrides for image URIs, certificate ARN, and Route53 values
+   2. optional input overrides for image URIs, certificate ARN override, and Route53 values
 
 Required GitHub secret:
 
@@ -185,6 +187,5 @@ Optional GitHub repository variables:
 3. `TF_STATE_KEY_DEV` (defaults to `dev/terraform.tfstate`)
 4. `DEV_API_IMAGE`
 5. `DEV_WORKER_IMAGE`
-6. `DEV_INGRESS_CERTIFICATE_ARN`
-7. `DEV_ROUTE53_ZONE_ID`
-8. `DEV_ROUTE53_BASE_DOMAIN`
+6. `DEV_ROUTE53_ZONE_ID`
+7. `DEV_ROUTE53_BASE_DOMAIN`

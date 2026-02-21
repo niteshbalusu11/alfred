@@ -17,10 +17,22 @@ locals {
   worker_log_group_name  = "/alfred/${var.environment}/worker"
   enclave_log_group_name = "/alfred/${var.environment}/enclave-host"
 
-  dns_enabled         = var.route53_zone_id != null && var.route53_base_domain != null
+  dns_enabled         = var.route53_zone_id != null && trimspace(var.route53_zone_id) != "" && var.route53_base_domain != null && trimspace(var.route53_base_domain) != ""
   api_record_name     = local.dns_enabled ? "api.alfred-${var.environment}.${trimspace(var.route53_base_domain)}" : null
   worker_record_name  = local.dns_enabled ? "worker.alfred-${var.environment}.${trimspace(var.route53_base_domain)}" : null
   enclave_record_name = local.dns_enabled ? "enclave.alfred-${var.environment}.${trimspace(var.route53_base_domain)}" : null
+
+  has_explicit_ingress_certificate = var.ingress_certificate_arn != null && trimspace(var.ingress_certificate_arn) != ""
+  auto_ingress_certificate_enabled = var.ingress_auto_create_certificate && local.dns_enabled
+  create_ingress_certificate       = local.auto_ingress_certificate_enabled && !local.has_explicit_ingress_certificate
+  ingress_certificate_arn          = local.create_ingress_certificate ? module.acm_certificate[0].certificate_arn : var.ingress_certificate_arn
+}
+
+check "ingress_certificate_config" {
+  assert {
+    condition     = local.has_explicit_ingress_certificate || local.create_ingress_certificate
+    error_message = "Set ingress_certificate_arn, or enable ingress_auto_create_certificate with valid route53_zone_id and route53_base_domain."
+  }
 }
 
 module "network" {
@@ -74,8 +86,18 @@ module "ingress" {
   target_port         = var.api_port
   health_check_path   = var.ingress_health_check_path
   deletion_protection = var.alb_deletion_protection
-  certificate_arn     = var.ingress_certificate_arn
+  certificate_arn     = local.ingress_certificate_arn
   ssl_policy          = var.ingress_ssl_policy
+}
+
+module "acm_certificate" {
+  count  = local.create_ingress_certificate ? 1 : 0
+  source = "./acm_certificate"
+
+  domain_name               = local.api_record_name
+  subject_alternative_names = []
+  zone_id                   = var.route53_zone_id
+  tags                      = local.effective_tags
 }
 
 module "rds_postgres" {
