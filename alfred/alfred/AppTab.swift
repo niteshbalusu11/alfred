@@ -3,7 +3,7 @@ import Foundation
 enum AppTab: Hashable, CaseIterable {
     case home
     case threads
-    case activity
+    case automations
     case connectors
 
     var title: String {
@@ -12,8 +12,8 @@ enum AppTab: Hashable, CaseIterable {
             return "Home"
         case .threads:
             return "Threads"
-        case .activity:
-            return "Activity"
+        case .automations:
+            return "Automations"
         case .connectors:
             return "Connectors"
         }
@@ -25,8 +25,8 @@ enum AppTab: Hashable, CaseIterable {
             return "house"
         case .threads:
             return "text.bubble"
-        case .activity:
-            return "clock.arrow.circlepath"
+        case .automations:
+            return "calendar.badge.clock"
         case .connectors:
             return "link"
         }
