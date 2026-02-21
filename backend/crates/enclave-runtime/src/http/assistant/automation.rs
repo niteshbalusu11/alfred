@@ -27,7 +27,6 @@ use crate::RuntimeState;
 use crate::http::rpc;
 
 const AUTOMATION_NOTIFICATION_TITLE_MAX_CHARS: usize = 64;
-const AUTOMATION_NOTIFICATION_BODY_MAX_CHARS: usize = 180;
 const AUTOMATION_PROMPT_MAX_CHARS: usize = 4_000;
 const AUTOMATION_NOTIFICATION_DEFAULT_TITLE: &str = "Task update";
 const AUTOMATION_NOTIFICATION_DEFAULT_BODY: &str = "Your scheduled task ran.";
@@ -228,13 +227,7 @@ fn resolve_notification_content(
 
     match body {
         Some(body) => (
-            NotificationContent {
-                title,
-                body: truncate_for_notification(
-                    body.as_str(),
-                    AUTOMATION_NOTIFICATION_BODY_MAX_CHARS,
-                ),
-            },
+            NotificationContent { title, body },
             AutomationNotificationSource::OrchestratorResult,
         ),
         None => (
@@ -461,6 +454,33 @@ mod tests {
         assert!(matches!(
             source,
             AutomationNotificationSource::DeterministicFallback
+        ));
+    }
+
+    #[test]
+    fn resolve_notification_content_preserves_full_body_text() {
+        let long_text = "A".repeat(400);
+        let execution = AssistantOrchestratorResult {
+            capability: AssistantQueryCapability::GeneralChat,
+            display_text: long_text.clone(),
+            payload: AssistantStructuredPayload {
+                title: "Full output test".to_string(),
+                summary: long_text.clone(),
+                key_points: Vec::new(),
+                follow_ups: Vec::new(),
+            },
+            response_parts: vec![AssistantResponsePart::chat_text(long_text.clone())],
+            attested_identity: AttestedIdentityPayload {
+                runtime: "test-runtime".to_string(),
+                measurement: "test-measurement".to_string(),
+            },
+        };
+
+        let (notification, source) = resolve_notification_content(&execution);
+        assert_eq!(notification.body, long_text);
+        assert!(matches!(
+            source,
+            AutomationNotificationSource::OrchestratorResult
         ));
     }
 
