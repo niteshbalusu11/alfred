@@ -139,7 +139,7 @@ These vars control TEE/KMS-bound decrypt policy for connector refresh tokens:
 9. `KMS_KEY_VERSION` (default: `1`)
 10. `KMS_ALLOWED_MEASUREMENTS` (CSV; defaults to `TEE_ALLOWED_MEASUREMENTS`)
 11. `TRUSTED_PROXY_IPS` (CSV of proxy/LB source IPs; only these peers are allowed to supply forwarded client IP headers for unauthenticated rate limiting)
-12. `ALFRED_ENV` (`local`, `staging`, `production`; default: `local`)
+12. `ALFRED_ENV` (`local`, `staging`, `production`; default: `production`)
 13. `ENCLAVE_RUNTIME_MODE` (`dev-shim`, `remote`, `disabled`; non-local requires `remote`)
 14. `ENCLAVE_RUNTIME_BASE_URL` (default: `http://127.0.0.1:8181`)
 15. `ENCLAVE_RUNTIME_PROBE_TIMEOUT_MS` (default: `2000`)

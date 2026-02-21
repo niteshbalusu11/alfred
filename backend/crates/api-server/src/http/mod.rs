@@ -19,7 +19,6 @@ mod errors;
 mod health;
 mod oauth_bridge;
 mod observability;
-mod preferences;
 mod privacy;
 mod rate_limit;
 mod tokens;
@@ -126,10 +125,6 @@ pub fn build_router(app_state: AppState) -> Router {
                 protected_rate_limit_layer_state.clone(),
                 rate_limit::sensitive_rate_limit_middleware,
             )),
-        )
-        .route(
-            "/v1/preferences",
-            get(preferences::get_preferences).put(preferences::update_preferences),
         )
         .route(
             "/v1/automations",

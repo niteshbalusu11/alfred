@@ -1,10 +1,8 @@
 use std::collections::HashMap;
 
-use chrono::Utc;
 use shared::enclave::EncryptedAutomationNotificationEnvelope;
 use shared::repos::{AuditResult, ClaimedJob, Store};
-use shared::timezone::user_local_time;
-use tracing::{info, warn};
+use tracing::warn;
 
 use crate::{
     FailureClass, JobExecutionError, NotificationContent, PushPayloadMode, PushSendError,
@@ -72,59 +70,6 @@ pub(super) async fn dispatch_job_action(
 
         return Ok(());
     };
-
-    let preferences = context
-        .store
-        .get_or_create_preferences(job.user_id)
-        .await
-        .map_err(|err| {
-            JobExecutionError::transient(
-                "PREFERENCES_READ_FAILED",
-                format!("failed to read user preferences: {err}"),
-            )
-        })?;
-
-    let now_local_time = user_local_time(Utc::now(), &preferences.time_zone);
-    if helpers::is_within_quiet_hours(
-        now_local_time,
-        &preferences.quiet_hours_start,
-        &preferences.quiet_hours_end,
-    )
-    .map_err(|message| JobExecutionError::permanent("INVALID_QUIET_HOURS", message))?
-    {
-        metrics.push_quiet_hours_suppressed += 1;
-
-        let mut metadata = action.metadata.clone();
-        metadata.insert("reason".to_string(), "quiet_hours".to_string());
-        metadata.insert(
-            "quiet_hours_start".to_string(),
-            preferences.quiet_hours_start.clone(),
-        );
-        metadata.insert(
-            "quiet_hours_end".to_string(),
-            preferences.quiet_hours_end.clone(),
-        );
-
-        record_notification_audit(
-            context.store,
-            job.user_id,
-            "NOTIFICATION_SUPPRESSED",
-            AuditResult::Success,
-            metadata,
-        )
-        .await;
-
-        info!(
-            job_id = %job.id,
-            user_id = %job.user_id,
-            request_id = ?action.metadata.get("request_id"),
-            quiet_hours_start = %preferences.quiet_hours_start,
-            quiet_hours_end = %preferences.quiet_hours_end,
-            "notification suppressed by quiet hours"
-        );
-
-        return Ok(());
-    }
 
     record_notification_audit(
         context.store,

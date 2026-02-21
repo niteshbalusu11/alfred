@@ -241,42 +241,6 @@ public struct TriggerAutomationDebugRunResponse: Codable, Sendable {
     }
 }
 
-public struct Preferences: Codable, Sendable {
-    public let meetingReminderMinutes: Int
-    public let morningBriefLocalTime: String
-    public let quietHoursStart: String
-    public let quietHoursEnd: String
-    public let timeZone: String
-    public let highRiskRequiresConfirm: Bool
-
-    enum CodingKeys: String, CodingKey {
-        case meetingReminderMinutes = "meeting_reminder_minutes"
-        case morningBriefLocalTime = "morning_brief_local_time"
-        case quietHoursStart = "quiet_hours_start"
-        case quietHoursEnd = "quiet_hours_end"
-        case timeZone = "time_zone"
-        case highRiskRequiresConfirm = "high_risk_requires_confirm"
-    }
-
-    public init(
-        meetingReminderMinutes: Int,
-        morningBriefLocalTime: String,
-        quietHoursStart: String,
-        quietHoursEnd: String,
-        timeZone: String,
-        highRiskRequiresConfirm: Bool
-    ) {
-        self.meetingReminderMinutes = meetingReminderMinutes
-        self.morningBriefLocalTime = morningBriefLocalTime
-        self.quietHoursStart = quietHoursStart
-        self.quietHoursEnd = quietHoursEnd
-        self.timeZone = timeZone
-        self.highRiskRequiresConfirm = highRiskRequiresConfirm
-    }
-}
-
-public typealias UpdatePreferencesRequest = Preferences
-
 public struct AuditEvent: Codable, Sendable {
     public let id: String
     public let timestamp: Date

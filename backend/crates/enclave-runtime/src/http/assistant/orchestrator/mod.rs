@@ -63,7 +63,7 @@ pub(super) async fn execute_query(
     }
 
     let timezone_lookup_started = Instant::now();
-    let user_time_zone = resolve_user_time_zone(state, user_id).await;
+    let user_time_zone = resolve_user_time_zone(state, user_id);
     let timezone_lookup_ms = timezone_lookup_started.elapsed().as_millis() as u64;
 
     let planner_started = Instant::now();
@@ -195,19 +195,6 @@ fn local_attested_identity(state: &RuntimeState) -> AttestedIdentityPayload {
     }
 }
 
-async fn resolve_user_time_zone(state: &RuntimeState, user_id: Uuid) -> String {
-    match state
-        .enclave_service
-        .get_or_create_preferences(user_id)
-        .await
-    {
-        Ok(preferences) => preferences.time_zone,
-        Err(err) => {
-            warn!(
-                user_id = %user_id,
-                "assistant preferences lookup failed; defaulting to UTC timezone: {err}"
-            );
-            DEFAULT_USER_TIME_ZONE.to_string()
-        }
-    }
+fn resolve_user_time_zone(_state: &RuntimeState, _user_id: Uuid) -> String {
+    DEFAULT_USER_TIME_ZONE.to_string()
 }

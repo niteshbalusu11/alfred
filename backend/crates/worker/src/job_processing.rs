@@ -71,7 +71,6 @@ pub(crate) async fn process_due_jobs(
         dead_lettered_jobs = metrics.dead_lettered_jobs,
         push_attempts = metrics.push_attempts,
         push_delivered = metrics.push_delivered,
-        push_quiet_hours_suppressed = metrics.push_quiet_hours_suppressed,
         push_transient_failures = metrics.push_transient_failures,
         push_permanent_failures = metrics.push_permanent_failures,
         average_lag_seconds = metrics.average_lag_seconds(),

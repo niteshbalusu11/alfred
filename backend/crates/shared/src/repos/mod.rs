@@ -14,18 +14,12 @@ mod automation_runs;
 mod connectors;
 mod devices;
 mod jobs;
-mod preferences;
 mod privacy;
 mod users;
 
 pub use assistant_encrypted_sessions::AssistantEncryptedSessionMetadataRecord;
 pub use assistant_encrypted_sessions::AssistantEncryptedSessionRecord;
 
-const DEFAULT_MEETING_REMINDER_MINUTES: i32 = 15;
-const DEFAULT_MORNING_BRIEF_LOCAL_TIME: &str = "08:00";
-const DEFAULT_QUIET_HOURS_START: &str = "22:00";
-const DEFAULT_QUIET_HOURS_END: &str = "07:00";
-const DEFAULT_TIME_ZONE: &str = "UTC";
 pub const LEGACY_CONNECTOR_TOKEN_KEY_ID: &str = "__legacy__";
 
 #[derive(Debug, Clone)]

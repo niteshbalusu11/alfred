@@ -5,7 +5,7 @@ use crate::enclave_runtime::{AlfredEnvironment, EnclaveRuntimeMode};
 
 pub(crate) fn parse_alfred_environment() -> Result<AlfredEnvironment, ConfigError> {
     env::var("ALFRED_ENV")
-        .unwrap_or_else(|_| "local".to_string())
+        .unwrap_or_else(|_| "production".to_string())
         .parse::<AlfredEnvironment>()
         .map_err(ConfigError::InvalidConfiguration)
 }

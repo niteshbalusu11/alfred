@@ -185,24 +185,6 @@ public final class AlfredAPIClient: Sendable {
         )
     }
 
-    public func getPreferences() async throws -> Preferences {
-        try await send(
-            method: "GET",
-            path: "/v1/preferences",
-            body: Optional<EmptyBody>.none,
-            requiresAuth: true
-        )
-    }
-
-    public func updatePreferences(_ request: UpdatePreferencesRequest) async throws -> OkResponse {
-        try await send(
-            method: "PUT",
-            path: "/v1/preferences",
-            body: request,
-            requiresAuth: true
-        )
-    }
-
     public func listAutomations(limit: Int? = nil) async throws -> ListAutomationsResponse {
         var path = "/v1/automations"
         if let limit {

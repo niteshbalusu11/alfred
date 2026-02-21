@@ -1,4 +1,3 @@
-use chrono::NaiveTime;
 use serde::Deserialize;
 
 use crate::{JobExecutionError, NotificationContent};
@@ -70,30 +69,6 @@ pub(super) fn extract_request_id(payload: Option<&[u8]>) -> Option<String> {
     normalize_request_id(&request_id)
 }
 
-pub(super) fn is_within_quiet_hours(
-    now: NaiveTime,
-    start: &str,
-    end: &str,
-) -> Result<bool, String> {
-    let start = parse_hhmm(start)?;
-    let end = parse_hhmm(end)?;
-
-    if start == end {
-        return Ok(true);
-    }
-
-    if start < end {
-        Ok(now >= start && now < end)
-    } else {
-        Ok(now >= start || now < end)
-    }
-}
-
-fn parse_hhmm(value: &str) -> Result<NaiveTime, String> {
-    NaiveTime::parse_from_str(value, "%H:%M")
-        .map_err(|_| format!("time must be in HH:MM format: {value}"))
-}
-
 fn normalize_request_id(value: &str) -> Option<String> {
     let trimmed = value.trim();
     if trimmed.is_empty() || trimmed.len() > 128 {
@@ -108,35 +83,7 @@ fn normalize_request_id(value: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use chrono::NaiveTime;
-
-    use super::{extract_request_id, is_within_quiet_hours, parse_simulated_failure};
-
-    #[test]
-    fn quiet_hours_supports_wrapped_ranges() {
-        let before_midnight = NaiveTime::from_hms_opt(23, 15, 0).expect("valid time");
-        let after_midnight = NaiveTime::from_hms_opt(6, 45, 0).expect("valid time");
-        let outside = NaiveTime::from_hms_opt(14, 0, 0).expect("valid time");
-
-        assert!(is_within_quiet_hours(before_midnight, "22:00", "07:00").expect("valid range"));
-        assert!(is_within_quiet_hours(after_midnight, "22:00", "07:00").expect("valid range"));
-        assert!(!is_within_quiet_hours(outside, "22:00", "07:00").expect("valid range"));
-    }
-
-    #[test]
-    fn quiet_hours_supports_non_wrapped_ranges() {
-        let in_range = NaiveTime::from_hms_opt(13, 0, 0).expect("valid time");
-        let out_of_range = NaiveTime::from_hms_opt(17, 0, 0).expect("valid time");
-
-        assert!(is_within_quiet_hours(in_range, "12:00", "14:00").expect("valid range"));
-        assert!(!is_within_quiet_hours(out_of_range, "12:00", "14:00").expect("valid range"));
-    }
-
-    #[test]
-    fn quiet_hours_with_equal_bounds_suppresses_all_day() {
-        let now = NaiveTime::from_hms_opt(9, 30, 0).expect("valid time");
-        assert!(is_within_quiet_hours(now, "08:00", "08:00").expect("valid range"));
-    }
+    use super::{extract_request_id, parse_simulated_failure};
 
     #[test]
     fn simulated_failures_are_parsed() {

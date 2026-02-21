@@ -11,8 +11,6 @@ final class AppModel: ObservableObject {
         case startGoogleOAuth
         case completeGoogleOAuth
         case loadConnectors
-        case loadPreferences
-        case savePreferences
         case revokeConnector
         case requestDeleteAll
         case loadAuditEvents
@@ -23,8 +21,6 @@ final class AppModel: ObservableObject {
         case startGoogleOAuth(redirectURI: String)
         case completeGoogleOAuth(code: String?, state: String, error: String?, errorDescription: String?)
         case loadConnectors
-        case loadPreferences
-        case savePreferences(Preferences)
         case revokeConnector(connectorID: String)
         case requestDeleteAll
         case loadAuditEvents(reset: Bool)
@@ -60,14 +56,6 @@ final class AppModel: ObservableObject {
     @Published var connectorID = ""
     @Published var revokeStatus = ""
     @Published var deleteAllStatus = ""
-    @Published var preferencesStatus = ""
-
-    @Published var meetingReminderMinutes = "15"
-    @Published var morningBriefLocalTime = "08:00"
-    @Published var quietHoursStart = "22:00"
-    @Published var quietHoursEnd = "07:00"
-    @Published var timeZone = TimeZone.current.identifier
-    @Published var highRiskRequiresConfirm = true
 
     @Published private(set) var auditEvents: [AuditEvent] = []
     @Published private(set) var nextAuditCursor: String?
@@ -198,19 +186,6 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func loadPreferences() async {
-        await run(action: .loadPreferences, retryAction: .loadPreferences) { [self] in
-            let prefs = try await apiClient.getPreferences()
-            meetingReminderMinutes = String(prefs.meetingReminderMinutes)
-            morningBriefLocalTime = prefs.morningBriefLocalTime
-            quietHoursStart = prefs.quietHoursStart
-            quietHoursEnd = prefs.quietHoursEnd
-            timeZone = prefs.timeZone
-            highRiskRequiresConfirm = prefs.highRiskRequiresConfirm
-            preferencesStatus = "Preferences synced."
-        }
-    }
-
     func loadConnectors() async {
         await run(action: .loadConnectors, retryAction: .loadConnectors) { [self] in
             let response = try await apiClient.listConnectors()
@@ -235,31 +210,6 @@ final class AppModel: ObservableObject {
         case .revoked:
             connectorID = ""
             revokeStatus = "Connector status: \(googleConnector.status.rawValue)."
-        }
-    }
-
-    func savePreferences() async {
-        guard let minutes = Int(meetingReminderMinutes.trimmingCharacters(in: .whitespacesAndNewlines)) else {
-            errorBanner = ErrorBanner(message: "Meeting reminder minutes must be a whole number.", retryAction: nil, sourceAction: nil)
-            return
-        }
-
-        let payload = Preferences(
-            meetingReminderMinutes: minutes,
-            morningBriefLocalTime: morningBriefLocalTime.trimmingCharacters(in: .whitespacesAndNewlines),
-            quietHoursStart: quietHoursStart.trimmingCharacters(in: .whitespacesAndNewlines),
-            quietHoursEnd: quietHoursEnd.trimmingCharacters(in: .whitespacesAndNewlines),
-            timeZone: normalizedTimeZoneIdentifier(from: timeZone),
-            highRiskRequiresConfirm: highRiskRequiresConfirm
-        )
-
-        await savePreferences(payload: payload)
-    }
-
-    func savePreferences(payload: Preferences) async {
-        await run(action: .savePreferences, retryAction: .savePreferences(payload)) { [self] in
-            _ = try await apiClient.updatePreferences(payload)
-            preferencesStatus = "Preferences saved."
         }
     }
 
@@ -346,14 +296,6 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private func normalizedTimeZoneIdentifier(from value: String) -> String {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            return TimeZone.current.identifier
-        }
-        return TimeZone(identifier: trimmed)?.identifier ?? TimeZone.current.identifier
-    }
-
     private func startAuthEventObserver() {
         authEventsTask?.cancel()
         authEventsTask = Task { [weak self] in
@@ -423,7 +365,6 @@ final class AppModel: ObservableObject {
         if shouldLoadData || !wasAuthenticated {
             clearAuthBootstrapErrorBannerIfNeeded()
             await loadConnectors()
-            await loadPreferences()
             await loadAuditEvents(reset: true)
 
             if clerk.user == nil {
@@ -606,20 +547,19 @@ final class AppModel: ObservableObject {
     private func resetRequestStatusState() {
         deleteAllStatus = ""
         revokeStatus = ""
-        preferencesStatus = ""
         resetAssistantThreadState()
     }
 
     private func clearAuthBootstrapErrorBannerIfNeeded() {
         guard let sourceAction = errorBanner?.sourceAction else { return }
-        if sourceAction == .loadConnectors || sourceAction == .loadPreferences || sourceAction == .loadAuditEvents {
+        if sourceAction == .loadConnectors || sourceAction == .loadAuditEvents {
             errorBanner = nil
         }
     }
 
     private var hasAuthBootstrapFailure: Bool {
         guard let sourceAction = errorBanner?.sourceAction else { return false }
-        return sourceAction == .loadConnectors || sourceAction == .loadPreferences || sourceAction == .loadAuditEvents
+        return sourceAction == .loadConnectors || sourceAction == .loadAuditEvents
     }
 
     private func currentAssistantPersistenceUserID() -> String? {

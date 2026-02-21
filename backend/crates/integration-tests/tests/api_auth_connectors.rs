@@ -20,7 +20,7 @@ async fn protected_routes_require_valid_bearer_token() {
     let clerk = TestClerkAuth::start().await;
     let app = build_test_router(store, &clerk).await;
 
-    let missing_auth = send_json(&app, request(Method::GET, "/v1/preferences", None, None)).await;
+    let missing_auth = send_json(&app, request(Method::GET, "/v1/connectors", None, None)).await;
     assert_eq!(missing_auth.status, StatusCode::UNAUTHORIZED);
     assert_eq!(error_code(&missing_auth.body), Some("unauthorized"));
 
@@ -28,7 +28,7 @@ async fn protected_routes_require_valid_bearer_token() {
         &app,
         request(
             Method::GET,
-            "/v1/preferences",
+            "/v1/connectors",
             Some("Bearer not-a-jwt-token"),
             None,
         ),
@@ -51,7 +51,7 @@ async fn clerk_token_validation_fails_closed_for_wrong_claims() {
         &app,
         request(
             Method::GET,
-            "/v1/preferences",
+            "/v1/connectors",
             Some(&format!(
                 "Bearer {}",
                 clerk.token_with_audience("user-a", "wrong-audience")
@@ -66,7 +66,7 @@ async fn clerk_token_validation_fails_closed_for_wrong_claims() {
         &app,
         request(
             Method::GET,
-            "/v1/preferences",
+            "/v1/connectors",
             Some(&format!(
                 "Bearer {}",
                 clerk.token_with_issuer("user-a", "https://other-issuer.test")
@@ -81,7 +81,7 @@ async fn clerk_token_validation_fails_closed_for_wrong_claims() {
         &app,
         request(
             Method::GET,
-            "/v1/preferences",
+            "/v1/connectors",
             Some(&format!(
                 "Bearer {}",
                 clerk.expired_token_for_subject("user-a")
@@ -113,14 +113,14 @@ async fn valid_identity_is_stable_and_does_not_duplicate_user_rows() {
 
     let first = send_json(
         &app,
-        request(Method::GET, "/v1/preferences", Some(&auth), None),
+        request(Method::GET, "/v1/connectors", Some(&auth), None),
     )
     .await;
     assert_eq!(first.status, StatusCode::OK);
 
     let second = send_json(
         &app,
-        request(Method::GET, "/v1/preferences", Some(&auth), None),
+        request(Method::GET, "/v1/connectors", Some(&auth), None),
     )
     .await;
     assert_eq!(second.status, StatusCode::OK);

@@ -329,16 +329,6 @@ pub struct TriggerAutomationDebugRunResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Preferences {
-    pub meeting_reminder_minutes: u32,
-    pub morning_brief_local_time: String,
-    pub quiet_hours_start: String,
-    pub quiet_hours_end: String,
-    pub time_zone: String,
-    pub high_risk_requires_confirm: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditEvent {
     pub id: String,
     pub timestamp: DateTime<Utc>,
