@@ -2,7 +2,8 @@ set shell := ["bash", "-cu"]
 
 project_root := `pwd`
 ios_project := "alfred/alfred.xcodeproj"
-ios_scheme := "alfred"
+ios_scheme_dev := "alfred-dev"
+ios_scheme_prod := "alfred-prod"
 ios_package_dir := "alfred/Packages/AlfredAPIClient"
 backend_dir := "backend"
 default_database_url := "postgres://postgres:postgres@127.0.0.1:5432/alfred"
@@ -31,11 +32,20 @@ ios-open:
 
 # Build iOS app for simulator.
 ios-build:
-    xcodebuild -project {{ ios_project }} -scheme {{ ios_scheme }} -destination 'generic/platform=iOS Simulator' build
+    xcodebuild -project {{ ios_project }} -scheme {{ ios_scheme_dev }} -destination 'generic/platform=iOS Simulator' build
+
+# Build production iOS app configuration for simulator.
+ios-build-prod:
+    xcodebuild -project {{ ios_project }} -scheme {{ ios_scheme_prod }} -configuration Release -destination 'generic/platform=iOS Simulator' build
+
+# Build both development and production iOS schemes.
+ios-build-all:
+    just ios-build
+    just ios-build-prod
 
 # Run iOS tests on a specific simulator.
 ios-test destination='platform=iOS Simulator,name=iPhone 17':
-    xcodebuild -project {{ ios_project }} -scheme {{ ios_scheme }} -destination '{{ destination }}' test
+    xcodebuild -project {{ ios_project }} -scheme {{ ios_scheme_dev }} -destination '{{ destination }}' test
 
 # Compile the local Swift package used by the iOS app.
 ios-package-build:

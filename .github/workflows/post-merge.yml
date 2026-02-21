@@ -109,7 +109,7 @@ jobs:
         run: cargo build --workspace
 
   ios:
-    name: iOS Build (master)
+    name: iOS Build (master, Release)
     runs-on: macos-26
     steps:
       - name: Checkout
@@ -119,7 +119,8 @@ jobs:
         run: |
           xcodebuild \
             -project alfred/alfred.xcodeproj \
-            -scheme alfred \
+            -scheme alfred-prod \
+            -configuration Release \
             -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO \
             build

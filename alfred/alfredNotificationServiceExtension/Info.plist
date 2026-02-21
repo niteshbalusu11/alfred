@@ -20,6 +20,10 @@
     <string>$(MARKETING_VERSION)</string>
     <key>CFBundleVersion</key>
     <string>$(CURRENT_PROJECT_VERSION)</string>
+    <key>ALFRED_APP_GROUP_IDENTIFIER</key>
+    <string>$(ALFRED_APP_GROUP_IDENTIFIER)</string>
+    <key>ALFRED_NOTIFICATION_KEYCHAIN_SERVICE</key>
+    <string>$(ALFRED_NOTIFICATION_KEYCHAIN_SERVICE)</string>
     <key>NSExtension</key>
     <dict>
         <key>NSExtensionPointIdentifier</key>
