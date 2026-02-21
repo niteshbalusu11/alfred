@@ -55,11 +55,23 @@ final class PushAppDelegate: NSObject, UIApplicationDelegate, UNUserNotification
 
         Task {
             defer { completionHandler() }
-            if let requestID, !title.isEmpty, !body.isEmpty {
+            if let requestID {
+                let resolved = await AutomationNotificationCrypto.resolveVisibleContent(from: content.userInfo)
+                let storedTitle: String
+                let storedBody: String
+
+                if resolved != .fallback {
+                    storedTitle = resolved.title
+                    storedBody = resolved.body
+                } else {
+                    storedTitle = title.isEmpty ? AutomationNotificationContent.fallback.title : title
+                    storedBody = body.isEmpty ? AutomationNotificationContent.fallback.body : body
+                }
+
                 _ = try? await outputHistoryStore.upsertOpenedFromNotificationTap(
                     requestID: requestID,
-                    title: title,
-                    body: body
+                    title: storedTitle,
+                    body: storedBody
                 )
             }
             NotificationCenter.default.post(

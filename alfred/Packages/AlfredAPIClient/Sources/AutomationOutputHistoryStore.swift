@@ -131,8 +131,8 @@ public actor AutomationOutputHistoryStore {
         let existing = snapshot.entries.first { $0.requestID == normalizedRequestID }
         let entry = AutomationOutputHistoryEntry(
             requestID: normalizedRequestID,
-            title: normalizedTitle,
-            body: normalizedBody,
+            title: existing?.title ?? normalizedTitle,
+            body: existing?.body ?? normalizedBody,
             receivedAt: existing?.receivedAt ?? openedAt,
             openedAt: openedAt
         )

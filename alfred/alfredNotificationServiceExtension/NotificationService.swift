@@ -21,8 +21,9 @@ final class NotificationService: UNNotificationServiceExtension {
         processingTask = Task { [weak self] in
             guard let self else { return }
             let resolved = await AutomationNotificationCrypto.resolveVisibleContent(from: request.content.userInfo)
-            content.title = resolved.title
-            content.body = resolved.body
+            let visiblePreview = AutomationNotificationPreview.makeVisiblePreview(from: resolved)
+            content.title = visiblePreview.title
+            content.body = visiblePreview.body
 
             if resolved != .fallback,
                let requestID = AutomationNotificationCrypto.requestID(from: request.content.userInfo)

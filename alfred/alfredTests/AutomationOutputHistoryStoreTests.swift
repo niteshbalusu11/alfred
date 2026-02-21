@@ -72,6 +72,31 @@ final class AutomationOutputHistoryStoreTests: XCTestCase {
         XCTAssertEqual(entries.map(\.requestID), ["req-3", "req-2"])
     }
 
+    func testOpenFromTapPreservesExistingFullBody() async throws {
+        let store = makeStore()
+        let fullBody = String(repeating: "A", count: 500)
+        let truncatedBody = String(repeating: "A", count: 180) + "..."
+
+        try await store.upsertDelivered(
+            requestID: "req-long",
+            title: "Long output",
+            body: fullBody,
+            receivedAt: Date(timeIntervalSince1970: 500)
+        )
+        try await store.upsertOpenedFromNotificationTap(
+            requestID: "req-long",
+            title: "Long output",
+            body: truncatedBody,
+            openedAt: Date(timeIntervalSince1970: 600)
+        )
+
+        let entries = try await store.list()
+        XCTAssertEqual(entries.count, 1)
+        XCTAssertEqual(entries[0].body, fullBody)
+        let pendingOpenRequestID = try await store.peekPendingOpenRequestID()
+        XCTAssertEqual(pendingOpenRequestID, "req-long")
+    }
+
     private func makeStore(maxEntries: Int = 200) -> AutomationOutputHistoryStore {
         let directoryURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("automation-output-history-tests-\(UUID().uuidString)", isDirectory: true)
