@@ -20,6 +20,16 @@ variable "ingress_certificate_arn" {
   type        = string
 }
 
+variable "route53_zone_id" {
+  description = "Route53 hosted zone ID for API DNS record."
+  type        = string
+}
+
+variable "route53_base_domain" {
+  description = "Base domain for API DNS record."
+  type        = string
+}
+
 variable "rds_deletion_protection" {
   description = "Enable RDS deletion protection."
   type        = bool

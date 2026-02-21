@@ -23,6 +23,11 @@ output "api_endpoint" {
   value       = module.environment.api_endpoint
 }
 
+output "api_fqdn" {
+  description = "Public API FQDN."
+  value       = module.environment.api_fqdn
+}
+
 output "api_target_group_arn" {
   description = "API target group ARN."
   value       = module.environment.api_target_group_arn
@@ -91,4 +96,14 @@ output "cloudwatch_log_groups" {
 output "alarm_names" {
   description = "Created alarm names."
   value       = module.environment.alarm_names
+}
+
+output "worker_suggested_fqdn" {
+  description = "Suggested worker DNS name for future private DNS routing."
+  value       = module.environment.worker_suggested_fqdn
+}
+
+output "enclave_suggested_fqdn" {
+  description = "Suggested enclave DNS name for future private DNS routing."
+  value       = module.environment.enclave_suggested_fqdn
 }

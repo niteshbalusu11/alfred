@@ -16,6 +16,11 @@ locals {
   api_log_group_name     = "/alfred/${var.environment}/api-server"
   worker_log_group_name  = "/alfred/${var.environment}/worker"
   enclave_log_group_name = "/alfred/${var.environment}/enclave-host"
+
+  dns_enabled         = var.route53_zone_id != null && var.route53_base_domain != null
+  api_record_name     = local.dns_enabled ? "api.alfred-${var.environment}.${trimspace(var.route53_base_domain)}" : null
+  worker_record_name  = local.dns_enabled ? "worker.alfred-${var.environment}.${trimspace(var.route53_base_domain)}" : null
+  enclave_record_name = local.dns_enabled ? "enclave.alfred-${var.environment}.${trimspace(var.route53_base_domain)}" : null
 }
 
 module "network" {
@@ -170,4 +175,14 @@ module "observability" {
   api_service_name            = local.api_service_name
   rds_identifier              = module.rds_postgres.identifier
   valkey_replication_group_id = module.valkey.replication_group_id
+}
+
+module "dns_api" {
+  count  = local.dns_enabled ? 1 : 0
+  source = "./dns_api"
+
+  zone_id      = var.route53_zone_id
+  record_name  = local.api_record_name
+  alb_dns_name = module.ingress.alb_dns_name
+  alb_zone_id  = module.ingress.alb_zone_id
 }

@@ -191,6 +191,18 @@ variable "ingress_ssl_policy" {
   default     = "ELBSecurityPolicy-TLS13-1-2-2021-06"
 }
 
+variable "route53_zone_id" {
+  description = "Optional Route53 hosted zone ID for creating API DNS record."
+  type        = string
+  default     = null
+}
+
+variable "route53_base_domain" {
+  description = "Optional base domain for API record generation (for example: noderunner.wtf)."
+  type        = string
+  default     = null
+}
+
 variable "rds_db_name" {
   description = "Initial database name."
   type        = string

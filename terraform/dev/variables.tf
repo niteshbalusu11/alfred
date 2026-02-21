@@ -20,6 +20,16 @@ variable "ingress_certificate_arn" {
   type        = string
 }
 
+variable "route53_zone_id" {
+  description = "Route53 hosted zone ID for API DNS record."
+  type        = string
+}
+
+variable "route53_base_domain" {
+  description = "Base domain for API DNS record."
+  type        = string
+}
+
 variable "api_task_cpu" {
   description = "Fargate CPU units for API service."
   type        = number
