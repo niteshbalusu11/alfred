@@ -231,7 +231,7 @@ variable "rds_instance_class" {
 variable "rds_engine_version" {
   description = "PostgreSQL engine version."
   type        = string
-  default     = "16.3"
+  default     = "18"
 }
 
 variable "rds_allocated_storage" {
@@ -282,16 +282,22 @@ variable "valkey_num_cache_clusters" {
   default     = 1
 }
 
+variable "valkey_engine_version" {
+  description = "Valkey engine version."
+  type        = string
+  default     = "8.2"
+}
+
 variable "valkey_parameter_group_name" {
   description = "Valkey parameter group name."
   type        = string
-  default     = "default.valkey7"
+  default     = "default.valkey8"
 }
 
 variable "enclave_ami_id" {
-  description = "AMI ID for enclave parent host."
+  description = "Optional AMI ID for enclave parent host. If unset, module resolves latest Amazon Linux AMI."
   type        = string
-  default     = "ami-0f9fc25dd2506cf6d"
+  default     = null
 }
 
 variable "enclave_instance_type" {

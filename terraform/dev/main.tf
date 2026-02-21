@@ -21,6 +21,7 @@ module "environment" {
   worker_desired_count = var.worker_desired_count
 
   rds_instance_class          = var.rds_instance_class
+  rds_engine_version          = var.rds_engine_version
   rds_multi_az                = var.rds_multi_az
   rds_allocated_storage       = var.rds_allocated_storage
   rds_max_allocated_storage   = var.rds_max_allocated_storage
@@ -30,6 +31,7 @@ module "environment" {
 
   valkey_node_type          = var.valkey_node_type
   valkey_num_cache_clusters = var.valkey_num_cache_clusters
+  valkey_engine_version     = var.valkey_engine_version
 
   enclave_instance_type = var.enclave_instance_type
 

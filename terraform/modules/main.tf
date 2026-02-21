@@ -126,6 +126,7 @@ module "valkey" {
   security_group_id    = module.security_groups.cache_security_group_id
   node_type            = var.valkey_node_type
   num_cache_clusters   = var.valkey_num_cache_clusters
+  engine_version       = var.valkey_engine_version
   port                 = var.cache_port
   parameter_group_name = var.valkey_parameter_group_name
 }

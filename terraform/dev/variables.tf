@@ -91,6 +91,12 @@ variable "rds_instance_class" {
   default     = "db.t4g.micro"
 }
 
+variable "rds_engine_version" {
+  description = "PostgreSQL engine version."
+  type        = string
+  default     = "18"
+}
+
 variable "rds_multi_az" {
   description = "Enable Multi-AZ for RDS."
   type        = bool
@@ -137,6 +143,12 @@ variable "valkey_num_cache_clusters" {
   description = "Number of Valkey cache clusters."
   type        = number
   default     = 1
+}
+
+variable "valkey_engine_version" {
+  description = "Valkey engine version."
+  type        = string
+  default     = "8.2"
 }
 
 variable "enclave_instance_type" {

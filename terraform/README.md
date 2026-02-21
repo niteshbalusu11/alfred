@@ -33,8 +33,8 @@ Image inputs consumed by environment wrappers:
 `terraform/dev/terraform.tfvars` sets explicit low-cost defaults for development:
 
 - ECS: `api` and `worker` set to `256 CPU / 512 MiB`, desired count `1`
-- RDS: `db.t4g.micro`, single-AZ (`multi_az = false`), short backup retention
-- Valkey: `cache.t4g.micro`, single cache node
+- RDS: `db.t4g.micro`, `postgres 18`, single-AZ (`multi_az = false`), automated backups disabled
+- Valkey: `cache.t4g.micro`, `valkey 8.2`, single cache node
 - Enclave host: one `c6i.large` parent host
 - Observability: 7-day log retention and alarms disabled by default
 
@@ -43,8 +43,8 @@ Image inputs consumed by environment wrappers:
 `terraform/prod/terraform.tfvars` sets explicit production defaults while reusing the same shared module graph:
 
 - ECS: `api` and `worker` set to `1024 CPU / 2048 MiB`, desired count `2`
-- RDS: `db.t4g.medium`, Multi-AZ enabled, larger storage, 14-day backups, deletion protection enabled
-- Valkey: `cache.t4g.small`, two cache nodes
+- RDS: `db.t4g.medium`, `postgres 18`, Multi-AZ enabled, larger storage, 14-day backups, deletion protection enabled
+- Valkey: `cache.t4g.small`, `valkey 8.2`, two cache nodes
 - Enclave host: one `c7i.xlarge` parent host
 - Observability: 30-day log retention and alarms enabled
 - ALB deletion protection enabled
@@ -62,14 +62,16 @@ All environment differences are variable-driven through `terraform/dev` and `ter
 | `api_desired_count` | `1` | `2` |
 | `worker_desired_count` | `1` | `2` |
 | `rds_instance_class` | `db.t4g.micro` | `db.t4g.medium` |
+| `rds_engine_version` | `18` | `18` |
 | `rds_multi_az` | `false` | `true` |
 | `rds_allocated_storage` | `20` | `100` |
 | `rds_max_allocated_storage` | `40` | `300` |
-| `rds_backup_retention_period` | `1` | `14` |
+| `rds_backup_retention_period` | `0` | `14` |
 | `rds_deletion_protection` | `false` | `true` |
 | `rds_skip_final_snapshot` | `true` | `false` |
 | `valkey_node_type` | `cache.t4g.micro` | `cache.t4g.small` |
 | `valkey_num_cache_clusters` | `1` | `2` |
+| `valkey_engine_version` | `8.2` | `8.2` |
 | `enclave_instance_type` | `c6i.large` | `c7i.xlarge` |
 | `alb_deletion_protection` | module default (`false`) | `true` |
 | `log_retention_days` | `7` | `30` |

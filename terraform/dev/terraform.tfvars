@@ -21,7 +21,7 @@ rds_instance_class          = "db.t4g.micro"
 rds_multi_az                = false
 rds_allocated_storage       = 20
 rds_max_allocated_storage   = 40
-rds_backup_retention_period = 1
+rds_backup_retention_period = 0
 rds_deletion_protection     = false
 rds_skip_final_snapshot     = true
 

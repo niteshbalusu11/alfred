@@ -14,8 +14,9 @@ variable "security_group_id" {
 }
 
 variable "ami_id" {
-  description = "AMI ID for enclave parent host."
+  description = "Optional AMI ID for enclave parent host. If unset, module resolves latest Amazon Linux AMI."
   type        = string
+  default     = null
 }
 
 variable "instance_type" {
