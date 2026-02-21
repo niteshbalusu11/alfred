@@ -1,3 +1,5 @@
+import AlfredAPIClient
+import Combine
 import ClerkKit
 import ClerkKitUI
 import SwiftUI
@@ -5,6 +7,7 @@ import SwiftUI
 struct ContentView: View {
     @ObservedObject var model: AppModel
     @State private var authIsPresented = false
+    private let outputHistoryStore = AutomationOutputHistoryStore()
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -49,7 +52,17 @@ struct ContentView: View {
         .onChange(of: model.startupRoute, initial: false) { _, route in
             if case .signedIn = route {
                 authIsPresented = false
+                routeToPendingAutomationOutputIfNeeded()
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: PushNotificationEvents.didOpenAutomationNotification)) { _ in
+            if case .signedIn = model.startupRoute {
+                model.selectedTab = .automations
+            }
+            routeToPendingAutomationOutputIfNeeded()
+        }
+        .task {
+            routeToPendingAutomationOutputIfNeeded()
         }
         .onOpenURL { url in
             Task {
@@ -71,6 +84,18 @@ struct ContentView: View {
     private func signOut() {
         Task {
             await model.signOut()
+        }
+    }
+
+    private func routeToPendingAutomationOutputIfNeeded() {
+        Task { @MainActor in
+            guard case .signedIn = model.startupRoute else {
+                return
+            }
+            let pendingRequestID = try? await outputHistoryStore.peekPendingOpenRequestID()
+            if pendingRequestID != nil {
+                model.selectedTab = .automations
+            }
         }
     }
 }

@@ -1,4 +1,5 @@
 import AlfredAPIClient
+import Combine
 import SwiftUI
 
 struct AutomationsView: View {
@@ -10,7 +11,9 @@ struct AutomationsView: View {
     @State private var mutationErrorMessage: String?
     @State private var mutatingRuleIDs: Set<UUID> = []
     @State private var activeSheet: SheetRoute?
+    @State private var outputHistoryPresentation: OutputHistoryPresentation?
     private let automationRuleStore = AutomationRuleStore()
+    private let outputHistoryStore = AutomationOutputHistoryStore()
 
     private enum SheetRoute: Hashable, Identifiable {
         case create
@@ -24,6 +27,11 @@ struct AutomationsView: View {
                 return "edit-\(ruleID.uuidString.lowercased())"
             }
         }
+    }
+
+    private struct OutputHistoryPresentation: Identifiable {
+        let id = UUID()
+        let initialRequestID: String?
     }
 
     var body: some View {
@@ -101,6 +109,12 @@ struct AutomationsView: View {
                 await loadCachedAutomations()
                 await loadAutomations()
             }
+            await presentPendingOutputHistoryIfNeeded()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: PushNotificationEvents.didOpenAutomationNotification)) { _ in
+            Task {
+                await presentPendingOutputHistoryIfNeeded()
+            }
         }
         .fullScreenCover(item: $activeSheet) { route in
             switch route {
@@ -129,6 +143,12 @@ struct AutomationsView: View {
                 }
             }
         }
+        .sheet(item: $outputHistoryPresentation) { presentation in
+            AutomationOutputHistorySheet(
+                store: outputHistoryStore,
+                initialRequestID: presentation.initialRequestID
+            )
+        }
     }
 
     private var header: some View {
@@ -156,6 +176,14 @@ struct AutomationsView: View {
             )
             .disabled(isLoading)
             .opacity(isLoading ? 0.55 : 1)
+
+            TaskHeaderIconButton(
+                systemImage: "clock.arrow.circlepath",
+                accessibilityLabel: "View task output history",
+                action: {
+                    outputHistoryPresentation = OutputHistoryPresentation(initialRequestID: nil)
+                }
+            )
 
             TaskHeaderIconButton(
                 systemImage: "plus",
@@ -361,5 +389,17 @@ struct AutomationsView: View {
             return nil
         }
         return value
+    }
+
+    @MainActor
+    private func presentPendingOutputHistoryIfNeeded() async {
+        do {
+            guard let requestID = try await outputHistoryStore.consumePendingOpenRequestID() else {
+                return
+            }
+            outputHistoryPresentation = OutputHistoryPresentation(initialRequestID: requestID)
+        } catch {
+            // Best-effort route only; failure should not block tasks UI.
+        }
     }
 }

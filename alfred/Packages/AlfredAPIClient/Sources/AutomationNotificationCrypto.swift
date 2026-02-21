@@ -169,6 +169,14 @@ public enum AutomationNotificationCrypto {
         return payload.alfredAutomation.envelope
     }
 
+    public static func requestID(from userInfo: [AnyHashable: Any]) -> String? {
+        guard let value = try? encryptedEnvelope(from: userInfo).requestID else {
+            return nil
+        }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
     public static func decrypt(
         envelope: AutomationEncryptedNotificationEnvelope,
         material: AutomationNotificationDecryptionMaterial
