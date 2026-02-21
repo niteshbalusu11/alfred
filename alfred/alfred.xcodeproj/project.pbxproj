@@ -501,7 +501,7 @@
 		C3E6B8E02F3FFFBD00C03FF0 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = alfred;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = alfred/alfred.entitlements;
 				CODE_SIGN_STYLE = Automatic;
@@ -510,6 +510,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Info.Debug.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Alfred;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Alfred uses your microphone to transcribe your voice into text.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Alfred uses speech recognition to convert your spoken words into text.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -538,7 +539,7 @@
 		C3E6B8E12F3FFFBD00C03FF0 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = alfred;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = alfred/alfred.entitlements;
 				CODE_SIGN_STYLE = Automatic;
@@ -546,6 +547,7 @@
 				DEVELOPMENT_TEAM = GNQ3HY2357;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Alfred;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Alfred uses your microphone to transcribe your voice into text.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Alfred uses speech recognition to convert your spoken words into text.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

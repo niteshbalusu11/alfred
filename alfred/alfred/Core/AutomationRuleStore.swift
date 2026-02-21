@@ -1,12 +1,12 @@
 import AlfredAPIClient
 import Foundation
 
-struct AutomationRuleCacheEntry: Codable, Sendable {
+nonisolated struct AutomationRuleCacheEntry: Codable, Sendable {
     var rule: AutomationRuleSummary
     var prompt: String?
 }
 
-struct AutomationRuleCacheSnapshot: Codable, Sendable {
+nonisolated struct AutomationRuleCacheSnapshot: Codable, Sendable {
     var entries: [AutomationRuleCacheEntry]
 
     static let empty = AutomationRuleCacheSnapshot(entries: [])
