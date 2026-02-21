@@ -79,6 +79,20 @@ final class AutomationNotificationCryptoTests: XCTestCase {
         XCTAssertEqual(resolved, .fallback)
     }
 
+    func testNotificationPreviewTruncatesLongContent() {
+        let content = AutomationNotificationContent(
+            title: String(repeating: "T", count: 80),
+            body: String(repeating: "B", count: 220)
+        )
+
+        let preview = AutomationNotificationPreview.makeVisiblePreview(from: content)
+
+        XCTAssertEqual(preview.title.count, 67)
+        XCTAssertEqual(preview.body.count, 183)
+        XCTAssertTrue(preview.title.hasSuffix("..."))
+        XCTAssertTrue(preview.body.hasSuffix("..."))
+    }
+
     private func makeEnvelope(
         plaintext: AutomationNotificationContent,
         deviceID: String,
