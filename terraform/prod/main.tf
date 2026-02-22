@@ -6,11 +6,20 @@ module "environment" {
   name_prefix = var.name_prefix
   tags        = var.additional_tags
 
-  ingress_certificate_arn = var.ingress_certificate_arn
-  route53_zone_id         = var.route53_zone_id
-  route53_base_domain     = var.route53_base_domain
-  api_image               = var.api_image
-  worker_image            = var.worker_image
+  ingress_certificate_arn         = var.ingress_certificate_arn
+  ingress_auto_create_certificate = var.ingress_auto_create_certificate
+  route53_zone_id                 = var.route53_zone_id
+  route53_base_domain             = var.route53_base_domain
+  api_image                       = var.api_image
+  worker_image                    = var.worker_image
+  api_environment                 = var.api_environment
+  worker_environment              = var.worker_environment
+  api_ssm_secret_arns             = var.api_ssm_secret_arns
+  worker_ssm_secret_arns          = var.worker_ssm_secret_arns
+  api_secrets_manager_arns        = var.api_secrets_manager_arns
+  worker_secrets_manager_arns     = var.worker_secrets_manager_arns
+  enclave_ssm_secret_arns         = var.enclave_ssm_secret_arns
+  enclave_secrets_manager_arns    = var.enclave_secrets_manager_arns
 
   api_task_cpu         = var.api_task_cpu
   api_task_memory      = var.api_task_memory
@@ -20,6 +29,7 @@ module "environment" {
   worker_desired_count = var.worker_desired_count
 
   rds_instance_class          = var.rds_instance_class
+  rds_engine_version          = var.rds_engine_version
   rds_allocated_storage       = var.rds_allocated_storage
   rds_max_allocated_storage   = var.rds_max_allocated_storage
   rds_backup_retention_period = var.rds_backup_retention_period
@@ -29,6 +39,7 @@ module "environment" {
 
   valkey_node_type          = var.valkey_node_type
   valkey_num_cache_clusters = var.valkey_num_cache_clusters
+  valkey_engine_version     = var.valkey_engine_version
 
   enclave_instance_type   = var.enclave_instance_type
   alb_deletion_protection = var.alb_deletion_protection

@@ -28,14 +28,21 @@ Image inputs consumed by environment wrappers:
 - `api_image`
 - `worker_image`
 
+Runtime env inputs consumed by environment wrappers:
+
+- `api_environment` (non-secret env vars)
+- `worker_environment` (non-secret env vars)
+- `api_ssm_secret_arns` (API secret env var name -> SSM parameter ARN)
+- `worker_ssm_secret_arns` (worker secret env var name -> SSM parameter ARN)
+
 ## Dev Cost-Sensitive Defaults
 
 `terraform/dev/terraform.tfvars` sets explicit low-cost defaults for development:
 
 - ECS: `api` and `worker` set to `256 CPU / 512 MiB`, desired count `1`
-- RDS: `db.t4g.micro`, single-AZ (`multi_az = false`), short backup retention
-- Valkey: `cache.t4g.micro`, single cache node
-- Enclave host: one `c6i.large` parent host
+- RDS: `db.t4g.micro`, `postgres 18`, single-AZ (`multi_az = false`), automated backups disabled
+- Valkey: `cache.t4g.micro`, `valkey 8.2`, single cache node
+- Enclave host: one `c6i.xlarge` parent host
 - Observability: 7-day log retention and alarms disabled by default
 
 ## Prod Reliability Defaults
@@ -43,8 +50,8 @@ Image inputs consumed by environment wrappers:
 `terraform/prod/terraform.tfvars` sets explicit production defaults while reusing the same shared module graph:
 
 - ECS: `api` and `worker` set to `1024 CPU / 2048 MiB`, desired count `2`
-- RDS: `db.t4g.medium`, Multi-AZ enabled, larger storage, 14-day backups, deletion protection enabled
-- Valkey: `cache.t4g.small`, two cache nodes
+- RDS: `db.t4g.medium`, `postgres 18`, Multi-AZ enabled, larger storage, 14-day backups, deletion protection enabled
+- Valkey: `cache.t4g.small`, `valkey 8.2`, two cache nodes
 - Enclave host: one `c7i.xlarge` parent host
 - Observability: 30-day log retention and alarms enabled
 - ALB deletion protection enabled
@@ -62,22 +69,26 @@ All environment differences are variable-driven through `terraform/dev` and `ter
 | `api_desired_count` | `1` | `2` |
 | `worker_desired_count` | `1` | `2` |
 | `rds_instance_class` | `db.t4g.micro` | `db.t4g.medium` |
+| `rds_engine_version` | `18` | `18` |
 | `rds_multi_az` | `false` | `true` |
 | `rds_allocated_storage` | `20` | `100` |
 | `rds_max_allocated_storage` | `40` | `300` |
-| `rds_backup_retention_period` | `1` | `14` |
+| `rds_backup_retention_period` | `0` | `14` |
 | `rds_deletion_protection` | `false` | `true` |
 | `rds_skip_final_snapshot` | `true` | `false` |
 | `valkey_node_type` | `cache.t4g.micro` | `cache.t4g.small` |
 | `valkey_num_cache_clusters` | `1` | `2` |
-| `enclave_instance_type` | `c6i.large` | `c7i.xlarge` |
+| `valkey_engine_version` | `8.2` | `8.2` |
+| `enclave_instance_type` | `c6i.xlarge` | `c7i.xlarge` |
 | `alb_deletion_protection` | module default (`false`) | `true` |
 | `log_retention_days` | `7` | `30` |
 | `create_alarms` | `false` | `true` |
 
 ## Security Defaults
 
-- Public ingress is HTTPS-only on `443` with ACM (`ingress_certificate_arn` required in both envs).
+- Public ingress is HTTPS-only on `443` with ACM.
+- ACM certificate is auto-created and DNS-validated when `route53_zone_id` + `route53_base_domain` are set.
+- `ingress_certificate_arn` remains available as an optional override if you want to reuse an existing certificate.
 - HTTP listener is not created.
 - ALB security group opens `443` only.
 - ALB target group to API uses HTTPS, and API traffic is expected on TLS port `8443`.
@@ -88,19 +99,45 @@ All environment differences are variable-driven through `terraform/dev` and `ter
 - Worker/enclave remain private services; Terraform outputs suggested names for future private DNS.
 - `terraform/prod/terraform.tfvars` uses production-oriented capacity and lifecycle defaults (see matrix above).
 
+## Runtime Secret Handling
+
+- App/runtime secrets are not auto-created by Terraform.
+- Store secrets as SSM `SecureString` parameters.
+- Inject secrets into ECS by setting:
+  - `api_ssm_secret_arns`
+  - `worker_ssm_secret_arns`
+- Keep non-secret runtime configuration in:
+  - `api_environment`
+  - `worker_environment`
+- Enclave-runtime-specific secrets (for example `TEE_ATTESTATION_SIGNING_PRIVATE_KEY` and `ASSISTANT_INGRESS_ACTIVE_PRIVATE_KEY`) are not yet fully wired by default. To wire them end-to-end:
+  - set `enclave_ssm_secret_arns` and/or `enclave_secrets_manager_arns`
+  - attach read permissions for those ARNs to the enclave host runtime identity
+  - provide `enclave_user_data` that fetches secrets and exports runtime env for the enclave service process
+  - ensure enclave runtime process/service bootstrap is installed and started on the enclave parent host
+- Current tfvars convention uses these SSM parameter paths:
+  - `alfred/<env>/shared/DATABASE_URL`
+  - `alfred/<env>/shared/DATA_ENCRYPTION_KEY`
+  - `alfred/<env>/shared/KMS_KEY_ID`
+  - `alfred/<env>/shared/GOOGLE_OAUTH_CLIENT_ID`
+  - `alfred/<env>/shared/GOOGLE_OAUTH_CLIENT_SECRET`
+  - `alfred/<env>/shared/ENCLAVE_RPC_SHARED_SECRET`
+  - `alfred/<env>/api/CLERK_SECRET_KEY`
+  - `alfred/<env>/worker/APNS_KEY_ID`
+  - `alfred/<env>/worker/APNS_TEAM_ID`
+  - `alfred/<env>/worker/APNS_AUTH_KEY_P8_BASE64`
+
 ## Remote State Bootstrap (One-Time)
 
 Terraform remote state is configured with:
 
 - S3 bucket for state objects
-- DynamoDB table for state locking
+- S3 lockfile-based state locking (`use_lockfile = true`)
 
 Create these state resources before running remote-backend init for `dev`/`prod`.
 
 Example naming used by the provided backend examples:
 
 - S3 bucket: `alfred-terraform-state`
-- DynamoDB table: `alfred-terraform-locks`
 - Region: `us-east-2`
 - Hosted zone in current env tfvars: `Z10154612GBUAYQKQMWC3` (`noderunner.wtf`)
 
@@ -109,7 +146,7 @@ Example naming used by the provided backend examples:
 1. Copy backend config:
    - `cp terraform/dev/backend.hcl.example terraform/dev/backend.hcl`
    - `cp terraform/prod/backend.hcl.example terraform/prod/backend.hcl`
-2. Update bucket/table names if your account uses different names.
+2. Update bucket/region names if your account uses different names.
 3. Initialize each environment:
 
 ```bash
@@ -128,7 +165,7 @@ terraform apply -var-file=terraform.tfvars
 
 ## Local Validation Without Remote State
 
-If the shared S3/DynamoDB state resources are not created yet, validate configuration only:
+If the shared state resources are not created yet, validate configuration only:
 
 ```bash
 cd terraform/dev
@@ -162,3 +199,33 @@ terraform plan \
   -var-file=terraform.tfvars \
   -var-file=terraform-image-uris.auto.tfvars.json
 ```
+
+## Terraform CI/CD (Dev)
+
+Workflow: `.github/workflows/terraform-dev.yml`
+
+1. PRs to `master` (Terraform/workflow path changes) run:
+   1. `terraform fmt -check -recursive`
+   2. `terraform validate`
+   3. `terraform plan` against the shared dev state backend
+2. Manual dev deploy test is supported via `workflow_dispatch`:
+   1. set `apply=true`
+   2. optional input overrides for image URIs, certificate ARN override, and Route53 values
+3. Manual dev destroy is supported via `workflow_dispatch`:
+   1. set `destroy=true`
+   2. set `destroy_confirm=destroy-dev`
+   3. optional input overrides for image URIs, certificate ARN override, and Route53 values
+
+Required GitHub secret:
+
+1. `AWS_TERRAFORM_DEV_ROLE_ARN` (OIDC-assumable role for Terraform plan/apply in dev)
+
+Optional GitHub repository variables:
+
+1. `TF_STATE_BUCKET` (defaults to `alfred-terraform-state`)
+2. `TF_STATE_REGION` (defaults to `AWS_REGION` in workflow)
+3. `TF_STATE_KEY_DEV` (defaults to `dev/terraform.tfstate`)
+4. `DEV_API_IMAGE`
+5. `DEV_WORKER_IMAGE`
+6. `DEV_ROUTE53_ZONE_ID`
+7. `DEV_ROUTE53_BASE_DOMAIN`

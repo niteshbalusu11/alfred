@@ -48,9 +48,6 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ECR_PUSH_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: Login to ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
@@ -78,19 +75,27 @@ jobs:
           SHA_TAG="sha-${SHORT_SHA}"
           PRIMARY_IMAGE="${REGISTRY}/${REPOSITORY}:${SHA_TAG}"
 
-          TAG_ARGS=(-t "${PRIMARY_IMAGE}")
+          IMAGES=("${PRIMARY_IMAGE}")
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             RELEASE_TAG="${GITHUB_REF_NAME#v}"
-            TAG_ARGS+=(-t "${REGISTRY}/${REPOSITORY}:${RELEASE_TAG}")
-            TAG_ARGS+=(-t "${REGISTRY}/${REPOSITORY}:latest")
+            IMAGES+=("${REGISTRY}/${REPOSITORY}:${RELEASE_TAG}")
+            IMAGES+=("${REGISTRY}/${REPOSITORY}:latest")
           fi
 
-          docker buildx build \
+          TAG_ARGS=()
+          for image in "${IMAGES[@]}"; do
+            TAG_ARGS+=(-t "${image}")
+          done
+
+          docker build \
             --platform linux/amd64 \
             --file "${DOCKERFILE}" \
             "${TAG_ARGS[@]}" \
-            --push \
             .
+
+          for image in "${IMAGES[@]}"; do
+            docker push "${image}"
+          done
 
           echo "image_uri=${PRIMARY_IMAGE}" >> "${GITHUB_OUTPUT}"
           printf '{"service":"%s","terraform_key":"%s","image_uri":"%s"}\n' \

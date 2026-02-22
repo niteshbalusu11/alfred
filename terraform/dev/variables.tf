@@ -16,8 +16,15 @@ variable "additional_tags" {
 }
 
 variable "ingress_certificate_arn" {
-  description = "ACM certificate ARN for HTTPS ingress."
+  description = "Optional ACM certificate ARN for HTTPS ingress. Leave unset to auto-manage certificate via Route53."
   type        = string
+  default     = null
+}
+
+variable "ingress_auto_create_certificate" {
+  description = "Whether to auto-create and DNS-validate an ACM certificate when ingress_certificate_arn is unset."
+  type        = bool
+  default     = true
 }
 
 variable "route53_zone_id" {
@@ -40,6 +47,54 @@ variable "worker_image" {
   description = "Container image URI for worker service."
   type        = string
   default     = "public.ecr.aws/docker/library/nginx:latest"
+}
+
+variable "api_environment" {
+  description = "Non-secret environment variables for API container."
+  type        = map(string)
+  default     = {}
+}
+
+variable "worker_environment" {
+  description = "Non-secret environment variables for worker container."
+  type        = map(string)
+  default     = {}
+}
+
+variable "api_ssm_secret_arns" {
+  description = "Map of API env var name to SSM parameter ARN."
+  type        = map(string)
+  default     = {}
+}
+
+variable "worker_ssm_secret_arns" {
+  description = "Map of worker env var name to SSM parameter ARN."
+  type        = map(string)
+  default     = {}
+}
+
+variable "api_secrets_manager_arns" {
+  description = "Map of API env var name to Secrets Manager ARN."
+  type        = map(string)
+  default     = {}
+}
+
+variable "worker_secrets_manager_arns" {
+  description = "Map of worker env var name to Secrets Manager ARN."
+  type        = map(string)
+  default     = {}
+}
+
+variable "enclave_ssm_secret_arns" {
+  description = "Map of enclave env var name to SSM parameter ARN."
+  type        = map(string)
+  default     = {}
+}
+
+variable "enclave_secrets_manager_arns" {
+  description = "Map of enclave env var name to Secrets Manager ARN."
+  type        = map(string)
+  default     = {}
 }
 
 variable "api_task_cpu" {
@@ -82,6 +137,12 @@ variable "rds_instance_class" {
   description = "RDS instance class."
   type        = string
   default     = "db.t4g.micro"
+}
+
+variable "rds_engine_version" {
+  description = "PostgreSQL engine version."
+  type        = string
+  default     = "18"
 }
 
 variable "rds_multi_az" {
@@ -130,6 +191,12 @@ variable "valkey_num_cache_clusters" {
   description = "Number of Valkey cache clusters."
   type        = number
   default     = 1
+}
+
+variable "valkey_engine_version" {
+  description = "Valkey engine version."
+  type        = string
+  default     = "8.2"
 }
 
 variable "enclave_instance_type" {

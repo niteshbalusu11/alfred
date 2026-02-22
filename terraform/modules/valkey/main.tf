@@ -12,6 +12,7 @@ resource "aws_elasticache_replication_group" "this" {
   replication_group_id       = local.replication_group_id
   description                = "Valkey replication group for ${var.name_prefix}"
   engine                     = "valkey"
+  engine_version             = var.engine_version
   node_type                  = var.node_type
   port                       = var.port
   parameter_group_name       = var.parameter_group_name

@@ -1,0 +1,250 @@
+name: Terraform Dev
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - "terraform/**"
+      - ".github/workflows/terraform-dev.yml"
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Run terraform apply to dev (false = plan only)"
+        required: true
+        type: boolean
+        default: false
+      destroy:
+        description: "Run terraform destroy for dev (manual, destructive)"
+        required: true
+        type: boolean
+        default: false
+      destroy_confirm:
+        description: "Type destroy-dev to confirm destroy"
+        required: false
+        type: string
+      api_image:
+        description: "API image URI override for apply (optional)"
+        required: false
+        type: string
+      worker_image:
+        description: "Worker image URI override for apply (optional)"
+        required: false
+        type: string
+      ingress_certificate_arn:
+        description: "ACM cert ARN override for apply (optional)"
+        required: false
+        type: string
+      route53_zone_id:
+        description: "Route53 hosted zone ID override for apply (optional)"
+        required: false
+        type: string
+      route53_base_domain:
+        description: "Base domain override for apply (optional)"
+        required: false
+        type: string
+
+concurrency:
+  group: terraform-dev-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: us-east-2
+  TF_INPUT: "false"
+  TF_IN_AUTOMATION: "true"
+  TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+  TF_STATE_REGION: ${{ vars.TF_STATE_REGION }}
+  TF_STATE_KEY_DEV: ${{ vars.TF_STATE_KEY_DEV }}
+  DEV_API_IMAGE: ${{ vars.DEV_API_IMAGE }}
+  DEV_WORKER_IMAGE: ${{ vars.DEV_WORKER_IMAGE }}
+  DEV_ROUTE53_ZONE_ID: ${{ vars.DEV_ROUTE53_ZONE_ID }}
+  DEV_ROUTE53_BASE_DOMAIN: ${{ vars.DEV_ROUTE53_BASE_DOMAIN }}
+
+jobs:
+  plan-pr:
+    name: Terraform Plan (dev)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform/dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_DEV_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform fmt (check)
+        working-directory: terraform
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init
+        run: |
+          STATE_BUCKET="${TF_STATE_BUCKET:-alfred-terraform-state}"
+          STATE_REGION="${TF_STATE_REGION:-$AWS_REGION}"
+          STATE_KEY="${TF_STATE_KEY_DEV:-dev/terraform.tfstate}"
+
+          terraform init \
+            -backend-config="bucket=${STATE_BUCKET}" \
+            -backend-config="key=${STATE_KEY}" \
+            -backend-config="region=${STATE_REGION}" \
+            -backend-config="use_lockfile=true" \
+            -backend-config="encrypt=true"
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Terraform plan
+        run: |
+          PLAN_ARGS=(-var-file=terraform.tfvars)
+          [[ -n "${DEV_API_IMAGE}" ]] && PLAN_ARGS+=(-var "api_image=${DEV_API_IMAGE}")
+          [[ -n "${DEV_WORKER_IMAGE}" ]] && PLAN_ARGS+=(-var "worker_image=${DEV_WORKER_IMAGE}")
+          [[ -n "${DEV_ROUTE53_ZONE_ID}" ]] && PLAN_ARGS+=(-var "route53_zone_id=${DEV_ROUTE53_ZONE_ID}")
+          [[ -n "${DEV_ROUTE53_BASE_DOMAIN}" ]] && PLAN_ARGS+=(-var "route53_base_domain=${DEV_ROUTE53_BASE_DOMAIN}")
+
+          terraform plan "${PLAN_ARGS[@]}" -lock-timeout=5m -no-color -out=tfplan
+          terraform show -no-color tfplan > tfplan.txt
+
+      - name: Upload plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-dev-pr-plan
+          path: |
+            terraform/dev/tfplan
+            terraform/dev/tfplan.txt
+          if-no-files-found: error
+
+  apply-manual:
+    name: Terraform Apply (dev, manual)
+    if: github.event_name == 'workflow_dispatch' && inputs.apply && !inputs.destroy
+    runs-on: ubuntu-latest
+    environment: dev
+    defaults:
+      run:
+        working-directory: terraform/dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_DEV_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform init
+        run: |
+          STATE_BUCKET="${TF_STATE_BUCKET:-alfred-terraform-state}"
+          STATE_REGION="${TF_STATE_REGION:-$AWS_REGION}"
+          STATE_KEY="${TF_STATE_KEY_DEV:-dev/terraform.tfstate}"
+
+          terraform init \
+            -backend-config="bucket=${STATE_BUCKET}" \
+            -backend-config="key=${STATE_KEY}" \
+            -backend-config="region=${STATE_REGION}" \
+            -backend-config="use_lockfile=true" \
+            -backend-config="encrypt=true"
+
+      - name: Terraform apply
+        env:
+          INPUT_API_IMAGE: ${{ inputs.api_image }}
+          INPUT_WORKER_IMAGE: ${{ inputs.worker_image }}
+          INPUT_INGRESS_CERTIFICATE_ARN: ${{ inputs.ingress_certificate_arn }}
+          INPUT_ROUTE53_ZONE_ID: ${{ inputs.route53_zone_id }}
+          INPUT_ROUTE53_BASE_DOMAIN: ${{ inputs.route53_base_domain }}
+        run: |
+          PLAN_ARGS=(-var-file=terraform.tfvars)
+
+          EFFECTIVE_API_IMAGE="${INPUT_API_IMAGE:-${DEV_API_IMAGE}}"
+          EFFECTIVE_WORKER_IMAGE="${INPUT_WORKER_IMAGE:-${DEV_WORKER_IMAGE}}"
+          EFFECTIVE_ZONE_ID="${INPUT_ROUTE53_ZONE_ID:-${DEV_ROUTE53_ZONE_ID}}"
+          EFFECTIVE_BASE_DOMAIN="${INPUT_ROUTE53_BASE_DOMAIN:-${DEV_ROUTE53_BASE_DOMAIN}}"
+
+          [[ -n "${EFFECTIVE_API_IMAGE}" ]] && PLAN_ARGS+=(-var "api_image=${EFFECTIVE_API_IMAGE}")
+          [[ -n "${EFFECTIVE_WORKER_IMAGE}" ]] && PLAN_ARGS+=(-var "worker_image=${EFFECTIVE_WORKER_IMAGE}")
+          [[ -n "${INPUT_INGRESS_CERTIFICATE_ARN}" ]] && PLAN_ARGS+=(-var "ingress_certificate_arn=${INPUT_INGRESS_CERTIFICATE_ARN}")
+          [[ -n "${EFFECTIVE_ZONE_ID}" ]] && PLAN_ARGS+=(-var "route53_zone_id=${EFFECTIVE_ZONE_ID}")
+          [[ -n "${EFFECTIVE_BASE_DOMAIN}" ]] && PLAN_ARGS+=(-var "route53_base_domain=${EFFECTIVE_BASE_DOMAIN}")
+
+          terraform plan "${PLAN_ARGS[@]}" -lock-timeout=5m -no-color -out=tfapply.plan
+          terraform apply -auto-approve tfapply.plan
+
+  destroy-manual:
+    name: Terraform Destroy (dev, manual)
+    if: github.event_name == 'workflow_dispatch' && inputs.destroy
+    runs-on: ubuntu-latest
+    environment: dev
+    defaults:
+      run:
+        working-directory: terraform/dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_DEV_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Require explicit destroy confirmation
+        env:
+          INPUT_DESTROY_CONFIRM: ${{ inputs.destroy_confirm }}
+        run: |
+          if [[ "${INPUT_DESTROY_CONFIRM}" != "destroy-dev" ]]; then
+            echo "Refusing destroy: set destroy_confirm=destroy-dev"
+            exit 1
+          fi
+
+      - name: Terraform init
+        run: |
+          STATE_BUCKET="${TF_STATE_BUCKET:-alfred-terraform-state}"
+          STATE_REGION="${TF_STATE_REGION:-$AWS_REGION}"
+          STATE_KEY="${TF_STATE_KEY_DEV:-dev/terraform.tfstate}"
+
+          terraform init \
+            -backend-config="bucket=${STATE_BUCKET}" \
+            -backend-config="key=${STATE_KEY}" \
+            -backend-config="region=${STATE_REGION}" \
+            -backend-config="use_lockfile=true" \
+            -backend-config="encrypt=true"
+
+      - name: Terraform destroy
+        env:
+          INPUT_API_IMAGE: ${{ inputs.api_image }}
+          INPUT_WORKER_IMAGE: ${{ inputs.worker_image }}
+          INPUT_INGRESS_CERTIFICATE_ARN: ${{ inputs.ingress_certificate_arn }}
+          INPUT_ROUTE53_ZONE_ID: ${{ inputs.route53_zone_id }}
+          INPUT_ROUTE53_BASE_DOMAIN: ${{ inputs.route53_base_domain }}
+        run: |
+          PLAN_ARGS=(-var-file=terraform.tfvars)
+
+          EFFECTIVE_API_IMAGE="${INPUT_API_IMAGE:-${DEV_API_IMAGE}}"
+          EFFECTIVE_WORKER_IMAGE="${INPUT_WORKER_IMAGE:-${DEV_WORKER_IMAGE}}"
+          EFFECTIVE_ZONE_ID="${INPUT_ROUTE53_ZONE_ID:-${DEV_ROUTE53_ZONE_ID}}"
+          EFFECTIVE_BASE_DOMAIN="${INPUT_ROUTE53_BASE_DOMAIN:-${DEV_ROUTE53_BASE_DOMAIN}}"
+
+          [[ -n "${EFFECTIVE_API_IMAGE}" ]] && PLAN_ARGS+=(-var "api_image=${EFFECTIVE_API_IMAGE}")
+          [[ -n "${EFFECTIVE_WORKER_IMAGE}" ]] && PLAN_ARGS+=(-var "worker_image=${EFFECTIVE_WORKER_IMAGE}")
+          [[ -n "${INPUT_INGRESS_CERTIFICATE_ARN}" ]] && PLAN_ARGS+=(-var "ingress_certificate_arn=${INPUT_INGRESS_CERTIFICATE_ARN}")
+          [[ -n "${EFFECTIVE_ZONE_ID}" ]] && PLAN_ARGS+=(-var "route53_zone_id=${EFFECTIVE_ZONE_ID}")
+          [[ -n "${EFFECTIVE_BASE_DOMAIN}" ]] && PLAN_ARGS+=(-var "route53_base_domain=${EFFECTIVE_BASE_DOMAIN}")
+
+          terraform plan -destroy "${PLAN_ARGS[@]}" -lock-timeout=5m -no-color -out=tfdestroy.plan
+          terraform apply -auto-approve tfdestroy.plan

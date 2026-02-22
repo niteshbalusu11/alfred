@@ -25,6 +25,12 @@ variable "num_cache_clusters" {
   default     = 1
 }
 
+variable "engine_version" {
+  description = "Valkey engine version."
+  type        = string
+  default     = "8.2"
+}
+
 variable "port" {
   description = "Valkey listener port."
   type        = number
@@ -34,7 +40,7 @@ variable "port" {
 variable "parameter_group_name" {
   description = "Valkey parameter group name."
   type        = string
-  default     = "default.valkey7"
+  default     = "default.valkey8"
 }
 
 variable "at_rest_encryption_enabled" {

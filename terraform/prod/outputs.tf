@@ -28,6 +28,11 @@ output "api_fqdn" {
   value       = module.environment.api_fqdn
 }
 
+output "ingress_certificate_arn" {
+  description = "Effective ACM certificate ARN used for HTTPS ingress."
+  value       = module.environment.ingress_certificate_arn
+}
+
 output "ecs_cluster_name" {
   description = "ECS cluster name."
   value       = module.environment.ecs_cluster_name
