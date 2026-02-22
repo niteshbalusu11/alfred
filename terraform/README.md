@@ -109,12 +109,21 @@ All environment differences are variable-driven through `terraform/dev` and `ter
 - Keep non-secret runtime configuration in:
   - `api_environment`
   - `worker_environment`
+- Enclave-runtime-specific secrets (for example `TEE_ATTESTATION_SIGNING_PRIVATE_KEY` and `ASSISTANT_INGRESS_ACTIVE_PRIVATE_KEY`) are not yet fully wired by default. To wire them end-to-end:
+  - set `enclave_ssm_secret_arns` and/or `enclave_secrets_manager_arns`
+  - attach read permissions for those ARNs to the enclave host runtime identity
+  - provide `enclave_user_data` that fetches secrets and exports runtime env for the enclave service process
+  - ensure enclave runtime process/service bootstrap is installed and started on the enclave parent host
 - Current tfvars convention uses these SSM parameter paths:
   - `alfred/<env>/shared/DATABASE_URL`
   - `alfred/<env>/shared/DATA_ENCRYPTION_KEY`
+  - `alfred/<env>/shared/KMS_KEY_ID`
+  - `alfred/<env>/shared/GOOGLE_OAUTH_CLIENT_ID`
   - `alfred/<env>/shared/GOOGLE_OAUTH_CLIENT_SECRET`
   - `alfred/<env>/shared/ENCLAVE_RPC_SHARED_SECRET`
   - `alfred/<env>/api/CLERK_SECRET_KEY`
+  - `alfred/<env>/worker/APNS_KEY_ID`
+  - `alfred/<env>/worker/APNS_TEAM_ID`
   - `alfred/<env>/worker/APNS_AUTH_KEY_P8_BASE64`
 
 ## Remote State Bootstrap (One-Time)
@@ -202,6 +211,10 @@ Workflow: `.github/workflows/terraform-dev.yml`
 2. Manual dev deploy test is supported via `workflow_dispatch`:
    1. set `apply=true`
    2. optional input overrides for image URIs, certificate ARN override, and Route53 values
+3. Manual dev destroy is supported via `workflow_dispatch`:
+   1. set `destroy=true`
+   2. set `destroy_confirm=destroy-dev`
+   3. optional input overrides for image URIs, certificate ARN override, and Route53 values
 
 Required GitHub secret:
 
