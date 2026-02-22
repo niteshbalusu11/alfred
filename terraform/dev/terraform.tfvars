@@ -8,6 +8,73 @@ additional_tags = {
 # api_image    = "<account>.dkr.ecr.us-east-2.amazonaws.com/alfred/api-server:sha-<commit>"
 # worker_image = "<account>.dkr.ecr.us-east-2.amazonaws.com/alfred/worker:sha-<commit>"
 
+# Non-secret runtime environment (hardcoded by design).
+api_environment = {
+  ALFRED_ENV                           = "staging"
+  ENCLAVE_RUNTIME_MODE                 = "remote"
+  ENCLAVE_RUNTIME_BASE_URL             = "https://enclave.alfred-dev.noderunner.wtf:8443"
+  ENCLAVE_RUNTIME_PROBE_TIMEOUT_MS     = "2000"
+  ENCLAVE_RPC_AUTH_MAX_SKEW_SECONDS    = "30"
+  TEE_ATTESTATION_REQUIRED             = "true"
+  TEE_ALLOW_INSECURE_DEV_ATTESTATION   = "false"
+  TEE_EXPECTED_RUNTIME                 = "nitro"
+  TEE_ALLOWED_MEASUREMENTS             = "REPLACE_WITH_DEV_MEASUREMENT"
+  KMS_ALLOWED_MEASUREMENTS             = "REPLACE_WITH_DEV_MEASUREMENT"
+  TEE_ATTESTATION_PUBLIC_KEY           = "REPLACE_WITH_BASE64_ED25519_PUBLIC_KEY"
+  TEE_ATTESTATION_MAX_AGE_SECONDS      = "300"
+  TEE_ATTESTATION_CHALLENGE_TIMEOUT_MS = "2000"
+  KMS_KEY_ID                           = "REPLACE_WITH_DEV_KMS_KEY_ID"
+  KMS_KEY_VERSION                      = "1"
+  GOOGLE_OAUTH_CLIENT_ID               = "REPLACE_WITH_GOOGLE_OAUTH_CLIENT_ID"
+  GOOGLE_OAUTH_REDIRECT_URI            = "https://api.alfred-dev.noderunner.wtf/oauth/callback"
+  CLERK_ISSUER                         = "REPLACE_WITH_CLERK_ISSUER"
+  CLERK_AUDIENCE                       = "alfred-api"
+  OPENROUTER_MODEL_PRIMARY             = "openai/gpt-4o-mini"
+  OPENROUTER_MODEL_FALLBACK            = "anthropic/claude-3.5-haiku"
+}
+
+worker_environment = {
+  ALFRED_ENV                           = "staging"
+  ENCLAVE_RUNTIME_MODE                 = "remote"
+  ENCLAVE_RUNTIME_BASE_URL             = "https://enclave.alfred-dev.noderunner.wtf:8443"
+  ENCLAVE_RUNTIME_PROBE_TIMEOUT_MS     = "2000"
+  ENCLAVE_RPC_AUTH_MAX_SKEW_SECONDS    = "30"
+  TEE_ATTESTATION_REQUIRED             = "true"
+  TEE_ALLOW_INSECURE_DEV_ATTESTATION   = "false"
+  TEE_EXPECTED_RUNTIME                 = "nitro"
+  TEE_ALLOWED_MEASUREMENTS             = "REPLACE_WITH_DEV_MEASUREMENT"
+  KMS_ALLOWED_MEASUREMENTS             = "REPLACE_WITH_DEV_MEASUREMENT"
+  TEE_ATTESTATION_PUBLIC_KEY           = "REPLACE_WITH_BASE64_ED25519_PUBLIC_KEY"
+  TEE_ATTESTATION_MAX_AGE_SECONDS      = "300"
+  TEE_ATTESTATION_CHALLENGE_TIMEOUT_MS = "2000"
+  KMS_KEY_ID                           = "REPLACE_WITH_DEV_KMS_KEY_ID"
+  KMS_KEY_VERSION                      = "1"
+  GOOGLE_OAUTH_CLIENT_ID               = "REPLACE_WITH_GOOGLE_OAUTH_CLIENT_ID"
+  APNS_KEY_ID                          = "REPLACE_WITH_APNS_KEY_ID"
+  APNS_TEAM_ID                         = "REPLACE_WITH_APNS_TEAM_ID"
+  APNS_TOPIC                           = "com.prodata.alfred.dev"
+  OPENROUTER_MODEL_PRIMARY             = "openai/gpt-4o-mini"
+  OPENROUTER_MODEL_FALLBACK            = "anthropic/claude-3.5-haiku"
+  WORKER_TICK_SECONDS                  = "30"
+}
+
+# Secret env vars from SSM (SecureString).
+api_ssm_secret_arns = {
+  DATABASE_URL               = "arn:aws:ssm:us-east-2:798572836804:parameter/alfred/dev/shared/DATABASE_URL"
+  DATA_ENCRYPTION_KEY        = "arn:aws:ssm:us-east-2:798572836804:parameter/alfred/dev/shared/DATA_ENCRYPTION_KEY"
+  GOOGLE_OAUTH_CLIENT_SECRET = "arn:aws:ssm:us-east-2:798572836804:parameter/alfred/dev/shared/GOOGLE_OAUTH_CLIENT_SECRET"
+  CLERK_SECRET_KEY           = "arn:aws:ssm:us-east-2:798572836804:parameter/alfred/dev/api/CLERK_SECRET_KEY"
+  ENCLAVE_RPC_SHARED_SECRET  = "arn:aws:ssm:us-east-2:798572836804:parameter/alfred/dev/shared/ENCLAVE_RPC_SHARED_SECRET"
+}
+
+worker_ssm_secret_arns = {
+  DATABASE_URL               = "arn:aws:ssm:us-east-2:798572836804:parameter/alfred/dev/shared/DATABASE_URL"
+  DATA_ENCRYPTION_KEY        = "arn:aws:ssm:us-east-2:798572836804:parameter/alfred/dev/shared/DATA_ENCRYPTION_KEY"
+  GOOGLE_OAUTH_CLIENT_SECRET = "arn:aws:ssm:us-east-2:798572836804:parameter/alfred/dev/shared/GOOGLE_OAUTH_CLIENT_SECRET"
+  ENCLAVE_RPC_SHARED_SECRET  = "arn:aws:ssm:us-east-2:798572836804:parameter/alfred/dev/shared/ENCLAVE_RPC_SHARED_SECRET"
+  APNS_AUTH_KEY_P8_BASE64    = "arn:aws:ssm:us-east-2:798572836804:parameter/alfred/dev/worker/APNS_AUTH_KEY_P8_BASE64"
+}
+
 # Dev profile: small ECS tasks.
 api_task_cpu         = 256
 api_task_memory      = 512

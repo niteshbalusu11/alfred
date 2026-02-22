@@ -26,6 +26,20 @@ locals {
   auto_ingress_certificate_enabled = var.ingress_auto_create_certificate && local.dns_enabled
   create_ingress_certificate       = local.auto_ingress_certificate_enabled && !local.has_explicit_ingress_certificate
   ingress_certificate_arn          = local.create_ingress_certificate ? module.acm_certificate[0].certificate_arn : var.ingress_certificate_arn
+
+  default_redis_url = format("rediss://%s:%d/0", module.valkey.primary_endpoint, module.valkey.port)
+
+  default_api_environment = {
+    API_BIND_ADDR = format("0.0.0.0:%d", var.api_port)
+    REDIS_URL     = local.default_redis_url
+  }
+
+  default_worker_environment = {
+    REDIS_URL = local.default_redis_url
+  }
+
+  effective_api_environment    = merge(local.default_api_environment, var.api_environment)
+  effective_worker_environment = merge(local.default_worker_environment, var.worker_environment)
 }
 
 check "ingress_certificate_config" {
@@ -157,8 +171,8 @@ module "ecs_services" {
   api_target_group_arn        = module.ingress.target_group_arn
   api_log_group_name          = module.observability.api_log_group_name
   worker_log_group_name       = module.observability.worker_log_group_name
-  api_environment             = var.api_environment
-  worker_environment          = var.worker_environment
+  api_environment             = local.effective_api_environment
+  worker_environment          = local.effective_worker_environment
   api_secrets                 = module.secrets_wiring.api_ecs_secrets
   worker_secrets              = module.secrets_wiring.worker_ecs_secrets
 

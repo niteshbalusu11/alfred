@@ -28,6 +28,13 @@ Image inputs consumed by environment wrappers:
 - `api_image`
 - `worker_image`
 
+Runtime env inputs consumed by environment wrappers:
+
+- `api_environment` (non-secret env vars)
+- `worker_environment` (non-secret env vars)
+- `api_ssm_secret_arns` (API secret env var name -> SSM parameter ARN)
+- `worker_ssm_secret_arns` (worker secret env var name -> SSM parameter ARN)
+
 ## Dev Cost-Sensitive Defaults
 
 `terraform/dev/terraform.tfvars` sets explicit low-cost defaults for development:
@@ -91,6 +98,24 @@ All environment differences are variable-driven through `terraform/dev` and `ter
   - `api.alfred-prod.<domain>`
 - Worker/enclave remain private services; Terraform outputs suggested names for future private DNS.
 - `terraform/prod/terraform.tfvars` uses production-oriented capacity and lifecycle defaults (see matrix above).
+
+## Runtime Secret Handling
+
+- App/runtime secrets are not auto-created by Terraform.
+- Store secrets as SSM `SecureString` parameters.
+- Inject secrets into ECS by setting:
+  - `api_ssm_secret_arns`
+  - `worker_ssm_secret_arns`
+- Keep non-secret runtime configuration in:
+  - `api_environment`
+  - `worker_environment`
+- Current tfvars convention uses these SSM parameter paths:
+  - `alfred/<env>/shared/DATABASE_URL`
+  - `alfred/<env>/shared/DATA_ENCRYPTION_KEY`
+  - `alfred/<env>/shared/GOOGLE_OAUTH_CLIENT_SECRET`
+  - `alfred/<env>/shared/ENCLAVE_RPC_SHARED_SECRET`
+  - `alfred/<env>/api/CLERK_SECRET_KEY`
+  - `alfred/<env>/worker/APNS_AUTH_KEY_P8_BASE64`
 
 ## Remote State Bootstrap (One-Time)
 
