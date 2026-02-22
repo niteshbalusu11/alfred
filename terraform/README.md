@@ -35,7 +35,7 @@ Image inputs consumed by environment wrappers:
 - ECS: `api` and `worker` set to `256 CPU / 512 MiB`, desired count `1`
 - RDS: `db.t4g.micro`, `postgres 18`, single-AZ (`multi_az = false`), automated backups disabled
 - Valkey: `cache.t4g.micro`, `valkey 8.2`, single cache node
-- Enclave host: one `c6i.large` parent host
+- Enclave host: one `c6i.xlarge` parent host
 - Observability: 7-day log retention and alarms disabled by default
 
 ## Prod Reliability Defaults
@@ -72,7 +72,7 @@ All environment differences are variable-driven through `terraform/dev` and `ter
 | `valkey_node_type` | `cache.t4g.micro` | `cache.t4g.small` |
 | `valkey_num_cache_clusters` | `1` | `2` |
 | `valkey_engine_version` | `8.2` | `8.2` |
-| `enclave_instance_type` | `c6i.large` | `c7i.xlarge` |
+| `enclave_instance_type` | `c6i.xlarge` | `c7i.xlarge` |
 | `alb_deletion_protection` | module default (`false`) | `true` |
 | `log_retention_days` | `7` | `30` |
 | `create_alarms` | `false` | `true` |

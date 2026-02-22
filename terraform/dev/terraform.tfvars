@@ -29,7 +29,7 @@ valkey_node_type          = "cache.t4g.micro"
 valkey_num_cache_clusters = 1
 
 # Dev profile: single enclave parent host.
-enclave_instance_type = "c6i.large"
+enclave_instance_type = "c6i.xlarge"
 
 # Dev profile: minimal observability cost.
 log_retention_days = 7
